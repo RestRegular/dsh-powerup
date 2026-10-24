@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none">
+  <defs>
+    <linearGradient id="dsh-powerup-bg" x1="32" y1="24" x2="224" y2="232" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B5CF6"/>
+      <stop offset="0.55" stop-color="#6D3BE0"/>
+      <stop offset="1" stop-color="#4C1D95"/>
+    </linearGradient>
+    <radialGradient id="dsh-powerup-glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(80 56) rotate(45) scale(190)">
+      <stop stop-color="#FFFFFF" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="dsh-powerup-chevron" x1="78" y1="56" x2="178" y2="178" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#D8FFF4"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="224" height="224" rx="56" fill="url(#dsh-powerup-bg)"/>
+  <rect x="16" y="16" width="224" height="224" rx="56" fill="url(#dsh-powerup-glow)"/>
+  <path d="M78 102 128 56l50 46" stroke="url(#dsh-powerup-chevron)" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M78 178 128 132l50 46" stroke="#9DF2DB" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M96 212h64" stroke="#FFC94D" stroke-width="10" stroke-linecap="round"/>
+</svg>

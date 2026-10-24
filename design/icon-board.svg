@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="430" viewBox="0 0 760 430" fill="none" font-family="Segoe UI, PingFang SC, sans-serif">
+  <defs>
+    <symbol id="pu-brand" viewBox="0 0 256 256">
+      <defs>
+        <linearGradient id="pu-bg" x1="32" y1="24" x2="224" y2="232" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#8B5CF6"/>
+          <stop offset="0.55" stop-color="#6D3BE0"/>
+          <stop offset="1" stop-color="#4C1D95"/>
+        </linearGradient>
+        <linearGradient id="pu-chevron" x1="78" y1="56" x2="178" y2="178" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#FFFFFF"/>
+          <stop offset="1" stop-color="#D8FFF4"/>
+        </linearGradient>
+      </defs>
+      <rect x="16" y="16" width="224" height="224" rx="56" fill="url(#pu-bg)"/>
+      <path d="M78 102 128 56l50 46" stroke="url(#pu-chevron)" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M78 178 128 132l50 46" stroke="#9DF2DB" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M96 212h64" stroke="#FFC94D" stroke-width="10" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="pu-line" viewBox="0 0 16 16">
+      <rect x="1.65" y="1.65" width="12.7" height="12.7" rx="3.8" fill="none" stroke="currentColor" stroke-width="1.3"/>
+      <path d="M4.2 5.8 8 2.7l3.8 3.1M4.2 10.9 8 7.8l3.8 3.1" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M5.8 13.1h4.4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+    </symbol>
+  </defs>
+
+  <rect width="380" height="430" fill="#F4F5F8"/>
+  <text x="40" y="48" fill="#6B7280" font-size="12" font-weight="600" letter-spacing="1.4">LIGHT</text>
+  <rect x="40" y="68" width="300" height="322" rx="16" fill="#FFFFFF" stroke="#E4E6EC"/>
+
+  <use href="#pu-brand" x="76" y="96" width="96" height="96"/>
+  <use href="#pu-brand" x="76" y="226" width="64" height="64"/>
+  <text x="248" y="120" fill="#9CA3AF" font-size="10.5">plugin panel icon</text>
+  <text x="248" y="136" fill="#C4C8D0" font-size="10">256 SVG · shown 30–40px</text>
+  <text x="248" y="252" fill="#9CA3AF" font-size="10.5">compact tile</text>
+  <text x="248" y="268" fill="#C4C8D0" font-size="10">40px</text>
+
+  <g color="#4B5563">
+    <use href="#pu-line" x="76" y="320" width="16" height="16"/>
+    <use href="#pu-line" x="76" y="352" width="20" height="20"/>
+  </g>
+  <text x="104" y="332" fill="#6B7280" font-size="11">16px sidebar / nav row</text>
+  <text x="104" y="366" fill="#6B7280" font-size="11">20px hover / selected</text>
+  <text x="104" y="396" fill="#9CA3AF" font-size="10.5">stroke = currentColor · 1.3</text>
+
+  <rect x="380" width="380" height="430" fill="#17181C"/>
+  <text x="420" y="48" fill="#8B8D97" font-size="12" font-weight="600" letter-spacing="1.4">DARK</text>
+  <rect x="420" y="68" width="300" height="322" rx="16" fill="#222327" stroke="#33343A"/>
+
+  <use href="#pu-brand" x="456" y="96" width="96" height="96"/>
+  <use href="#pu-brand" x="456" y="226" width="64" height="64"/>
+  <text x="628" y="120" fill="#6F717B" font-size="10.5">plugin panel icon</text>
+  <text x="628" y="136" fill="#55575F" font-size="10">same artwork</text>
+  <text x="628" y="252" fill="#6F717B" font-size="10.5">compact tile</text>
+  <text x="628" y="268" fill="#55575F" font-size="10">40px</text>
+
+  <g color="#A8ADB8">
+    <use href="#pu-line" x="456" y="320" width="16" height="16"/>
+    <use href="#pu-line" x="456" y="352" width="20" height="20"/>
+  </g>
+  <text x="484" y="332" fill="#8B8D97" font-size="11">follows currentColor</text>
+  <text x="484" y="366" fill="#8B8D97" font-size="11">no fixed hue</text>
+  <text x="484" y="396" fill="#6F717B" font-size="10.5">stroke = currentColor · 1.3</text>
+</svg>

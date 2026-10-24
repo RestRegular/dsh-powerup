@@ -1,0 +1,72 @@
+{
+  "name": "@restregular/dsh-powerup",
+  "version": "0.2.0",
+  "description": "Power-Up — small, opt-in upgrades for DeepSeek Harness. Adds a right-click action menu to the Trajectory ledger and an update control for third-party plugins installed from the Plugins page, with version lookup, uninstall-and-reinstall through the Add plugin path, and an optional DSH restart. · 为 DeepSeek Harness 提供小型增强：在轨迹页面右键记录即可复制、引用、查看详情或从该记录 Fork；并在插件页为第三方已安装插件提供带版本查询的更新按钮，沿用「添加插件」的安装流程，并可重启 DSH 使更改生效。",
+  "icon": "./icon.svg",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "lib/restart.js",
+    "lib/restart-helper.cjs",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-session",
+        "@deepseek-ai/dsh-api-session-controller",
+        "@deepseek-ai/dsh-client-ui-workspace"
+      ]
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RestRegular/dsh-powerup.git"
+  },
+  "homepage": "https://github.com/RestRegular/dsh-powerup#readme",
+  "bugs": {
+    "url": "https://github.com/RestRegular/dsh-powerup/issues"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "deepseek",
+    "trajectory",
+    "context-menu",
+    "power-up"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "test": "node test/smoke.mjs"
+  },
+  "license": "MIT",
+  "author": "RestRegular"
+}
