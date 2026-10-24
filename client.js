@@ -44,7 +44,7 @@
 
       const NS = 'dsh-powerup';
       const SETTINGS_KEY = 'dsh-powerup:settings:v1';
-      const VERSION = '0.2.2';
+      const VERSION = '0.2.3';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
 
@@ -698,6 +698,9 @@
 .dsh-powerup-update-toggle .chevron{display:inline-flex;color:var(--dsw-alias-label-tertiary);transition:transform .16s ease}
 .dsh-powerup-update-toggle[aria-expanded=true] .chevron{transform:rotate(180deg);color:var(--dsw-alias-label-secondary)}
 .dsh-powerup-update-list{display:flex;flex-direction:column;max-height:240px;overflow-y:auto;border:.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-lg,10px);background:var(--dsw-alias-bg-layer-1);--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2)}
+.dsh-powerup-update-popover{position:fixed;z-index:1300;box-sizing:border-box;overflow-y:auto;pointer-events:auto;border:.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-lg,10px);background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2)}
+.dsh-powerup-update-popover.dsh-powerup-update-list{border-radius:var(--dsw-radius-lg,10px)}
+.dsh-powerup-update-popover.dsh-powerup-update-select-menu{display:flex;flex-direction:column;padding:4px}
 .dsh-powerup-update-list-head{position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 12px;border-bottom:.5px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:16px}
 .dsh-powerup-update-version{display:flex;align-items:center;gap:8px;width:100%;min-height:34px;padding:0 12px;border:0;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:12.5px;line-height:18px;text-align:left;cursor:pointer;font-variant-numeric:tabular-nums}
 .dsh-powerup-update-version>span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1503,6 +1506,33 @@
       }
 
       /**
+       * Place a floating panel under an anchor, flipping above when the space
+       * below is short, and clamp it to the viewport.
+       * @param {{ getBoundingClientRect: () => DOMRect }} anchor
+       * @param {number} minWidth
+       * @param {number} preferredHeight
+       * @returns {{ left: number, width: number, top?: number, bottom?: number, maxHeight: number }}
+       */
+      function popoverPlacement(anchor, minWidth, preferredHeight) {
+        const rect = anchor.getBoundingClientRect();
+        const gap = 6;
+        const margin = 12;
+        const viewportWidth = typeof window === 'undefined' ? 1280 : window.innerWidth;
+        const viewportHeight = typeof window === 'undefined' ? 900 : window.innerHeight;
+        const width = Math.min(Math.max(rect.width, minWidth), Math.max(200, viewportWidth - margin * 2));
+        const left = Math.min(Math.max(margin, rect.left), Math.max(margin, viewportWidth - width - margin));
+        const spaceBelow = viewportHeight - rect.bottom - margin - gap;
+        const spaceAbove = rect.top - margin - gap;
+        const above = spaceBelow < Math.min(preferredHeight, 180) && spaceAbove > spaceBelow;
+        return {
+          left,
+          width,
+          ...(above ? { bottom: viewportHeight - rect.top + gap } : { top: rect.bottom + gap }),
+          maxHeight: Math.max(120, Math.min(preferredHeight, above ? spaceAbove : spaceBelow)),
+        };
+      }
+
+      /**
        * The Plugins-page update control. It injects one icon button into each
        * third-party card of the built-in "Installed plugins" group, then owns
        * the dialog that removes the old version, installs the selected one
@@ -1516,7 +1546,10 @@
         const abortRef = useRef(null);
         const buttonsRef = useRef(new Set());
         const inputRef = useRef(null);
+        const versionRef = useRef(null);
+        const versionPanelRef = useRef(null);
         const registryRef = useRef(null);
+        const registryPanelRef = useRef(null);
         const versionSeq = useRef(0);
         const tRef = useRef((key, params) => translateCurrent(key, params));
         tRef.current = (key, params) => translateCurrent(key, params);
@@ -1547,6 +1580,17 @@
           abortRef.current = null;
           setView(null);
         }, [view]);
+
+        /** Dismiss both floating panels without touching the dialog. */
+        const closePopovers = useCallback(() => {
+          setView((current) => current === null ? current : {
+            ...current,
+            listOpen: false,
+            listPopover: null,
+            registryOpen: false,
+            registryPopover: null,
+          });
+        }, []);
 
         const loadVersions = useCallback(async (token, name, choice, choices, resetVersion) => {
           const t = tRef.current;
@@ -1606,8 +1650,10 @@
             versionsError: null,
             versionsRegistry: null,
             version: '',
-            listOpen: true,
+            listOpen: false,
+            listPopover: null,
             registryOpen: false,
+            registryPopover: null,
             error: null,
             formError: null,
             log: '',
@@ -1700,19 +1746,18 @@
           }
         }, [view === null ? null : view.phase]);
 
-        // Escape closes the innermost popover first: registry menu, then the
-        // version list, then the dialog itself.
+        // Escape closes the innermost floating panel first, then the dialog.
         useEffect(() => {
           if (view === null) return undefined;
           const onKeyDown = (event) => {
             if (event.key !== 'Escape') return;
             event.stopPropagation();
             if (view.registryOpen === true) {
-              setView((current) => current === null ? current : { ...current, registryOpen: false });
+              setView((current) => current === null ? current : { ...current, registryOpen: false, registryPopover: null });
               return;
             }
             if (view.phase === 'choose' && view.listOpen === true) {
-              setView((current) => current === null ? current : { ...current, listOpen: false });
+              setView((current) => current === null ? current : { ...current, listOpen: false, listPopover: null });
               return;
             }
             close();
@@ -1721,17 +1766,42 @@
           return () => document.removeEventListener('keydown', onKeyDown, true);
         }, [view, close]);
 
-        // A click outside the custom registry select closes only its menu.
+        // Clicking outside the open floating panel and its trigger dismisses it.
         useEffect(() => {
-          if (view === null || view.registryOpen !== true) return undefined;
+          if (view === null || (view.registryOpen !== true && view.listOpen !== true)) return undefined;
           const onPointerDown = (event) => {
-            const root = registryRef.current;
-            if (root !== null && event.target instanceof Node && root.contains(event.target)) return;
-            setView((current) => current === null ? current : { ...current, registryOpen: false });
+            const target = event.target;
+            if (!(target instanceof Node)) return;
+            const inside = [versionRef.current, versionPanelRef.current, registryRef.current, registryPanelRef.current]
+              .some((root) => root !== null && root.contains(target));
+            if (inside) return;
+            closePopovers();
           };
           document.addEventListener('pointerdown', onPointerDown, true);
           return () => document.removeEventListener('pointerdown', onPointerDown, true);
-        }, [view === null ? null : view.registryOpen]);
+        }, [view === null ? null : `${String(view.registryOpen)}:${String(view.listOpen)}`, closePopovers]);
+
+        // Scrolling the dialog or the page would leave a fixed panel behind;
+        // dismiss it instead. Scrolling inside the panel itself is allowed.
+        useEffect(() => {
+          if (view === null || (view.registryOpen !== true && view.listOpen !== true)) return undefined;
+          const onScroll = (event) => {
+            const target = event.target;
+            if (target instanceof Node) {
+              const insidePanel = [versionPanelRef.current, registryPanelRef.current]
+                .some((panel) => panel !== null && panel.contains(target));
+              if (insidePanel) return;
+            }
+            closePopovers();
+          };
+          const onResize = () => closePopovers();
+          document.addEventListener('scroll', onScroll, true);
+          window.addEventListener('resize', onResize);
+          return () => {
+            document.removeEventListener('scroll', onScroll, true);
+            window.removeEventListener('resize', onResize);
+          };
+        }, [view === null ? null : `${String(view.registryOpen)}:${String(view.listOpen)}`, closePopovers]);
 
         // Show pnpm output while an installation runs.
         useEffect(() => {
@@ -1756,7 +1826,7 @@
 
         const chooseVersion = (version) => {
           if (tokenRef.current === null) return;
-          setView((current) => current === null ? current : { ...current, version, listOpen: false, formError: null });
+          setView((current) => current === null ? current : { ...current, version, listOpen: false, listPopover: null, formError: null });
         };
 
         const chooseRegistry = (key) => {
@@ -1766,8 +1836,46 @@
           if (current === null) return;
           const choice = current.choices.find((item) => item.key === key);
           if (choice === undefined) return;
-          setView((state) => state === null ? state : { ...state, registryKey: key, registryOpen: false, formError: null });
+          setView((state) => state === null ? state : { ...state, registryKey: key, registryOpen: false, registryPopover: null, formError: null });
           loadVersions(token, current.name, choice, current.choices, true);
+        };
+
+        /** Open or close the floating version list under the input row. */
+        const toggleVersionList = () => {
+          const current = view;
+          if (current === null || current.phase !== 'choose') return;
+          if (current.listOpen === true) {
+            setView((state) => state === null ? state : { ...state, listOpen: false, listPopover: null });
+            return;
+          }
+          const anchor = versionRef.current;
+          const popover = anchor === null ? null : popoverPlacement(anchor, 280, 260);
+          setView((state) => state === null ? state : {
+            ...state,
+            listOpen: true,
+            listPopover: popover,
+            registryOpen: false,
+            registryPopover: null,
+          });
+        };
+
+        /** Open or close the floating registry menu under its trigger. */
+        const toggleRegistry = () => {
+          const current = view;
+          if (current === null || current.phase !== 'choose') return;
+          if (current.registryOpen === true) {
+            setView((state) => state === null ? state : { ...state, registryOpen: false, registryPopover: null });
+            return;
+          }
+          const anchor = registryRef.current;
+          const popover = anchor === null ? null : popoverPlacement(anchor, 280, 220);
+          setView((state) => state === null ? state : {
+            ...state,
+            registryOpen: true,
+            registryPopover: popover,
+            listOpen: false,
+            listPopover: null,
+          });
         };
 
         const startUpdate = async () => {
@@ -1932,6 +2040,61 @@
 
         const currentChoice = view.choices.find((item) => item.key === view.registryKey) ?? view.choices[0];
 
+        /** Rows of the floating version list, including its loading/error states. */
+        const versionRows = (() => {
+          if (view.versionsState === 'loading') {
+            return [h('div', { key: 'state', className: 'dsh-powerup-update-list-state' },
+              h('div', { className: 'dsh-powerup-update-status' },
+                h('span', { className: 'dsh-powerup-update-spinner', 'aria-hidden': 'true' }),
+                t('update.loadingVersions'),
+              ),
+            )];
+          }
+          if (view.versionsState === 'error') {
+            return [h('div', { key: 'state', className: 'dsh-powerup-update-list-state' },
+              notice('error', h(WarnIcon, { size: 14 }), null, t('update.versionsFailed', { message: view.versionsError ?? '' })),
+              h('button', {
+                type: 'button',
+                className: 'dsh-powerup-update-ghost',
+                onClick: () => loadVersions(tokenRef.current, view.name, currentChoice, view.choices, false),
+              }, t('update.retry')),
+            )];
+          }
+          if ((view.versions ?? []).length === 0) {
+            return [h('div', { key: 'state', className: 'dsh-powerup-update-list-state' },
+              h('p', { className: 'dsh-powerup-update-note' }, t('update.versionsEmpty')),
+            )];
+          }
+          return [
+            h('div', { key: 'head', className: 'dsh-powerup-update-list-head' },
+              h('span', null, t('update.versionsCount', { count: view.versions.length })),
+              view.versionsRegistry === null || view.versionsRegistry === undefined
+                ? null
+                : h('span', { title: view.versionsRegistry.hint }, view.versionsRegistry.hint),
+            ),
+            ...view.versions.map((version) => {
+              const tagKind = versionTagKind(version, view.currentVersion, view.latest);
+              return h('button', {
+                key: version,
+                type: 'button',
+                role: 'option',
+                className: 'dsh-powerup-update-version',
+                'aria-selected': version === view.version ? 'true' : 'false',
+                'data-current': version === view.currentVersion ? '' : undefined,
+                onClick: () => chooseVersion(version),
+              },
+              h('span', null, version),
+              h('span', { className: 'dsh-powerup-update-trailing' },
+                tagKind === null ? null : h('span', {
+                  className: `dsh-powerup-update-tag${tagKind === 'latest' ? '' : ' is-current'}`,
+                }, t(tagKind === 'current-latest' ? 'update.currentAndLatest' : tagKind === 'current' ? 'update.currentTag' : 'update.latest')),
+                version === view.version ? h('span', { className: 'dsh-powerup-update-check' }, h(CheckIcon, { size: 13 })) : null,
+              ),
+              );
+            }),
+          ];
+        })();
+
         const body = (() => {
           if (view.phase === 'loading') {
             return h('div', { className: 'dsh-powerup-update-status' },
@@ -1946,59 +2109,6 @@
             return notice('error', h(WarnIcon, { size: 15 }), t('update.unsupportedTitle'), view.error ?? t('update.notRemovable'));
           }
           if (view.phase === 'choose') {
-            const rows = (() => {
-              if (view.versionsState === 'loading') {
-                return [h('div', { key: 'state', className: 'dsh-powerup-update-list-state' },
-                  h('div', { className: 'dsh-powerup-update-status' },
-                    h('span', { className: 'dsh-powerup-update-spinner', 'aria-hidden': 'true' }),
-                    t('update.loadingVersions'),
-                  ),
-                )];
-              }
-              if (view.versionsState === 'error') {
-                return [h('div', { key: 'state', className: 'dsh-powerup-update-list-state' },
-                  notice('error', h(WarnIcon, { size: 14 }), null, t('update.versionsFailed', { message: view.versionsError ?? '' })),
-                  h('button', {
-                    type: 'button',
-                    className: 'dsh-powerup-update-ghost',
-                    onClick: () => loadVersions(tokenRef.current, view.name, currentChoice, view.choices, false),
-                  }, t('update.retry')),
-                )];
-              }
-              if ((view.versions ?? []).length === 0) {
-                return [h('div', { key: 'state', className: 'dsh-powerup-update-list-state' },
-                  h('p', { className: 'dsh-powerup-update-note' }, t('update.versionsEmpty')),
-                )];
-              }
-              return [
-                h('div', { key: 'head', className: 'dsh-powerup-update-list-head' },
-                  h('span', null, t('update.versionsCount', { count: view.versions.length })),
-                  view.versionsRegistry === null || view.versionsRegistry === undefined
-                    ? null
-                    : h('span', { title: view.versionsRegistry.hint }, view.versionsRegistry.hint),
-                ),
-                ...view.versions.map((version) => {
-                  const tagKind = versionTagKind(version, view.currentVersion, view.latest);
-                  return h('button', {
-                    key: version,
-                    type: 'button',
-                    role: 'option',
-                    className: 'dsh-powerup-update-version',
-                    'aria-selected': version === view.version ? 'true' : 'false',
-                    'data-current': version === view.currentVersion ? '' : undefined,
-                    onClick: () => chooseVersion(version),
-                  },
-                  h('span', null, version),
-                  h('span', { className: 'dsh-powerup-update-trailing' },
-                    tagKind === null ? null : h('span', {
-                      className: `dsh-powerup-update-tag${tagKind === 'latest' ? '' : ' is-current'}`,
-                    }, t(tagKind === 'current-latest' ? 'update.currentAndLatest' : tagKind === 'current' ? 'update.currentTag' : 'update.latest')),
-                    version === view.version ? h('span', { className: 'dsh-powerup-update-check' }, h(CheckIcon, { size: 13 })) : null,
-                  ),
-                  );
-                }),
-              ];
-            })();
             return [
               h('div', { key: 'summary', className: 'dsh-powerup-update-summary' },
                 h('div', { className: 'dsh-powerup-update-now' },
@@ -2010,7 +2120,7 @@
               ),
               h('div', { key: 'version', className: 'dsh-powerup-update-field' },
                 h('label', { className: 'dsh-powerup-update-label', htmlFor: 'dsh-powerup-update-version' }, t('update.versionLabel')),
-                h('div', { className: 'dsh-powerup-update-row' },
+                h('div', { className: 'dsh-powerup-update-row', ref: versionRef },
                   h('input', {
                     id: 'dsh-powerup-update-version',
                     ref: inputRef,
@@ -2030,7 +2140,7 @@
                     className: 'dsh-powerup-update-toggle',
                     'aria-expanded': showVersions ? 'true' : 'false',
                     'aria-controls': 'dsh-powerup-update-versions',
-                    onClick: () => setView((current) => current === null ? current : { ...current, listOpen: !(current.listOpen === true) }),
+                    onClick: toggleVersionList,
                   },
                   showVersions ? t('update.hideVersions') : t('update.chooseVersion'),
                   h('span', { className: 'chevron' }, h(ChevronDownIcon, { size: 12 })),
@@ -2040,7 +2150,6 @@
                   ? null
                   : notice('error', h(WarnIcon, { size: 14 }), null, view.formError),
               ),
-              showVersions ? h('div', { key: 'versions', id: 'dsh-powerup-update-versions', className: 'dsh-powerup-update-list', role: 'listbox', 'aria-label': t('update.versionLabel') }, rows) : null,
               h('div', { key: 'registry', className: 'dsh-powerup-update-field' },
                 h('span', { className: 'dsh-powerup-update-label' }, t('update.registry')),
                 h('div', { className: 'dsh-powerup-update-select', ref: registryRef },
@@ -2049,27 +2158,12 @@
                     className: 'dsh-powerup-update-select-trigger',
                     'aria-haspopup': 'listbox',
                     'aria-expanded': view.registryOpen === true ? 'true' : 'false',
-                    onClick: () => setView((current) => current === null ? current : { ...current, registryOpen: !(current.registryOpen === true) }),
+                    onClick: toggleRegistry,
                   },
                   h('span', { className: 'dsh-powerup-update-select-value' }, currentChoice?.label ?? ''),
                   h('span', { className: 'dsh-powerup-update-select-host' }, currentChoice?.hint ?? ''),
                   h('span', { className: 'chevron' }, h(ChevronDownIcon, { size: 12 })),
                   ),
-                  view.registryOpen === true ? h('div', { className: 'dsh-powerup-update-select-menu', role: 'listbox', 'aria-label': t('update.registry') },
-                    view.choices.map((choice) => h('button', {
-                      key: choice.key,
-                      type: 'button',
-                      role: 'option',
-                      className: 'dsh-powerup-update-option',
-                      'aria-selected': choice.key === view.registryKey ? 'true' : 'false',
-                      onClick: () => chooseRegistry(choice.key),
-                    },
-                    h('span', { className: 'dsh-powerup-update-option-copy' },
-                      h('span', { className: 'dsh-powerup-update-option-title' }, choice.label),
-                      h('span', { className: 'dsh-powerup-update-option-host' }, choice.hint),
-                    ),
-                    choice.key === view.registryKey ? h('span', { className: 'dsh-powerup-update-check' }, h(CheckIcon, { size: 13 })) : null,
-                    ))) : null,
                 ),
                 view.versionsRegistry === null || view.versionsRegistry === undefined
                   ? null
@@ -2152,28 +2246,64 @@
           return null;
         })();
 
-        return h('div', {
-          className: 'dsh-powerup-update-mask',
-          onMouseDown: (event) => {
-            if (event.target === event.currentTarget) close();
+        const fallbackPopover = { left: 24, top: 120, width: 320, maxHeight: 260 };
+
+        return h(React.Fragment, null,
+          h('div', {
+            className: 'dsh-powerup-update-mask',
+            onMouseDown: (event) => {
+              if (event.target === event.currentTarget) close();
+            },
           },
-        },
-        h('div', {
-          className: 'dsh-powerup-update-dialog',
-          role: 'dialog',
-          'aria-modal': 'true',
-          'aria-labelledby': 'dsh-powerup-update-title',
-        },
-        h('div', { className: 'dsh-powerup-update-head' },
-          h('div', { className: 'dsh-powerup-update-heading' },
-            h('h2', { id: 'dsh-powerup-update-title' }, t('update.title')),
-            h('p', { title }, title),
+          h('div', {
+            className: 'dsh-powerup-update-dialog',
+            role: 'dialog',
+            'aria-modal': 'true',
+            'aria-labelledby': 'dsh-powerup-update-title',
+          },
+          h('div', { className: 'dsh-powerup-update-head' },
+            h('div', { className: 'dsh-powerup-update-heading' },
+              h('h2', { id: 'dsh-powerup-update-title' }, t('update.title')),
+              h('p', { title }, title),
+            ),
+            canClose ? h('button', { type: 'button', className: 'dsh-powerup-update-close', 'aria-label': t('update.close'), onClick: close }, '×') : null,
           ),
-          canClose ? h('button', { type: 'button', className: 'dsh-powerup-update-close', 'aria-label': t('update.close'), onClick: close }, '×') : null,
-        ),
-        h('div', { className: 'dsh-powerup-update-body' }, body),
-        footer.length === 0 ? null : h('div', { className: 'dsh-powerup-update-foot' }, footer),
-        ),
+          h('div', { className: 'dsh-powerup-update-body' }, body),
+          footer.length === 0 ? null : h('div', { className: 'dsh-powerup-update-foot' }, footer),
+          ),
+          ),
+          view.listOpen === true
+            ? h('div', {
+              id: 'dsh-powerup-update-versions',
+              ref: versionPanelRef,
+              className: 'dsh-powerup-update-popover dsh-powerup-update-list',
+              role: 'listbox',
+              'aria-label': t('update.versionLabel'),
+              style: view.listPopover ?? fallbackPopover,
+            }, versionRows)
+            : null,
+          view.registryOpen === true
+            ? h('div', {
+              ref: registryPanelRef,
+              className: 'dsh-powerup-update-popover dsh-powerup-update-select-menu',
+              role: 'listbox',
+              'aria-label': t('update.registry'),
+              style: view.registryPopover ?? fallbackPopover,
+            }, view.choices.map((choice) => h('button', {
+              key: choice.key,
+              type: 'button',
+              role: 'option',
+              className: 'dsh-powerup-update-option',
+              'aria-selected': choice.key === view.registryKey ? 'true' : 'false',
+              onClick: () => chooseRegistry(choice.key),
+            },
+            h('span', { className: 'dsh-powerup-update-option-copy' },
+              h('span', { className: 'dsh-powerup-update-option-title' }, choice.label),
+              h('span', { className: 'dsh-powerup-update-option-host' }, choice.hint),
+            ),
+            choice.key === view.registryKey ? h('span', { className: 'dsh-powerup-update-check' }, h(CheckIcon, { size: 13 })) : null,
+            )))
+            : null,
         );
       }
 
@@ -2548,6 +2678,7 @@
           PluginUpdateOverlay,
           ensureUpdateButtons,
           updateButtonLabel,
+          popoverPlacement,
           rowKeyParts,
           resolveForkSeq,
           markdownQuote,

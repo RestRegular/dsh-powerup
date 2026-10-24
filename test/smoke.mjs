@@ -349,6 +349,17 @@ assert.equal(update.versionTagKind('1.0.0', '1.0.0', '1.0.0'), 'current-latest',
 assert.equal(update.versionTagKind('1.0.0', '1.0.0', '2.0.0'), 'current');
 assert.equal(update.versionTagKind('2.0.0', '1.0.0', '2.0.0'), 'latest');
 assert.equal(update.versionTagKind('1.5.0', '1.0.0', '2.0.0'), null);
+
+const belowAnchor = { getBoundingClientRect: () => ({ left: 100, top: 300, bottom: 338, width: 300, height: 38 }) };
+const below = update.popoverPlacement(belowAnchor, 280, 260);
+assert.equal(below.left, 100);
+assert.equal(below.width, 300);
+assert.equal(below.top, 344, 'panel sits 6px below the anchor');
+assert.ok(below.maxHeight >= 120);
+const aboveAnchor = { getBoundingClientRect: () => ({ left: 100, top: 800, bottom: 838, width: 300, height: 38 }) };
+const above = update.popoverPlacement(aboveAnchor, 280, 260);
+assert.equal(above.top, undefined, 'panel flips above near the viewport bottom');
+assert.ok(above.bottom > 0);
 assert.equal(update.normalizeRegistry('https://registry.example.com'), 'https://registry.example.com/');
 assert.equal(update.registryHost('https://registry.npmmirror.com/'), 'registry.npmmirror.com');
 
@@ -582,7 +593,7 @@ assert.equal(typeof hostRoute.handler, 'function');
 // ---------------------------------------------------------------------------
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 assert.equal(pkg.name, '@restregular/dsh-powerup');
-assert.equal(pkg.version, '0.2.2');
+assert.equal(pkg.version, '0.2.3');
 assert.equal(pkg.icon, './icon.svg');
 assert.equal(pkg.exports['./client'], './client.js');
 assert.equal(pkg.dsh.bundle.patch, './cordis.patch.yml');

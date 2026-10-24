@@ -87,7 +87,9 @@ unload the dialog mid-flow. Use **Add plugin** with the new package version.
   `--dsw-elevation-prominent`, and the primary button uses
   `--dsw-alias-button-primary-fill` / `-hover`, so the dialog follows both
   themes instead of inventing its own palette. The registry picker and version
-  list are custom controls built from `--dsw-alias-*` tokens.
+  list are custom controls built from `--dsw-alias-*` tokens; both open as
+  fixed-position popovers anchored to their triggers, so they never grow the
+  dialog or get clipped by its scroll area.
 
 ## Development
 
