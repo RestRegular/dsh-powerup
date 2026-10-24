@@ -44,7 +44,7 @@
 
       const NS = 'dsh-powerup';
       const SETTINGS_KEY = 'dsh-powerup:settings:v1';
-      const VERSION = '0.2.1';
+      const VERSION = '0.2.2';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
 
@@ -126,6 +126,8 @@
           'update.versionsFailed': '读取版本失败：{message}',
           'update.versionsEmpty': '安装源没有返回可用版本',
           'update.latest': '最新',
+          'update.currentTag': '当前',
+          'update.currentAndLatest': '当前 · 最新',
           'update.retry': '重试',
           'update.registry': '安装源',
           'update.registryDefault': '默认安装源',
@@ -246,6 +248,8 @@
           'update.versionsFailed': 'Could not read versions: {message}',
           'update.versionsEmpty': 'The registry returned no versions',
           'update.latest': 'latest',
+          'update.currentTag': 'Current',
+          'update.currentAndLatest': 'Current · latest',
           'update.retry': 'Retry',
           'update.registry': 'Registry',
           'update.registryDefault': 'Default registry',
@@ -696,10 +700,13 @@
 .dsh-powerup-update-list{display:flex;flex-direction:column;max-height:240px;overflow-y:auto;border:.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-lg,10px);background:var(--dsw-alias-bg-layer-1);--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2)}
 .dsh-powerup-update-list-head{position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 12px;border-bottom:.5px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:16px}
 .dsh-powerup-update-version{display:flex;align-items:center;gap:8px;width:100%;min-height:34px;padding:0 12px;border:0;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:12.5px;line-height:18px;text-align:left;cursor:pointer;font-variant-numeric:tabular-nums}
+.dsh-powerup-update-version>span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dsh-powerup-update-version:hover{background:var(--dsw-alias-interactive-bg-hover)}
 .dsh-powerup-update-version[aria-selected=true]{background:var(--dsw-alias-interactive-bg-active)}
-.dsh-powerup-update-trailing{display:inline-flex;align-items:center;gap:8px;margin-left:auto}
-.dsh-powerup-update-tag{padding:0 6px;border:.5px solid var(--dsw-alias-border-l2);border-radius:999px;background:transparent;color:var(--dsw-alias-label-tertiary);font-size:10px;line-height:16px}
+.dsh-powerup-update-version[data-current]{box-shadow:inset 2px 0 0 var(--dsw-alias-state-business-primary)}
+.dsh-powerup-update-trailing{display:inline-flex;flex:none;align-items:center;gap:8px;margin-left:auto;white-space:nowrap}
+.dsh-powerup-update-tag{padding:0 6px;border:.5px solid var(--dsw-alias-border-l2);border-radius:999px;background:transparent;color:var(--dsw-alias-label-tertiary);font-size:10px;line-height:16px;white-space:nowrap}
+.dsh-powerup-update-tag.is-current{border-color:color-mix(in srgb,var(--dsw-alias-state-business-primary) 38%,transparent);background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 8%,transparent);color:var(--dsw-alias-state-business-primary)}
 .dsh-powerup-update-check{display:inline-flex;color:var(--dsw-alias-state-business-primary)}
 .dsh-powerup-update-status{display:flex;align-items:center;gap:10px;color:var(--dsw-alias-label-secondary);font-size:13px;line-height:20px}
 .dsh-powerup-update-spinner{flex:none;width:14px;height:14px;border:2px solid color-mix(in srgb,var(--dsw-alias-state-business-primary) 24%,transparent);border-top-color:var(--dsw-alias-state-business-primary);border-radius:50%;animation:dsh-powerup-spin .8s linear infinite}
@@ -1343,6 +1350,24 @@
       }
 
       /**
+       * Which status a version row carries. The installed and the latest
+       * version can be the same; that row gets one combined tag instead of two
+       * chips sharing the trailing space.
+       * @param {string} version
+       * @param {string | null | undefined} current
+       * @param {string | null | undefined} latest
+       * @returns {'current-latest' | 'current' | 'latest' | null}
+       */
+      function versionTagKind(version, current, latest) {
+        const isCurrent = typeof current === 'string' && current !== '' && version === current;
+        const isLatest = typeof latest === 'string' && latest !== '' && version === latest;
+        if (isCurrent && isLatest) return 'current-latest';
+        if (isCurrent) return 'current';
+        if (isLatest) return 'latest';
+        return null;
+      }
+
+      /**
        * Read the versions the registry publishes for one package. The
        * abbreviated metadata keeps the response small; both npm and npmmirror
        * send permissive CORS headers for this GET.
@@ -1952,20 +1977,26 @@
                     ? null
                     : h('span', { title: view.versionsRegistry.hint }, view.versionsRegistry.hint),
                 ),
-                ...view.versions.map((version) => h('button', {
-                  key: version,
-                  type: 'button',
-                  role: 'option',
-                  className: 'dsh-powerup-update-version',
-                  'aria-selected': version === view.version ? 'true' : 'false',
-                  onClick: () => chooseVersion(version),
-                },
-                h('span', null, version),
-                h('span', { className: 'dsh-powerup-update-trailing' },
-                  version === view.latest ? h('span', { className: 'dsh-powerup-update-tag' }, t('update.latest')) : null,
-                  version === view.version ? h('span', { className: 'dsh-powerup-update-check' }, h(CheckIcon, { size: 13 })) : null,
-                ),
-                )),
+                ...view.versions.map((version) => {
+                  const tagKind = versionTagKind(version, view.currentVersion, view.latest);
+                  return h('button', {
+                    key: version,
+                    type: 'button',
+                    role: 'option',
+                    className: 'dsh-powerup-update-version',
+                    'aria-selected': version === view.version ? 'true' : 'false',
+                    'data-current': version === view.currentVersion ? '' : undefined,
+                    onClick: () => chooseVersion(version),
+                  },
+                  h('span', null, version),
+                  h('span', { className: 'dsh-powerup-update-trailing' },
+                    tagKind === null ? null : h('span', {
+                      className: `dsh-powerup-update-tag${tagKind === 'latest' ? '' : ' is-current'}`,
+                    }, t(tagKind === 'current-latest' ? 'update.currentAndLatest' : tagKind === 'current' ? 'update.currentTag' : 'update.latest')),
+                    version === view.version ? h('span', { className: 'dsh-powerup-update-check' }, h(CheckIcon, { size: 13 })) : null,
+                  ),
+                  );
+                }),
               ];
             })();
             return [
@@ -2524,6 +2555,7 @@
           buildRowItems,
           buildSessionItems,
           sortVersions,
+          versionTagKind,
           compareVersionsDesc,
           buildRegistryChoices,
           pickRegistryChoice,

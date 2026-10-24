@@ -345,6 +345,10 @@ assert.deepEqual(
   update.sortVersions(['1.0.0', '1.10.0', '1.2.0', '1.2.0-beta.1', '1.2.0-beta.2', 'not-a-version']),
   ['1.10.0', '1.2.0', '1.2.0-beta.2', '1.2.0-beta.1', '1.0.0', 'not-a-version'],
 );
+assert.equal(update.versionTagKind('1.0.0', '1.0.0', '1.0.0'), 'current-latest', 'one combined tag when current is latest');
+assert.equal(update.versionTagKind('1.0.0', '1.0.0', '2.0.0'), 'current');
+assert.equal(update.versionTagKind('2.0.0', '1.0.0', '2.0.0'), 'latest');
+assert.equal(update.versionTagKind('1.5.0', '1.0.0', '2.0.0'), null);
 assert.equal(update.normalizeRegistry('https://registry.example.com'), 'https://registry.example.com/');
 assert.equal(update.registryHost('https://registry.npmmirror.com/'), 'registry.npmmirror.com');
 
@@ -578,7 +582,7 @@ assert.equal(typeof hostRoute.handler, 'function');
 // ---------------------------------------------------------------------------
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 assert.equal(pkg.name, '@restregular/dsh-powerup');
-assert.equal(pkg.version, '0.2.1');
+assert.equal(pkg.version, '0.2.2');
 assert.equal(pkg.icon, './icon.svg');
 assert.equal(pkg.exports['./client'], './client.js');
 assert.equal(pkg.dsh.bundle.patch, './cordis.patch.yml');
