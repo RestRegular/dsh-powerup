@@ -44,7 +44,7 @@
 
       const NS = 'dsh-powerup';
       const SETTINGS_KEY = 'dsh-powerup:settings:v1';
-      const VERSION = '0.2.0';
+      const VERSION = '0.2.1';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
 
@@ -121,6 +121,8 @@
           'update.loadingVersions': '正在从安装源读取版本…',
           'update.loading': '正在读取插件信息…',
           'update.chooseVersion': '选择版本',
+          'update.hideVersions': '收起列表',
+          'update.versionsCount': '共 {count} 个版本',
           'update.versionsFailed': '读取版本失败：{message}',
           'update.versionsEmpty': '安装源没有返回可用版本',
           'update.latest': '最新',
@@ -239,6 +241,8 @@
           'update.loadingVersions': 'Reading versions from the registry…',
           'update.loading': 'Reading the plugin…',
           'update.chooseVersion': 'Choose',
+          'update.hideVersions': 'Hide list',
+          'update.versionsCount': '{count} versions',
           'update.versionsFailed': 'Could not read versions: {message}',
           'update.versionsEmpty': 'The registry returned no versions',
           'update.latest': 'latest',
@@ -415,18 +419,19 @@
 
       function PowerUpLineIcon({ size = 16 }) {
         return h(Icon, { size },
-          h('rect', {
-            x: '1.65', y: '1.65', width: '12.7', height: '12.7', rx: '3.8',
-            fill: 'none', stroke: 'currentColor', strokeWidth: '1.3',
-          }),
           h('path', {
-            d: 'M4.2 5.8 8 2.7l3.8 3.1M4.2 10.9 8 7.8l3.8 3.1',
-            fill: 'none', stroke: 'currentColor', strokeWidth: '1.3',
+            d: 'M4.4 6.9 8 3.3l3.6 3.6',
+            fill: 'none', stroke: 'currentColor', strokeWidth: '1.4',
             strokeLinecap: 'round', strokeLinejoin: 'round',
           }),
           h('path', {
-            d: 'M5.8 13.1h4.4', fill: 'none', stroke: 'currentColor',
-            strokeWidth: '1.3', strokeLinecap: 'round',
+            d: 'M4.4 11.7 8 8.1l3.6 3.6',
+            fill: 'none', stroke: 'currentColor', strokeWidth: '1.4',
+            strokeLinecap: 'round', strokeLinejoin: 'round',
+          }),
+          h('path', {
+            d: 'M6.3 13.9h3.4', fill: 'none', stroke: 'currentColor',
+            strokeWidth: '1.4', strokeLinecap: 'round',
           }),
         );
       }
@@ -578,6 +583,16 @@
         );
       }
 
+      function ChevronDownIcon({ size = 12 }) {
+        return h(Icon, { size },
+          h('path', {
+            d: 'm4 6 4 4 4-4',
+            fill: 'none', stroke: 'currentColor', strokeWidth: '1.4',
+            strokeLinecap: 'round', strokeLinejoin: 'round',
+          }),
+        );
+      }
+
       function WarnIcon({ size = 16 }) {
         return h(Icon, { size },
           h('path', {
@@ -648,56 +663,86 @@
 @keyframes dsh-powerup-toast-in{from{opacity:0;transform:translate(-50%,5px)}to{opacity:1;transform:translate(-50%,0)}}
 .dsh-powerup-update-button{flex:none;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-caption);cursor:pointer}
 .dsh-powerup-update-button:hover{background:var(--dsw-alias-interactive-bg-hover,var(--dsw-alias-bg-layer-2));color:var(--dsw-alias-label-secondary)}
-.dsh-powerup-update-button:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:1px}
-.dsh-powerup-update-mask{position:fixed;inset:0;z-index:1200;display:flex;align-items:center;justify-content:center;padding:24px;background:color-mix(in srgb,var(--dsw-alias-bg-base) 62%,transparent);pointer-events:auto}
-.dsh-powerup-update-dialog{display:flex;flex-direction:column;width:min(560px,100%);max-height:min(760px,calc(100vh - 48px));border:1px solid var(--dsw-alias-border-l2);border-radius:14px;background:var(--dsw-alias-bg-overlay,var(--dsw-alias-bg-layer-1));box-shadow:var(--dsw-elevation-prominent,0 24px 64px rgba(15,23,42,.28));color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.5;overflow:hidden}
-.dsh-powerup-update-head{display:flex;align-items:center;gap:11px;padding:16px 18px 12px;border-bottom:1px solid var(--dsw-alias-border-l1)}
-.dsh-powerup-update-icon{flex:none;display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:9px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary)}
+.dsh-powerup-update-mask{position:fixed;inset:0;z-index:1200;display:flex;align-items:center;justify-content:center;padding:24px;background:var(--dsw-alias-bg-mask-1);backdrop-filter:var(--dsw-mask-blur,blur(3px));pointer-events:auto;animation:dsh-powerup-update-fade .16s ease-out}
+@keyframes dsh-powerup-update-fade{from{opacity:0}to{opacity:1}}
+.dsh-powerup-update-dialog{box-sizing:border-box;position:relative;display:flex;flex-direction:column;width:min(560px,100%);max-height:min(760px,calc(100vh - 48px));max-height:min(760px,calc(100dvh - 48px));border-radius:var(--dsw-radius-panel,14px);background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);color:var(--dsw-alias-label-primary);font-size:13px;line-height:20px;overflow:hidden;animation:dsh-powerup-update-rise .18s cubic-bezier(.2,.8,.3,1)}
+@keyframes dsh-powerup-update-rise{from{opacity:0;transform:translateY(6px) scale(.995)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.dsh-powerup-update-mask,.dsh-powerup-update-dialog{animation:none}}
+.dsh-powerup-update-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:22px 14px 12px 24px}
 .dsh-powerup-update-heading{flex:1 1 auto;min-width:0}
-.dsh-powerup-update-heading h2{margin:0;font-size:15px;font-weight:650;line-height:1.3}
-.dsh-powerup-update-heading p{margin:2px 0 0;color:var(--dsw-alias-label-tertiary);font-size:11.5px;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.dsh-powerup-update-close{flex:none;width:26px;height:26px;padding:0;border:0;border-radius:7px;background:transparent;color:var(--dsw-alias-label-tertiary);font-size:18px;line-height:1;cursor:pointer}
-.dsh-powerup-update-close:hover{background:var(--dsw-alias-interactive-bg-hover,var(--dsw-alias-bg-layer-2));color:var(--dsw-alias-label-primary)}
-.dsh-powerup-update-close:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:1px}
-.dsh-powerup-update-body{display:flex;flex-direction:column;gap:14px;min-height:0;padding:16px 18px;overflow-y:auto;--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2)}
-.dsh-powerup-update-name{overflow-wrap:anywhere;color:var(--dsw-alias-label-tertiary);font-family:var(--dsw-font-family-code,ui-monospace,SFMono-Regular,Consolas,monospace);font-size:11.5px;line-height:1.4}
-.dsh-powerup-update-meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;color:var(--dsw-alias-label-secondary);font-size:12px}
-.dsh-powerup-update-chip{padding:0 7px;border-radius:999px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-tertiary);font-size:10.5px;line-height:18px}
-.dsh-powerup-update-label{color:var(--dsw-alias-label-tertiary);font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
-.dsh-powerup-update-field{display:flex;flex-direction:column;gap:6px}
-.dsh-powerup-update-row{display:flex;gap:8px}
-.dsh-powerup-update-input{flex:1 1 auto;min-width:0;height:38px;padding:0 12px;border:.5px solid var(--dsw-alias-border-l4);border-radius:8px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;outline:none}
+.dsh-powerup-update-heading h2{margin:0;font-size:16px;line-height:24px;font-weight:500;color:var(--dsw-alias-label-primary)}
+.dsh-powerup-update-heading p{margin:2px 0 0;color:var(--dsw-alias-label-tertiary);font-family:var(--dsw-font-family-code,ui-monospace,SFMono-Regular,Consolas,monospace);font-size:11.5px;line-height:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dsh-powerup-update-close{flex:none;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:18px;line-height:1;cursor:pointer}
+.dsh-powerup-update-close:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
+.dsh-powerup-update-body{display:flex;flex-direction:column;gap:20px;min-height:0;margin-top:8px;padding:0 24px 4px;overflow-y:auto;--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2)}
+.dsh-powerup-update-field{display:flex;flex-direction:column;gap:8px;min-width:0}
+.dsh-powerup-update-label{display:block;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px;font-weight:500}
+.dsh-powerup-update-note{margin:0;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px;overflow-wrap:anywhere}
+.dsh-powerup-update-name{color:var(--dsw-alias-label-tertiary);font-family:var(--dsw-font-family-code,ui-monospace,SFMono-Regular,Consolas,monospace);font-size:11.5px;line-height:18px;overflow-wrap:anywhere}
+.dsh-powerup-update-summary{display:flex;flex-direction:column;gap:2px;min-width:0}
+.dsh-powerup-update-list-state{display:flex;flex-direction:column;gap:10px;padding:12px}
+.dsh-powerup-update-now{display:flex;align-items:center;gap:10px;min-width:0}
+.dsh-powerup-update-now .label{flex:none;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px}
+.dsh-powerup-update-now code{display:inline-flex;align-items:center;min-height:22px;padding:0 8px;border:.5px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);font-family:var(--dsw-font-family-code,ui-monospace,SFMono-Regular,Consolas,monospace);font-size:11.5px;line-height:20px;font-variant-numeric:tabular-nums}
+.dsh-powerup-update-row{display:flex;align-items:stretch;gap:8px}
+.dsh-powerup-update-input{flex:1 1 auto;min-width:0;height:38px;padding:0 12px;border:.5px solid var(--dsw-alias-border-l4);border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:20px;outline:none;transition:border-color .14s ease,box-shadow .14s ease}
+.dsh-powerup-update-input::placeholder{color:var(--dsw-alias-label-caption)}
 .dsh-powerup-update-input:focus{border-color:var(--dsw-alias-state-business-primary);box-shadow:inset 0 0 0 .5px var(--dsw-alias-state-business-primary)}
-.dsh-powerup-update-toggle{flex:none;height:38px;padding:0 12px;border:.5px solid var(--dsw-alias-border-l3);border-radius:8px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font:inherit;font-size:12.5px;cursor:pointer}
-.dsh-powerup-update-toggle:hover{background:var(--dsw-alias-interactive-bg-hover,var(--dsw-alias-bg-layer-3));color:var(--dsw-alias-label-primary)}
-.dsh-powerup-update-toggle:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:1px}
-.dsh-powerup-update-list{display:flex;flex-direction:column;max-height:220px;overflow-y:auto;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-1);--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2)}
-.dsh-powerup-update-version{display:flex;align-items:center;gap:8px;width:100%;padding:7px 11px;border:0;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:12.5px;text-align:left;cursor:pointer}
-.dsh-powerup-update-version:hover{background:var(--dsw-alias-interactive-bg-hover,var(--dsw-alias-bg-layer-2))}
-.dsh-powerup-update-version[aria-selected=true]{background:var(--dsw-alias-bg-layer-2)}
-.dsh-powerup-update-version:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:-2px}
-.dsh-powerup-update-tag{margin-left:auto;padding:0 6px;border-radius:999px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-tertiary);font-size:10px;line-height:17px}
-.dsh-powerup-update-status{display:flex;align-items:center;gap:8px;color:var(--dsw-alias-label-secondary);font-size:12.5px}
-.dsh-powerup-update-spinner{flex:none;width:14px;height:14px;border:2px solid var(--dsw-alias-border-l3);border-top-color:var(--dsw-alias-brand-primary);border-radius:50%;animation:dsh-powerup-spin .8s linear infinite}
+.dsh-powerup-update-toggle{flex:none;display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 12px;border:.5px solid var(--dsw-alias-border-l3);border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font:inherit;font-size:12.5px;line-height:18px;cursor:pointer;transition:background .14s ease,border-color .14s ease,color .14s ease}
+.dsh-powerup-update-toggle:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
+.dsh-powerup-update-toggle[aria-expanded=true]{border-color:var(--dsw-alias-state-business-primary);background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary)}
+.dsh-powerup-update-toggle .chevron{display:inline-flex;color:var(--dsw-alias-label-tertiary);transition:transform .16s ease}
+.dsh-powerup-update-toggle[aria-expanded=true] .chevron{transform:rotate(180deg);color:var(--dsw-alias-label-secondary)}
+.dsh-powerup-update-list{display:flex;flex-direction:column;max-height:240px;overflow-y:auto;border:.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-lg,10px);background:var(--dsw-alias-bg-layer-1);--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2)}
+.dsh-powerup-update-list-head{position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 12px;border-bottom:.5px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:16px}
+.dsh-powerup-update-version{display:flex;align-items:center;gap:8px;width:100%;min-height:34px;padding:0 12px;border:0;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:12.5px;line-height:18px;text-align:left;cursor:pointer;font-variant-numeric:tabular-nums}
+.dsh-powerup-update-version:hover{background:var(--dsw-alias-interactive-bg-hover)}
+.dsh-powerup-update-version[aria-selected=true]{background:var(--dsw-alias-interactive-bg-active)}
+.dsh-powerup-update-trailing{display:inline-flex;align-items:center;gap:8px;margin-left:auto}
+.dsh-powerup-update-tag{padding:0 6px;border:.5px solid var(--dsw-alias-border-l2);border-radius:999px;background:transparent;color:var(--dsw-alias-label-tertiary);font-size:10px;line-height:16px}
+.dsh-powerup-update-check{display:inline-flex;color:var(--dsw-alias-state-business-primary)}
+.dsh-powerup-update-status{display:flex;align-items:center;gap:10px;color:var(--dsw-alias-label-secondary);font-size:13px;line-height:20px}
+.dsh-powerup-update-spinner{flex:none;width:14px;height:14px;border:2px solid color-mix(in srgb,var(--dsw-alias-state-business-primary) 24%,transparent);border-top-color:var(--dsw-alias-state-business-primary);border-radius:50%;animation:dsh-powerup-spin .8s linear infinite}
 @keyframes dsh-powerup-spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.dsh-powerup-update-spinner{animation:none}}
-.dsh-powerup-update-log{margin:0;max-height:140px;overflow:auto;padding:8px 10px;border-radius:8px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font-family:var(--dsw-font-family-code,ui-monospace,SFMono-Regular,Consolas,monospace);font-size:11px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
-.dsh-powerup-update-error{display:flex;align-items:flex-start;gap:8px;padding:9px 11px;border-radius:8px;background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 12%,transparent);color:var(--dsw-alias-state-error-primary);font-size:12px;line-height:1.5}
-.dsh-powerup-update-error svg{flex:none;margin-top:1px}
-.dsh-powerup-update-error span{min-width:0;overflow-wrap:anywhere}
-.dsh-powerup-update-note{margin:0;color:var(--dsw-alias-label-tertiary);font-size:11.5px;line-height:1.55}
-.dsh-powerup-update-registry{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
-.dsh-powerup-update-select{height:30px;max-width:100%;padding:0 8px;border:.5px solid var(--dsw-alias-border-l3);border-radius:7px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font:inherit;font-size:12px;outline:none}
-.dsh-powerup-update-select:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:1px}
-.dsh-powerup-update-foot{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px 18px 16px;border-top:1px solid var(--dsw-alias-border-l1)}
-.dsh-powerup-update-primary{height:32px;padding:0 14px;border:0;border-radius:8px;background:var(--dsw-alias-brand-primary);color:var(--dsw-alias-label-primary-foreground,var(--dsw-alias-bg-layer-1));font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
-.dsh-powerup-update-primary:hover:not(:disabled){opacity:.9}
-.dsh-powerup-update-primary:disabled{opacity:.5;cursor:default}
-.dsh-powerup-update-primary:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:2px}
-.dsh-powerup-update-ghost{height:32px;padding:0 14px;border:1px solid var(--dsw-alias-border-l3);border-radius:8px;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:12.5px;cursor:pointer}
-.dsh-powerup-update-ghost:hover{background:var(--dsw-alias-interactive-bg-hover,var(--dsw-alias-bg-layer-2))}
-.dsh-powerup-update-ghost:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:2px}
-@media (max-width:680px){.dsh-powerup-page{padding:20px 16px 42px}.dsh-powerup-actions{grid-template-columns:minmax(0,1fr)}.dsh-powerup-hero-art{width:54px;height:54px}.dsh-powerup-hero h1{font-size:19px}.dsh-powerup-card-head{flex-wrap:wrap}.dsh-powerup-switch{margin-left:auto}.dsh-powerup-update-mask{padding:12px}.dsh-powerup-update-dialog{max-height:calc(100vh - 24px)}}
+.dsh-powerup-update-log{margin:0;max-height:160px;overflow:auto;padding:10px 12px;border:.5px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);font-family:var(--dsw-font-family-code,ui-monospace,SFMono-Regular,Consolas,monospace);font-size:11px;line-height:17px;white-space:pre-wrap;overflow-wrap:anywhere}
+.dsh-powerup-update-notice{display:flex;align-items:flex-start;gap:8px;padding:10px 12px;border:.5px solid transparent;border-radius:var(--dsw-radius-md,8px);font-size:12.5px;line-height:18px;color:var(--dsw-alias-label-primary)}
+.dsh-powerup-update-notice svg{flex:none;margin-top:2px}
+.dsh-powerup-update-notice span{min-width:0;overflow-wrap:anywhere}
+.dsh-powerup-update-notice-copy{display:flex;flex-direction:column;gap:2px;min-width:0}
+.dsh-powerup-update-notice-title{font-weight:500;color:var(--dsw-alias-label-primary);overflow-wrap:anywhere}
+.dsh-powerup-update-notice.error{border-color:color-mix(in srgb,var(--dsw-alias-state-error-primary) 30%,transparent);background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 8%,transparent)}
+.dsh-powerup-update-notice.error svg{color:var(--dsw-alias-state-error-primary)}
+.dsh-powerup-update-notice.warn{border-color:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 30%,transparent);background:var(--dsw-alias-state-warn-tertiary)}
+.dsh-powerup-update-notice.warn svg{color:var(--dsw-alias-state-warn-primary)}
+.dsh-powerup-update-notice.success{border-color:color-mix(in srgb,var(--dsw-alias-state-success-primary) 28%,transparent);background:color-mix(in srgb,var(--dsw-alias-state-success-primary) 8%,transparent)}
+.dsh-powerup-update-notice.success svg{color:var(--dsw-alias-state-success-primary)}
+.dsh-powerup-update-registry{display:flex;flex-direction:column;gap:8px}
+.dsh-powerup-update-select{position:relative}
+.dsh-powerup-update-select-trigger{display:flex;align-items:center;gap:10px;width:100%;height:38px;padding:0 12px;border:.5px solid var(--dsw-alias-border-l4);border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:20px;text-align:left;cursor:pointer;transition:border-color .14s ease,box-shadow .14s ease}
+.dsh-powerup-update-select-trigger:hover{background:var(--dsw-alias-bg-layer-2)}
+.dsh-powerup-update-select-trigger[aria-expanded=true]{border-color:var(--dsw-alias-state-business-primary);box-shadow:inset 0 0 0 .5px var(--dsw-alias-state-business-primary)}
+.dsh-powerup-update-select-value{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dsh-powerup-update-select-host{flex:none;color:var(--dsw-alias-label-tertiary);font-size:11.5px}
+.dsh-powerup-update-select-trigger .chevron{flex:none;display:inline-flex;color:var(--dsw-alias-label-tertiary);transition:transform .16s ease}
+.dsh-powerup-update-select-trigger[aria-expanded=true] .chevron{transform:rotate(180deg)}
+.dsh-powerup-update-select-menu{display:flex;flex-direction:column;padding:4px;border:.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-lg,10px);background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent)}
+.dsh-powerup-update-option{display:flex;align-items:flex-start;gap:10px;width:100%;padding:8px 10px;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;text-align:left;cursor:pointer}
+.dsh-powerup-update-option:hover{background:var(--dsw-alias-interactive-bg-hover)}
+.dsh-powerup-update-option[aria-selected=true]{background:var(--dsw-alias-interactive-bg-active)}
+.dsh-powerup-update-option-copy{display:flex;flex:1 1 auto;flex-direction:column;gap:1px;min-width:0}
+.dsh-powerup-update-option-title{color:var(--dsw-alias-label-primary);font-size:12.5px;line-height:18px}
+.dsh-powerup-update-option-host{color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:16px;overflow-wrap:anywhere}
+.dsh-powerup-update-option .dsh-powerup-update-check{flex:none;margin-top:2px}
+.dsh-powerup-update-foot{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:16px 24px 22px;border-top:.5px solid var(--dsw-alias-border-l1)}
+.dsh-powerup-update-primary{height:36px;padding:0 14px;border:0;border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-button-primary-fill,var(--dsw-alias-brand-primary));color:var(--dsw-alias-label-primary-foreground);font:inherit;font-size:14px;line-height:22px;cursor:pointer;transition:background .14s ease}
+.dsh-powerup-update-primary:hover:not(:disabled){background:var(--dsw-alias-button-primary-hover,var(--dsw-alias-brand-primary))}
+.dsh-powerup-update-primary:disabled{opacity:.4;cursor:not-allowed}
+.dsh-powerup-update-ghost{height:36px;padding:0 14px;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:14px;line-height:22px;cursor:pointer}
+.dsh-powerup-update-ghost:hover{background:var(--dsw-alias-interactive-bg-hover)}
+.dsh-powerup-update-ghost:active{background:var(--dsw-alias-interactive-bg-active)}
+.dsh-powerup-update-close:focus-visible,.dsh-powerup-update-toggle:focus-visible,.dsh-powerup-update-version:focus-visible,.dsh-powerup-update-select-trigger:focus-visible,.dsh-powerup-update-option:focus-visible,.dsh-powerup-update-primary:focus-visible,.dsh-powerup-update-ghost:focus-visible,.dsh-powerup-update-button:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:1px}
+@media (max-width:680px){.dsh-powerup-page{padding:20px 16px 42px}.dsh-powerup-actions{grid-template-columns:minmax(0,1fr)}.dsh-powerup-hero-art{width:54px;height:54px}.dsh-powerup-hero h1{font-size:19px}.dsh-powerup-card-head{flex-wrap:wrap}.dsh-powerup-switch{margin-left:auto}.dsh-powerup-update-mask{padding:12px}.dsh-powerup-update-dialog{max-height:calc(100dvh - 24px)}.dsh-powerup-update-head{padding:18px 12px 10px 18px}.dsh-powerup-update-body{padding:0 18px 4px}.dsh-powerup-update-foot{padding:14px 18px 18px}}
 `;
 
       function installStyles(ctx) {
@@ -1446,6 +1491,7 @@
         const abortRef = useRef(null);
         const buttonsRef = useRef(new Set());
         const inputRef = useRef(null);
+        const registryRef = useRef(null);
         const versionSeq = useRef(0);
         const tRef = useRef((key, params) => translateCurrent(key, params));
         tRef.current = (key, params) => translateCurrent(key, params);
@@ -1536,6 +1582,7 @@
             versionsRegistry: null,
             version: '',
             listOpen: true,
+            registryOpen: false,
             error: null,
             formError: null,
             log: '',
@@ -1628,17 +1675,38 @@
           }
         }, [view === null ? null : view.phase]);
 
-        // Escape closes a dialog that is not in the middle of an operation.
+        // Escape closes the innermost popover first: registry menu, then the
+        // version list, then the dialog itself.
         useEffect(() => {
           if (view === null) return undefined;
           const onKeyDown = (event) => {
             if (event.key !== 'Escape') return;
             event.stopPropagation();
+            if (view.registryOpen === true) {
+              setView((current) => current === null ? current : { ...current, registryOpen: false });
+              return;
+            }
+            if (view.phase === 'choose' && view.listOpen === true) {
+              setView((current) => current === null ? current : { ...current, listOpen: false });
+              return;
+            }
             close();
           };
           document.addEventListener('keydown', onKeyDown, true);
           return () => document.removeEventListener('keydown', onKeyDown, true);
         }, [view, close]);
+
+        // A click outside the custom registry select closes only its menu.
+        useEffect(() => {
+          if (view === null || view.registryOpen !== true) return undefined;
+          const onPointerDown = (event) => {
+            const root = registryRef.current;
+            if (root !== null && event.target instanceof Node && root.contains(event.target)) return;
+            setView((current) => current === null ? current : { ...current, registryOpen: false });
+          };
+          document.addEventListener('pointerdown', onPointerDown, true);
+          return () => document.removeEventListener('pointerdown', onPointerDown, true);
+        }, [view === null ? null : view.registryOpen]);
 
         // Show pnpm output while an installation runs.
         useEffect(() => {
@@ -1673,7 +1741,7 @@
           if (current === null) return;
           const choice = current.choices.find((item) => item.key === key);
           if (choice === undefined) return;
-          setView((state) => state === null ? state : { ...state, registryKey: key, formError: null });
+          setView((state) => state === null ? state : { ...state, registryKey: key, registryOpen: false, formError: null });
           loadVersions(token, current.name, choice, current.choices, true);
         };
 
@@ -1822,11 +1890,22 @@
               supported ? h('button', { key: 'now', type: 'button', className: 'dsh-powerup-update-primary', disabled: view.restarting === true, onClick: restartNow }, view.restarting === true ? t('update.restarting') : t('update.restartNow')) : null,
             ].filter(Boolean);
           }
-          if (view.phase === 'restarting') return [];
+          if (view.phase === 'restarting' || view.phase === 'working' || view.phase === 'loading') return [];
           return [
             h('button', { key: 'done', type: 'button', className: 'dsh-powerup-update-primary', onClick: close }, view.phase === 'done' ? t('update.doneButton') : t('update.close')),
           ];
         })();
+
+        /** One tinted notice: the success/warn/error states share this chrome. */
+        const notice = (tone, icon, title, message) => h('div', { className: `dsh-powerup-update-notice ${tone}` },
+          icon,
+          h('div', { className: 'dsh-powerup-update-notice-copy' },
+            title === null || title === undefined ? null : h('span', { className: 'dsh-powerup-update-notice-title' }, title),
+            message === null || message === undefined ? null : h('span', null, message),
+          ),
+        );
+
+        const currentChoice = view.choices.find((item) => item.key === view.registryKey) ?? view.choices[0];
 
         const body = (() => {
           if (view.phase === 'loading') {
@@ -1836,22 +1915,67 @@
             );
           }
           if (view.phase === 'self') {
-            return [
-              h('p', { className: 'dsh-powerup-update-note' }, t('update.selfDesc')),
-            ];
+            return notice('warn', h(WarnIcon, { size: 15 }), t('update.selfTitle'), t('update.selfDesc'));
           }
           if (view.phase === 'blocked') {
-            return h('div', { className: 'dsh-powerup-update-error' },
-              h(WarnIcon, { size: 15 }),
-              h('span', null, view.error ?? t('update.notRemovable')),
-            );
+            return notice('error', h(WarnIcon, { size: 15 }), t('update.unsupportedTitle'), view.error ?? t('update.notRemovable'));
           }
           if (view.phase === 'choose') {
+            const rows = (() => {
+              if (view.versionsState === 'loading') {
+                return [h('div', { key: 'state', className: 'dsh-powerup-update-list-state' },
+                  h('div', { className: 'dsh-powerup-update-status' },
+                    h('span', { className: 'dsh-powerup-update-spinner', 'aria-hidden': 'true' }),
+                    t('update.loadingVersions'),
+                  ),
+                )];
+              }
+              if (view.versionsState === 'error') {
+                return [h('div', { key: 'state', className: 'dsh-powerup-update-list-state' },
+                  notice('error', h(WarnIcon, { size: 14 }), null, t('update.versionsFailed', { message: view.versionsError ?? '' })),
+                  h('button', {
+                    type: 'button',
+                    className: 'dsh-powerup-update-ghost',
+                    onClick: () => loadVersions(tokenRef.current, view.name, currentChoice, view.choices, false),
+                  }, t('update.retry')),
+                )];
+              }
+              if ((view.versions ?? []).length === 0) {
+                return [h('div', { key: 'state', className: 'dsh-powerup-update-list-state' },
+                  h('p', { className: 'dsh-powerup-update-note' }, t('update.versionsEmpty')),
+                )];
+              }
+              return [
+                h('div', { key: 'head', className: 'dsh-powerup-update-list-head' },
+                  h('span', null, t('update.versionsCount', { count: view.versions.length })),
+                  view.versionsRegistry === null || view.versionsRegistry === undefined
+                    ? null
+                    : h('span', { title: view.versionsRegistry.hint }, view.versionsRegistry.hint),
+                ),
+                ...view.versions.map((version) => h('button', {
+                  key: version,
+                  type: 'button',
+                  role: 'option',
+                  className: 'dsh-powerup-update-version',
+                  'aria-selected': version === view.version ? 'true' : 'false',
+                  onClick: () => chooseVersion(version),
+                },
+                h('span', null, version),
+                h('span', { className: 'dsh-powerup-update-trailing' },
+                  version === view.latest ? h('span', { className: 'dsh-powerup-update-tag' }, t('update.latest')) : null,
+                  version === view.version ? h('span', { className: 'dsh-powerup-update-check' }, h(CheckIcon, { size: 13 })) : null,
+                ),
+                )),
+              ];
+            })();
             return [
-              h('div', { key: 'name', className: 'dsh-powerup-update-name' }, view.name),
-              h('div', { key: 'meta', className: 'dsh-powerup-update-meta' },
-                h('span', null, `${t('update.current')} ${view.currentVersion ?? '—'}`),
-                view.installed === false ? h('span', { className: 'dsh-powerup-update-chip' }, t('update.installedChip')) : null,
+              h('div', { key: 'summary', className: 'dsh-powerup-update-summary' },
+                h('div', { className: 'dsh-powerup-update-now' },
+                  h('span', { className: 'label' }, t('update.current')),
+                  h('code', null, view.currentVersion ?? '—'),
+                  view.installed === false ? h('span', { className: 'dsh-powerup-update-note' }, t('update.installedChip')) : null,
+                ),
+                h('span', { className: 'dsh-powerup-update-name' }, view.name),
               ),
               h('div', { key: 'version', className: 'dsh-powerup-update-field' },
                 h('label', { className: 'dsh-powerup-update-label', htmlFor: 'dsh-powerup-update-version' }, t('update.versionLabel')),
@@ -1874,49 +1998,48 @@
                     type: 'button',
                     className: 'dsh-powerup-update-toggle',
                     'aria-expanded': showVersions ? 'true' : 'false',
+                    'aria-controls': 'dsh-powerup-update-versions',
                     onClick: () => setView((current) => current === null ? current : { ...current, listOpen: !(current.listOpen === true) }),
-                  }, t('update.chooseVersion')),
+                  },
+                  showVersions ? t('update.hideVersions') : t('update.chooseVersion'),
+                  h('span', { className: 'chevron' }, h(ChevronDownIcon, { size: 12 })),
+                  ),
                 ),
-                view.formError === null || view.formError === undefined ? null : h('p', { className: 'dsh-powerup-update-error' }, h(WarnIcon, { size: 14 }), h('span', null, view.formError)),
+                view.formError === null || view.formError === undefined
+                  ? null
+                  : notice('error', h(WarnIcon, { size: 14 }), null, view.formError),
               ),
-              showVersions ? h('div', { key: 'versions', className: 'dsh-powerup-update-list' }, (() => {
-                if (view.versionsState === 'loading') {
-                  return h('div', { className: 'dsh-powerup-update-status' },
-                    h('span', { className: 'dsh-powerup-update-spinner', 'aria-hidden': 'true' }),
-                    t('update.loadingVersions'),
-                  );
-                }
-                if (view.versionsState === 'error') {
-                  return h('div', { className: 'dsh-powerup-update-version' },
-                    h('span', null, t('update.versionsFailed', { message: view.versionsError ?? '' })),
-                    h('button', {
-                      type: 'button',
-                      className: 'dsh-powerup-update-ghost',
-                      onClick: () => loadVersions(tokenRef.current, view.name, view.choices.find((item) => item.key === view.registryKey) ?? view.choices[0], view.choices, false),
-                    }, t('update.retry')),
-                  );
-                }
-                if ((view.versions ?? []).length === 0) {
-                  return h('div', { className: 'dsh-powerup-update-version' }, t('update.versionsEmpty'));
-                }
-                return view.versions.map((version) => h('button', {
-                  key: version,
-                  type: 'button',
-                  className: 'dsh-powerup-update-version',
-                  'aria-selected': version === view.version ? 'true' : 'false',
-                  onClick: () => chooseVersion(version),
-                },
-                h('span', null, version),
-                version === view.latest ? h('span', { className: 'dsh-powerup-update-tag' }, t('update.latest')) : null,
-                ));
-              })()) : null,
-              h('div', { key: 'registry', className: 'dsh-powerup-update-registry' },
+              showVersions ? h('div', { key: 'versions', id: 'dsh-powerup-update-versions', className: 'dsh-powerup-update-list', role: 'listbox', 'aria-label': t('update.versionLabel') }, rows) : null,
+              h('div', { key: 'registry', className: 'dsh-powerup-update-field' },
                 h('span', { className: 'dsh-powerup-update-label' }, t('update.registry')),
-                h('select', {
-                  className: 'dsh-powerup-update-select',
-                  value: view.registryKey,
-                  onChange: (event) => chooseRegistry(event.target.value),
-                }, view.choices.map((choice) => h('option', { key: choice.key, value: choice.key }, `${choice.label} · ${choice.hint}`))),
+                h('div', { className: 'dsh-powerup-update-select', ref: registryRef },
+                  h('button', {
+                    type: 'button',
+                    className: 'dsh-powerup-update-select-trigger',
+                    'aria-haspopup': 'listbox',
+                    'aria-expanded': view.registryOpen === true ? 'true' : 'false',
+                    onClick: () => setView((current) => current === null ? current : { ...current, registryOpen: !(current.registryOpen === true) }),
+                  },
+                  h('span', { className: 'dsh-powerup-update-select-value' }, currentChoice?.label ?? ''),
+                  h('span', { className: 'dsh-powerup-update-select-host' }, currentChoice?.hint ?? ''),
+                  h('span', { className: 'chevron' }, h(ChevronDownIcon, { size: 12 })),
+                  ),
+                  view.registryOpen === true ? h('div', { className: 'dsh-powerup-update-select-menu', role: 'listbox', 'aria-label': t('update.registry') },
+                    view.choices.map((choice) => h('button', {
+                      key: choice.key,
+                      type: 'button',
+                      role: 'option',
+                      className: 'dsh-powerup-update-option',
+                      'aria-selected': choice.key === view.registryKey ? 'true' : 'false',
+                      onClick: () => chooseRegistry(choice.key),
+                    },
+                    h('span', { className: 'dsh-powerup-update-option-copy' },
+                      h('span', { className: 'dsh-powerup-update-option-title' }, choice.label),
+                      h('span', { className: 'dsh-powerup-update-option-host' }, choice.hint),
+                    ),
+                    choice.key === view.registryKey ? h('span', { className: 'dsh-powerup-update-check' }, h(CheckIcon, { size: 13 })) : null,
+                    ))) : null,
+                ),
                 view.versionsRegistry === null || view.versionsRegistry === undefined
                   ? null
                   : h('span', { className: 'dsh-powerup-update-note' }, t('update.registryFrom', { registry: view.versionsRegistry.hint })),
@@ -1934,7 +2057,9 @@
                 h('span', { className: 'dsh-powerup-update-spinner', 'aria-hidden': 'true' }),
                 label,
               ),
-              h('div', { key: 'name', className: 'dsh-powerup-update-name' }, view.name),
+              h('div', { key: 'summary', className: 'dsh-powerup-update-summary' },
+                h('span', { className: 'dsh-powerup-update-name' }, view.name),
+              ),
               view.log === '' ? null : h('div', { key: 'log', className: 'dsh-powerup-update-field' },
                 h('span', { className: 'dsh-powerup-update-label' }, t('update.log')),
                 h('pre', { className: 'dsh-powerup-update-log' }, view.log),
@@ -1943,26 +2068,34 @@
           }
           if (view.phase === 'enable') {
             return [
-              h('div', { key: 'title', className: 'dsh-powerup-update-meta' },
-                h(CheckIcon, { size: 15 }),
-                h('span', null, t('update.enableTitle')),
+              notice('success', h(CheckIcon, { size: 15 }), t('update.enableTitle'), t('update.enableDesc')),
+              h('div', { key: 'summary', className: 'dsh-powerup-update-summary' },
+                h('span', { className: 'dsh-powerup-update-name' }, view.name),
+                h('div', { className: 'dsh-powerup-update-now' },
+                  h('span', { className: 'label' }, t('update.versionLabel')),
+                  h('code', null, view.installedVersion ?? '—'),
+                ),
               ),
-              h('p', { key: 'desc', className: 'dsh-powerup-update-note' }, t('update.enableDesc')),
-              h('div', { key: 'name', className: 'dsh-powerup-update-name' }, `${view.name} · ${view.installedVersion ?? ''}`),
-              view.enableError === null || view.enableError === undefined ? null : h('div', { key: 'error', className: 'dsh-powerup-update-error' }, h(WarnIcon, { size: 14 }), h('span', null, t('update.enableFailed', { message: view.enableError }))),
+              view.enableError === null || view.enableError === undefined
+                ? null
+                : notice('error', h(WarnIcon, { size: 14 }), t('update.errorTitle'), t('update.enableFailed', { message: view.enableError })),
             ];
           }
           if (view.phase === 'restart') {
             const supported = view.restart?.supported === true;
             return [
-              h('div', { key: 'title', className: 'dsh-powerup-update-meta' },
-                h(CheckIcon, { size: 15 }),
-                h('span', null, t('update.restartTitle')),
+              notice('success', h(CheckIcon, { size: 15 }), t('update.restartTitle'), t('update.restartDesc')),
+              h('div', { key: 'summary', className: 'dsh-powerup-update-summary' },
+                h('span', { className: 'dsh-powerup-update-name' }, view.name),
+                h('div', { className: 'dsh-powerup-update-now' },
+                  h('span', { className: 'label' }, t('update.versionLabel')),
+                  h('code', null, view.installedVersion ?? '—'),
+                ),
               ),
-              h('p', { key: 'desc', className: 'dsh-powerup-update-note' }, t('update.restartDesc')),
-              h('div', { key: 'name', className: 'dsh-powerup-update-name' }, `${view.name} · ${view.installedVersion ?? ''}`),
-              supported ? null : h('p', { key: 'unsupported', className: 'dsh-powerup-update-note' }, t('update.restartUnsupported', { reason: view.restart?.reason ?? '' })),
-              view.restartError === null || view.restartError === undefined ? null : h('div', { key: 'error', className: 'dsh-powerup-update-error' }, h(WarnIcon, { size: 14 }), h('span', null, t('update.restartFailed', { message: view.restartError }))),
+              supported ? null : notice('warn', h(WarnIcon, { size: 14 }), null, t('update.restartUnsupported', { reason: view.restart?.reason ?? '' })),
+              view.restartError === null || view.restartError === undefined
+                ? null
+                : notice('error', h(WarnIcon, { size: 14 }), t('update.errorTitle'), t('update.restartFailed', { message: view.restartError })),
             ];
           }
           if (view.phase === 'restarting') {
@@ -1973,8 +2106,7 @@
           }
           if (view.phase === 'done') {
             return [
-              h('div', { key: 'title', className: 'dsh-powerup-update-meta' }, h(CheckIcon, { size: 15 }), h('span', null, t('update.doneTitle'))),
-              h('p', { key: 'desc', className: 'dsh-powerup-update-note' }, view.enabled === false
+              notice('success', h(CheckIcon, { size: 15 }), t('update.doneTitle'), view.enabled === false
                 ? t('update.doneDisabled', { name: view.name, version: view.installedVersion ?? '' })
                 : t('update.doneInstalled', { name: view.name, version: view.installedVersion ?? '' })),
               view.restartSkipped === true ? h('p', { key: 'restart', className: 'dsh-powerup-update-note' }, t('update.doneRestart')) : null,
@@ -1982,9 +2114,8 @@
           }
           if (view.phase === 'error') {
             return [
-              h('div', { key: 'title', className: 'dsh-powerup-update-error' }, h(WarnIcon, { size: 15 }), h('span', null, t('update.errorTitle'))),
-              h('p', { key: 'message', className: 'dsh-powerup-update-note' }, view.error ?? t('update.unknown')),
-              h('div', { key: 'name', className: 'dsh-powerup-update-name' }, view.name),
+              notice('error', h(WarnIcon, { size: 15 }), t('update.errorTitle'), view.error ?? t('update.unknown')),
+              h('span', { key: 'name', className: 'dsh-powerup-update-name' }, view.name),
             ];
           }
           return null;
@@ -2003,9 +2134,8 @@
           'aria-labelledby': 'dsh-powerup-update-title',
         },
         h('div', { className: 'dsh-powerup-update-head' },
-          h('span', { className: 'dsh-powerup-update-icon' }, h(UpdateIcon, { size: 15 })),
           h('div', { className: 'dsh-powerup-update-heading' },
-            h('h2', { id: 'dsh-powerup-update-title' }, view.phase === 'self' ? t('update.selfTitle') : t('update.title')),
+            h('h2', { id: 'dsh-powerup-update-title' }, t('update.title')),
             h('p', { title }, title),
           ),
           canClose ? h('button', { type: 'button', className: 'dsh-powerup-update-close', 'aria-label': t('update.close'), onClick: close }, '×') : null,

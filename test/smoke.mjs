@@ -211,6 +211,7 @@ assert.equal(iconTree.props.width, 20);
 assert.equal(iconTree.props.viewBox, '0 0 16 16');
 const iconChildren = iconTree.props.children;
 assert.ok(iconChildren.some((child) => child?.props?.stroke === 'currentColor'));
+assert.ok(!iconChildren.some((child) => child?.type === 'rect'), 'line icon has no tile frame');
 assert.ok(!JSON.stringify(iconTree).includes('#'), 'line icon has no fixed color');
 
 // Page renders with the default settings.
@@ -577,7 +578,7 @@ assert.equal(typeof hostRoute.handler, 'function');
 // ---------------------------------------------------------------------------
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 assert.equal(pkg.name, '@restregular/dsh-powerup');
-assert.equal(pkg.version, '0.2.0');
+assert.equal(pkg.version, '0.2.1');
 assert.equal(pkg.icon, './icon.svg');
 assert.equal(pkg.exports['./client'], './client.js');
 assert.equal(pkg.dsh.bundle.patch, './cordis.patch.yml');

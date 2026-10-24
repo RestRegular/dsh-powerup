@@ -66,8 +66,9 @@ unload the dialog mid-flow. Use **Add plugin** with the new package version.
   inside the plugin's brand SVG artwork.
 - **Two icons, two jobs.** `icon.svg` is the 256px brand tile shown by the
   Plugin Manager. The sidebar uses the same double-chevron mark as a 16-grid,
-  `fill:none`, `stroke:currentColor` line drawing, so it inherits the sidebar's
-  text color in either theme. The reference line artwork is
+  `fill:none`, `stroke:currentColor` line drawing, but without the tile frame:
+  the mark gets the full grid, so the chevrons and the amber baseline never
+  collide with a border. The reference line artwork is
   `design/sidebar-icon.svg`; the runtime copy lives in `client.js`.
 - **No imports from Harness Client packages.** The menu is plain React + CSS and
   observes the trajectory package's own `data-*` contracts. If those attributes
@@ -80,6 +81,13 @@ unload the dialog mid-flow. Use **Add plugin** with the new package version.
   installation use the same `remote.pluginManager` calls as **Add plugin**. Only
   the process restart needs Host code: a loopback-only
   `/dsh-powerup/api/restart` route.
+- **The dialog mirrors the host modal.** The backdrop is
+  `--dsw-alias-bg-mask-1` with the shared mask blur, the surface is
+  `--dsw-alias-bg-layer-2` with `--dsw-radius-panel` and
+  `--dsw-elevation-prominent`, and the primary button uses
+  `--dsw-alias-button-primary-fill` / `-hover`, so the dialog follows both
+  themes instead of inventing its own palette. The registry picker and version
+  list are custom controls built from `--dsw-alias-*` tokens.
 
 ## Development
 
