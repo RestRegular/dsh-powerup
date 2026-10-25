@@ -590,8 +590,11 @@ assert.equal(restartBar.firstElementChild.textContent, '2 plugins need a restart
 assert.equal(restartBar.lastElementChild.textContent, 'Restart DSH');
 restartBar.lastElementChild.click();
 assert.equal(restartClicks, 1, 'restart bar button opens the confirmation');
-update.ensureRestartBar(groupDocument, 0, () => {}, translate);
-assert.equal(group.querySelector('[data-dsh-powerup-restart-bar]'), null, 'restart bar clears with no pending plugins');
+update.ensureRestartBar(groupDocument, 0, () => {}, translateParams);
+const idleBar = group.querySelector('[data-dsh-powerup-restart-bar]');
+assert.ok(idleBar, 'restart bar stays visible with no pending plugins');
+assert.equal(idleBar.firstElementChild.textContent, 'No plugins need a restart');
+assert.equal(idleBar.lastElementChild.textContent, 'Restart DSH');
 
 // ---------------------------------------------------------------------------
 // Host half: restart capability route
@@ -633,6 +636,16 @@ await host.__test.handle({
   socket: { remoteAddress: '127.0.0.1' },
 }, selfGetResponse);
 assert.equal(selfGetResponse.status, 405, 'self-update only accepts POST');
+
+const auditResponse = fakeResponse();
+await host.__test.handle({
+  method: 'GET',
+  url: '/dsh-powerup/api/audit',
+  headers: {},
+  socket: { remoteAddress: '127.0.0.1' },
+}, auditResponse, { get: () => ({ async listBundles() { return []; } }) });
+assert.equal(auditResponse.status, 200);
+assert.deepEqual(JSON.parse(auditResponse.body).entries, []);
 
 const restartResponse = fakeResponse();
 await host.__test.handle({
@@ -712,7 +725,7 @@ assert.equal(typeof hostRoute.handler, 'function');
 // ---------------------------------------------------------------------------
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 assert.equal(pkg.name, '@restregular/dsh-powerup');
-assert.equal(pkg.version, '0.3.0');
+assert.equal(pkg.version, '0.3.1');
 assert.equal(pkg.icon, './icon.svg');
 assert.equal(pkg.exports['./client'], './client.js');
 assert.equal(pkg.dsh.bundle.patch, './cordis.patch.yml');

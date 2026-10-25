@@ -58,8 +58,12 @@ update dialog:
    process.
 6. A management call that reports `restart-required` keeps a **Restart needed**
    tag on the card and adds the plugin to the count beside the **Installed
-   plugins** heading, where a **Restart DSH** button confirms and performs the
-   same restart.
+   plugins** heading. The heading bar is always present — with **No plugins need
+   a restart** and the restart button when nothing is pending — and a **Restart
+   DSH** button confirms and performs the same restart. The Host also audits
+   profile bundle directories written after it started, so updates made through
+   the built-in **Add plugin** / **Update** UI, or before this page loaded, are
+   marked too.
 
 Power-Up updates itself through the same dialog. Because removing the plugin
 unloads this panel, the Host answers first and then hands `removeBundle` →
@@ -102,8 +106,11 @@ refresh the page when the install finishes.
 - **Restart status lives in this browser session.** A management result that
   says `restart-required` is written to `sessionStorage`; the card gets a
   **Restart needed** tag and the group heading gets a count plus a restart
-  button. A real app restart clears the session, while a page refresh keeps the
-  markers.
+  button. The Client also wraps the shared `remote.pluginManager` methods so an
+  update started from the built-in Add plugin/Update dialogs is observed, and
+  asks the Host audit route for profile bundles whose files are newer than the
+  Host process. A real app restart clears the session, while a page refresh
+  keeps the markers.
 - **The dialog mirrors the host modal.** The backdrop is
   `--dsw-alias-bg-mask-1` with the shared mask blur, the surface is
   `--dsw-alias-bg-layer-2` with `--dsw-radius-panel` and

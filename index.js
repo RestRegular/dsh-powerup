@@ -6,6 +6,7 @@
  *
  *   GET  /dsh-powerup/api/restart       → { ok, supported, reason? }
  *   POST /dsh-powerup/api/restart       → schedules a whole-app restart
+ *   GET  /dsh-powerup/api/audit         → profile bundles newer than this Host
  *   POST /dsh-powerup/api/self-update   → removes and reinstalls this plugin
  *                                         in the background, surviving the
  *                                         plugin's own unload
@@ -16,7 +17,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { appendFileSync, mkdirSync } from 'node:fs';
+import { appendFileSync, mkdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 import { describeRestart, requestRestart } from './lib/restart.js';
@@ -32,6 +33,62 @@ const SELF_UPDATE_DELAY_MS = 600;
 
 /** Request body bound for the small JSON commands. */
 const BODY_LIMIT = 16 * 1024;
+
+/** The moment this Host process started; a profile file newer than it may await a restart. */
+const HOST_STARTED_AT = Date.now() - process.uptime() * 1000;
+
+/**
+ * The desktop profile directory, resolved without depending on the shell tool.
+ * @returns {string}
+ */
+function profileDirectory() {
+  const configured = process.env.DSH_PROFILE_DIR;
+  if (typeof configured === 'string' && configured.trim() !== '') return configured.trim();
+  const name = typeof process.env.DSH_PROFILE === 'string' && process.env.DSH_PROFILE.trim() !== ''
+    ? process.env.DSH_PROFILE.trim()
+    : 'desktop';
+  return join(process.env.DSH_HOME?.trim() || join(homedir(), '.dsh'), 'profiles', name);
+}
+
+/**
+ * Installed profile bundles whose package.json is newer than this Host process.
+ * Those files changed after the running composition loaded; a restart is the
+ * reliable way to apply them. The check is deliberately limited to profile
+ * bundles because installation-owned files move only with DSH itself.
+ * @param {import('@deepseek-ai/cordis').Context} ctx
+ * @returns {Promise<Array<{ name: string, version: string, mtime: number, reason: string }>>}
+ */
+async function auditProfileBundles(ctx) {
+  const manager = ctx?.get?.('pluginManager');
+  if (manager === undefined || typeof manager.listBundles !== 'function') return [];
+  const bundles = await manager.listBundles();
+  const profileDir = profileDirectory();
+  const entries = [];
+  for (const bundle of Array.isArray(bundles) ? bundles : []) {
+    if (bundle === null || typeof bundle !== 'object') continue;
+    if (bundle.installed !== true || bundle.availability !== 'profile' || typeof bundle.name !== 'string') continue;
+    let mtime = 0;
+    const packageDir = join(profileDir, 'node_modules', bundle.name);
+    try {
+      mtime = statSync(packageDir).mtimeMs;
+    } catch {
+      try {
+        mtime = statSync(join(packageDir, 'package.json')).mtimeMs;
+      } catch {
+        continue;
+      }
+    }
+    if (mtime > HOST_STARTED_AT + 1000) {
+      entries.push({
+        name: bundle.name,
+        version: typeof bundle.version === 'string' ? bundle.version : '',
+        mtime,
+        reason: 'files-newer-than-host',
+      });
+    }
+  }
+  return entries;
+}
 
 /**
  * @param {import('node:http').ServerResponse} res
@@ -186,8 +243,22 @@ async function handle(req, res, ctx) {
 
   const url = new URL(req.url ?? ROUTE, 'http://localhost');
   const op = url.pathname.slice(ROUTE.length).replace(/^\/+/u, '') || url.searchParams.get('op') || '';
-  if (op !== '' && op !== 'restart' && op !== 'self-update') {
+  if (op !== '' && op !== 'restart' && op !== 'self-update' && op !== 'audit') {
     sendJson(res, { ok: false, error: 'not-found' }, 404);
+    return;
+  }
+
+  if (op === 'audit') {
+    if (req.method !== 'GET') {
+      sendJson(res, { ok: false, error: 'method-not-allowed' }, 405);
+      return;
+    }
+    try {
+      const entries = await auditProfileBundles(ctx);
+      sendJson(res, { ok: true, hostStartedAt: HOST_STARTED_AT, entries });
+    } catch (error) {
+      sendJson(res, { ok: false, error: String(error?.message ?? error) }, 500);
+    }
     return;
   }
 
@@ -263,4 +334,4 @@ export function apply(ctx) {
 }
 
 /** Exported for tests only; the Host never reads this. */
-export const __test = { handle, isLoopback, sameOrigin, performSelfUpdate, normalizeVersion, ROUTE, MODULE_ID };
+export const __test = { handle, isLoopback, sameOrigin, performSelfUpdate, normalizeVersion, auditProfileBundles, profileDirectory, HOST_STARTED_AT, ROUTE, MODULE_ID };

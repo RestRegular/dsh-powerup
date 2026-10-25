@@ -44,7 +44,7 @@
 
       const NS = 'dsh-powerup';
       const SETTINGS_KEY = 'dsh-powerup:settings:v1';
-      const VERSION = '0.3.0';
+      const VERSION = '0.3.1';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
 
@@ -163,6 +163,7 @@
           'restart.tag': '需重启',
           'restart.tagHint': '该插件已更新，重启 DSH 后生效',
           'restart.pending': '{count} 个插件待重启',
+          'restart.none': '暂无插件需要重启',
           'restart.action': '重启 DSH',
           'restart.title': '重启 DSH？',
           'restart.desc': '重启会关闭并重新打开 DSH，正在运行的任务会中断。',
@@ -299,6 +300,7 @@
           'restart.tag': 'Restart needed',
           'restart.tagHint': 'Updated; restart DSH to apply',
           'restart.pending': '{count} plugins need a restart',
+          'restart.none': 'No plugins need a restart',
           'restart.action': 'Restart DSH',
           'restart.title': 'Restart DSH?',
           'restart.desc': 'Restarting closes and reopens DSH; running tasks are interrupted.',
@@ -707,8 +709,11 @@
 .dsh-powerup-restart-tag{flex:none;display:inline-flex;align-items:center;height:18px;padding:0 6px;border:.5px solid color-mix(in srgb,var(--dsw-alias-state-warn-primary) 32%,transparent);border-radius:999px;background:var(--dsw-alias-state-warn-tertiary);color:var(--dsw-alias-state-warn-label);font-size:10px;line-height:16px;white-space:nowrap}
 .dsh-powerup-restart-bar{display:flex;flex:none;align-items:center;gap:8px;margin-left:8px}
 .dsh-powerup-restart-count{color:var(--dsw-alias-state-warn-label);font-size:11.5px;line-height:18px;white-space:nowrap}
+.dsh-powerup-restart-count[data-state=idle]{color:var(--dsw-alias-label-tertiary)}
 .dsh-powerup-restart-action{height:26px;padding:0 10px;border:.5px solid color-mix(in srgb,var(--dsw-alias-state-warn-primary) 36%,transparent);border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-state-warn-tertiary);color:var(--dsw-alias-state-warn-label);font:inherit;font-size:11.5px;line-height:18px;cursor:pointer}
 .dsh-powerup-restart-action:hover{background:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 14%,transparent)}
+.dsh-powerup-restart-action[data-state=idle]{border-color:var(--dsw-alias-border-l3);background:transparent;color:var(--dsw-alias-label-secondary)}
+.dsh-powerup-restart-action[data-state=idle]:hover{background:var(--dsw-alias-interactive-bg-hover)}
 .dsh-powerup-update-default{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-caption);cursor:pointer}
 .dsh-powerup-update-default:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-state-warn-label)}
 .dsh-powerup-update-default[aria-pressed=true]{color:var(--dsw-alias-state-warn-label)}
@@ -1188,6 +1193,7 @@
       const POWERUP_REGISTRY_KEY = 'dsh-powerup:update-registry:v1';
       const PENDING_RESTART_KEY = 'dsh-powerup:pending-restart:v1';
       const UPDATE_API = '/dsh-powerup/api/restart';
+      const AUDIT_API = '/dsh-powerup/api/audit';
       const SELF_UPDATE_API = '/dsh-powerup/api/self-update';
       const OFFICIAL_REGISTRY = 'https://registry.npmjs.org/';
       const REGISTRY_HOSTS = new Map([
@@ -1600,6 +1606,35 @@
         return `powerup-${Date.now()}-${Math.random().toString(16).slice(2)}`;
       }
 
+      /**
+       * The package name of a registry install spec. Git, tarball, and local
+       * paths return null; their installed name comes from the Host result.
+       * @param {unknown} spec
+       * @returns {string | null}
+       */
+      function packageNameFromSpec(spec) {
+        const text = String(spec ?? '').trim();
+        if (text === '' || text.startsWith('.') || text.startsWith('link:') || text.startsWith('file:') || text.includes('://')) return null;
+        const at = text.lastIndexOf('@');
+        if (at > 0) return text.slice(0, at);
+        return text;
+      }
+
+      /**
+       * Ask the Host which profile bundles were written after it started.
+       * @returns {Promise<Array<{ name: string, version?: string, reason?: string }>>}
+       */
+      async function fetchAuditEntries() {
+        try {
+          const response = await fetch(AUDIT_API, { headers: { accept: 'application/json' } });
+          const data = await response.json();
+          if (response.ok && data?.ok === true && Array.isArray(data.entries)) return data.entries;
+        } catch {
+          /* An older Host without the audit route simply returns none. */
+        }
+        return [];
+      }
+
       /** The glyph on the injected card button (static; no external asset). */
       const UPDATE_BUTTON_ICON = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M8 10.6V3.1M5.2 5.9 8 3.1l2.8 2.8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.9 10.4v1A1.6 1.6 0 0 0 4.5 13h7a1.6 1.6 0 0 0 1.6-1.6v-1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>';
 
@@ -1674,9 +1709,9 @@
       }
 
       /**
-       * Put "N plugins need a restart" and a restart button beside the
-       * Installed plugins heading. The group head owns the h3; the injected bar
-       * sits at the end of that row and is removed when nothing is pending.
+       * Put the pending count and a restart button beside the Installed
+       * plugins heading. The bar is always present on that page; its count
+       * state changes between "N need a restart" and "none need a restart".
        * @param {Document} doc
        * @param {number} count
        * @param {() => void} onRestart
@@ -1685,11 +1720,7 @@
       function ensureRestartBar(doc, count, onRestart, t) {
         if (doc === null || doc === undefined || typeof doc.querySelector !== 'function') return;
         const group = doc.querySelector('[data-plugin-group="bundles"]');
-        if (group === null || group === undefined || count <= 0) {
-          const stale = group?.querySelector?.('[data-dsh-powerup-restart-bar]');
-          stale?.remove?.();
-          return;
-        }
+        if (group === null || group === undefined) return;
         const head = group.firstElementChild;
         if (head === null || head === undefined) return;
         let bar = group.querySelector('[data-dsh-powerup-restart-bar]');
@@ -1713,10 +1744,17 @@
         }
         const label = bar.firstElementChild;
         const button = bar.lastElementChild;
-        const text = t('restart.pending', { count });
-        if (label !== null && label !== undefined && label.textContent !== text) label.textContent = text;
+        const idle = count <= 0;
+        const text = idle ? t('restart.none') : t('restart.pending', { count });
+        if (label !== null && label !== undefined) {
+          if (label.textContent !== text) label.textContent = text;
+          label.setAttribute('data-state', idle ? 'idle' : 'pending');
+        }
         const action = t('restart.action');
-        if (button !== null && button !== undefined && button.textContent !== action) button.textContent = action;
+        if (button !== null && button !== undefined) {
+          if (button.textContent !== action) button.textContent = action;
+          button.setAttribute('data-state', idle ? 'idle' : 'pending');
+        }
       }
 
       /**
@@ -1771,6 +1809,7 @@
         const registryPanelRef = useRef(null);
         const versionSeq = useRef(0);
         const openRestartRef = useRef(() => {});
+        const recordRef = useRef(() => {});
         const tRef = useRef((key, params) => translateCurrent(key, params));
         tRef.current = (key, params) => translateCurrent(key, params);
 
@@ -1830,6 +1869,110 @@
             return next;
           });
         }, []);
+        recordRef.current = recordPending;
+
+        /** Merge the Host's "profile files newer than the Host" audit into the session list. */
+        const mergeAuditEntries = useCallback(async () => {
+          const entries = await fetchAuditEntries();
+          if (entries.length === 0) return;
+          setPending((current) => {
+            const byName = new Map(current.map((entry) => [entry.name, entry]));
+            for (const entry of entries) {
+              if (entry === null || typeof entry !== 'object' || typeof entry.name !== 'string' || entry.name === '') continue;
+              byName.set(entry.name, {
+                name: entry.name,
+                version: typeof entry.version === 'string' ? entry.version : '',
+                reason: typeof entry.reason === 'string' ? entry.reason : 'audit',
+                at: Date.now(),
+              });
+            }
+            const next = [...byName.values()];
+            writePendingRestarts(next);
+            return next;
+          });
+        }, []);
+
+        useEffect(() => {
+          let cancelled = false;
+          void fetchAuditEntries().then((entries) => {
+            if (cancelled || entries.length === 0) return;
+            setPending((current) => {
+              const byName = new Map(current.map((entry) => [entry.name, entry]));
+              for (const entry of entries) {
+                if (entry === null || typeof entry !== 'object' || typeof entry.name !== 'string' || entry.name === '') continue;
+                byName.set(entry.name, {
+                  name: entry.name,
+                  version: typeof entry.version === 'string' ? entry.version : '',
+                  reason: typeof entry.reason === 'string' ? entry.reason : 'audit',
+                  at: Date.now(),
+                });
+              }
+              const next = [...byName.values()];
+              writePendingRestarts(next);
+              return next;
+            });
+          });
+          return () => { cancelled = true; };
+        }, []);
+
+        useEffect(() => {
+          if (remote === undefined || remote === null || typeof remote.$on !== 'function') return undefined;
+          const off = remote.$on('plugin-manager/changed', () => {
+            void mergeAuditEntries();
+          });
+          return () => {
+            try {
+              off?.();
+            } catch {
+              /* ignore */
+            }
+          };
+        }, [remote, mergeAuditEntries]);
+
+        // Observe every management call made by the built-in Plugins page (and
+        // by this dialog) so an update performed through Add plugin/Update also
+        // leaves a restart marker. The audit route covers updates that were
+        // applied without a restart-required result.
+        useEffect(() => {
+          if (manager === undefined || manager === null || typeof manager.installBundle !== 'function') return undefined;
+          const disposers = [];
+          const wrap = (key, nameFrom) => {
+            const original = manager[key];
+            if (typeof original !== 'function') return;
+            const wrapped = async function (...args) {
+              const result = await original.apply(this, args);
+              try {
+                if (result?.ok === true && result.value?.application === 'restart-required') {
+                  const name = nameFrom(args, result.value);
+                  if (typeof name === 'string' && name !== '') {
+                    recordRef.current({
+                      name,
+                      version: typeof result.value.version === 'string' ? result.value.version : '',
+                      reason: typeof result.value.restartReason === 'string' ? result.value.restartReason : '',
+                    });
+                  }
+                }
+              } catch {
+                /* A marker must never change the management result. */
+              }
+              return result;
+            };
+            try {
+              manager[key] = wrapped;
+              disposers.push(() => {
+                if (manager[key] === wrapped) manager[key] = original;
+              });
+            } catch {
+              /* A frozen Remote namespace keeps the explicit records in this dialog. */
+            }
+          };
+          wrap('installBundle', (args, value) => value.bundle ?? packageNameFromSpec(args[0]));
+          wrap('setBundleEnabled', (args, value) => value.target ?? args[0]);
+          wrap('removeBundle', (args, value) => value.target ?? args[0]);
+          return () => {
+            for (const dispose of disposers) dispose();
+          };
+        }, [manager]);
 
         const loadVersions = useCallback(async (token, name, choice, choices, resetVersion) => {
           const t = tRef.current;
