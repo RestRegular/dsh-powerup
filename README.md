@@ -2,7 +2,7 @@
 
 Small, opt-in upgrades for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness).
 The upgrades include a **right-click action menu in the Trajectory view**, an
-optional **stop reason for background jobs**, and an in-place **plugin updater**.
+optional **stop reason for background jobs**, and an in-place **plugin installer**.
 
 ## Install
 
@@ -31,7 +31,7 @@ Right-click empty space in the ledger:
 
 The sidebar **Power-Up** page turns the menu on or off and lists the available
 actions. The setting is stored in the browser. It also holds the defaults for
-**one-click update** (auto-enable and auto-restart), which the plugin updater
+**one-click install** (auto-enable and auto-restart), which the plugin installer
 uses.
 
 ### Stop a background job with a reason
@@ -44,8 +44,7 @@ and is not clipped by any slot's stacking context; its colors come only from
 `--dsw-alias-*` tokens, so light and dark themes both work.
 
 - The reason field is optional; an empty field keeps the host's default
-  `cancelled by the user` reason. A live character counter shows the 200-character
-  limit, and `Enter` confirms while `Esc` cancels.
+  `cancelled by the user` reason. `Enter` confirms while `Esc` cancels.
 - Confirming stops the job through the Host route, which records
   `cancelled by the user: <reason>`. The completion notice injected into the
   session and the shell tool's result therefore carry the reason.
@@ -56,30 +55,32 @@ and is not clipped by any slot's stacking context; its colors come only from
 
 `↑` / `↓` move, `Home` / `End` jump, `Enter` runs, `Esc` closes.
 
-## Update a plugin
+## Install a plugin
 
 Open the built-in **Plugins** page. Every third-party card under **Installed
-plugins** gains a small update icon in its action area. Clicking it opens the
-update dialog:
+plugins** gains a small install icon in its action area. Clicking it opens the
+install dialog:
 
 1. The dialog reads the package's published versions from the Host's configured
    registries — the same list the **Add plugin** dialog offers, including the
    npmmirror fallback. Star any registry to make it Power-Up's default for
-   later updates; otherwise the list starts from the Add dialog's remembered
+   later installs; otherwise the list starts from the Add dialog's remembered
    choice.
-2. Type a version or pick one from the floating version list. The current
-   installed version is tagged **Current**; the newest is tagged **latest**, and
-   a version that is both uses one **Current · latest** tag.
-3. **One-click update** installs the newest version and skips both questions:
-   by default the new copy is enabled and DSH restarts automatically. The
-   Power-Up page can turn either default off. With auto-enable off, the new
+2. Type a version or pick one from the floating version list. The version in the
+   input is authoritative: both install actions install exactly that version, so
+   reinstalling or downgrading works. The installed version is tagged
+   **Current**; the newest is tagged **latest**, and a version that is both uses
+   one **Current · latest** tag.
+3. **One-click install** installs the version in the input and skips both
+   questions: by default the new copy is enabled and DSH restarts automatically.
+   The Power-Up page can turn either default off. With auto-enable off, the new
    version is left disabled and nothing restarts. With auto-restart off (or when
    the current runtime cannot restart itself), the completion panel closes
    itself after a few seconds instead of staying on screen. Power-Up's own
-   update keeps its background handoff and does not offer one-click.
-4. Otherwise, confirming removes the installed copy, checks the new spec the
-   way **Add plugin** does, and installs the selected version without enabling
-   it. Because the old copy is already gone at that point, a refused check or a
+   install keeps its background handoff and does not offer one-click.
+4. Otherwise, confirming removes the installed copy, checks the spec the way
+   **Add plugin** does, and installs the selected version without enabling it.
+   Because the old copy is already gone at that point, a refused check or a
    failed install automatically re-installs the removed version with its
    previous enabled state; the dialog reports both the failure and the rollback
    result.
@@ -93,11 +94,11 @@ update dialog:
    plugins** heading. The heading bar is always present — with **No plugins need
    a restart** and the restart button when nothing is pending — and a **Restart
    DSH** button confirms and performs the same restart. The Host also audits
-   profile bundle directories written after it started, so updates made through
-   the built-in **Add plugin** / **Update** UI, or before this page loaded, are
+   profile bundle directories written after it started, so installs made through
+   the built-in **Add plugin** / **Install** UI, or before this page loaded, are
    marked too.
 
-Power-Up updates itself through the same dialog (the one-click action is hidden
+Power-Up installs itself through the same dialog (the one-click action is hidden
 for itself). Because removing the plugin unloads this panel, the Host answers
 first and then hands `removeBundle` → `inspect` → `installBundle(enabled: true)`
 to the built-in manager service, which keeps running after the Power-Up Host
@@ -128,23 +129,25 @@ fiber is unloaded. The panel closes; refresh the page when the install finishes.
   The typed reason goes to `POST /dsh-powerup/api/job-kill`, which calls the
   registry's `kill(id, session, reason)` — the same admission the built-in
   Remote uses, with the reason settlement merges into the job's `detail` line.
-- **The update entry uses the built-in page's contracts.** The Plugins page has
+- **The install entry uses the built-in page's contracts.** The Plugins page has
   no per-card slot, so the overlay injects one button into every
   `[data-plugin-group="bundles"] [data-plugin-package]` card and re-asserts it
   after React renders. Version listing is a plain registry `GET`; removal and
   installation use the same `remote.pluginManager` calls as **Add plugin**. The
   Host adds two loopback-only routes: `/dsh-powerup/api/restart` for the
-  process restart, and `/dsh-powerup/api/self-update` for the self-update
+  process restart, and `/dsh-powerup/api/self-update` for the self-install
   handoff.
-- **Self-update outlives its own unload.** The Host route sends its answer, then
-  a timer starts `removeBundle` → `inspect` → `installBundle(enabled: true)`
-  through the built-in manager service. Removing the bundle unloads Power-Up's
-  own Host fiber, but the manager service and the pending promise stay in the
-  Host process, so the reinstall finishes; failures are appended to
-  `~/.dsh/powerup/self-update.log`. The Host captures the version it was loaded
-  from before removal and re-installs that version if the check or install
-  fails, so a failed self-update does not leave Power-Up missing.
-- **One-click update is a client-side decision.** The newest version and both
+- **Power-Up's own install outlives its unload.** The Host route sends its
+  answer, then a timer starts `removeBundle` → `inspect` →
+  `installBundle(enabled: true)` through the built-in manager service. Removing
+  the bundle unloads Power-Up's own Host fiber, but the manager service and the
+  pending promise stay in the Host process, so the reinstall finishes; failures
+  are appended to `~/.dsh/powerup/self-update.log`. The Host captures the
+  version it was loaded from before removal and re-installs that version if the
+  check or install fails, so a failed self-install does not leave Power-Up
+  missing.
+- **One-click install is a client-side decision.** Both install actions use the
+  version in the dialog input (so reinstall and downgrade are allowed) and both
   defaults live in the shared settings store (`dsh-powerup:settings:v1`), so the
   Power-Up page and an open dialog agree without a reload. A one-click run
   installs disabled — the same shape as **Add plugin** — then enables through
@@ -152,18 +155,21 @@ fiber is unloaded. The panel closes; refresh the page when the install finishes.
   auto-enable off the new copy stays disabled and nothing restarts. When no
   restart happens the completion panel closes on a timer; install, enable, and
   restart failures stay on screen with their reason instead.
-- **The stop dialog is a body portal.** `shell.overlay` is an absolute layer at
-  `z-index: 20`, and the host jobs menu is a `document.body` portal at
-  `z-index: 100`; a high z-index inside the overlay layer therefore still loses.
-  The reason popover is rendered through `react-dom`'s `createPortal` into
-  `document.body`, uses `z-index: 1400`, and draws its icon chip, input, error
-  strip, and solid confirm button from host tokens, so it stays readable in both
-  themes. Without `react-dom` it falls back to in-place rendering.
+- **The stop dialog is a body portal with host-dialog chrome.** `shell.overlay`
+  is an absolute layer at `z-index: 20`, and the host jobs menu is a
+  `document.body` portal at `z-index: 100`; a high z-index inside the overlay
+  layer therefore still loses. The reason popover is rendered through
+  `react-dom`'s `createPortal` into `document.body` and uses `z-index: 1400`.
+  Its surface (`--dsw-alias-bg-layer-2`, `--dsw-radius-panel`,
+  `--dsw-elevation-prominent`), 34px input, and buttons mirror the host dialog
+  and menu primitives; the confirm button reuses the host's armed-stop
+  treatment (red border, 12% red fill, red text) instead of inventing a solid
+  danger style. Without `react-dom` it falls back to in-place rendering.
 - **Restart status lives in this browser session.** A management result that
   says `restart-required` is written to `sessionStorage`; the card gets a
   **Restart needed** tag and the group heading gets a count plus a restart
   button. The Client also wraps the shared `remote.pluginManager` methods so an
-  update started from the built-in Add plugin/Update dialogs is observed, and
+  install started from the built-in Add plugin/Install dialogs is observed, and
   asks the Host audit route for profile bundles whose files are newer than the
   Host process. A real app restart clears the session, while a page refresh
   keeps the markers.

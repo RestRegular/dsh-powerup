@@ -69,7 +69,7 @@
 
       const NS = 'dsh-powerup';
       const SETTINGS_KEY = 'dsh-powerup:settings:v1';
-      const VERSION = '0.5.1';
+      const VERSION = '0.6.0';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** How long a one-click update's completion panel stays open when nothing restarts. */
@@ -92,15 +92,15 @@
           'page.how1': '打开任意会话，切到顶部的「轨迹」视图。',
           'page.how2': '在记录行上右键；在空白处右键可执行会话级操作。',
           'page.how3': '菜单支持 ↑ / ↓ 选择、Enter 执行、Esc 关闭。',
-          'page.updateTitle': '插件自更新',
-          'page.updateDesc': '在插件页为每个第三方已安装插件提供更新入口：从安装源选版本、卸载旧版、按「添加插件」流程重装，并可立即启用与重启 DSH；也可以一键更新到最新版。',
-          'page.updateHow': '打开侧边栏的「插件」页，在「已安装插件」分组中点击卡片右侧的更新图标；在更新面板里点「一键更新」即可安装最新版，并按下面的默认行为处理。',
-          'page.oneClickTitle': '一键更新',
-          'page.oneClickDesc': '在更新面板里点「一键更新」时，直接安装最新版本，跳过「是否启用」和「是否重启」的询问。',
+          'page.updateTitle': '插件安装',
+          'page.updateDesc': '在插件页为每个第三方已安装插件提供安装入口：从安装源读取版本，按输入框中的版本卸载旧版并按「添加插件」流程安装，完成后可立即启用并选择是否重启 DSH；也可以一键安装。',
+          'page.updateHow': '打开侧边栏的「插件」页，在「已安装插件」分组中点击卡片右侧的安装图标；在面板里输入或选择版本后点「一键安装」即可，并按下面的默认行为处理。',
+          'page.oneClickTitle': '一键安装',
+          'page.oneClickDesc': '在安装面板里点「一键安装」时，直接安装输入框中的版本，跳过「是否启用」和「是否重启」的询问。',
           'page.oneClickEnable': '自动启用新版本',
-          'page.oneClickEnableHint': '关闭后，一键更新只安装新版本，保持停用，也不自动重启。',
+          'page.oneClickEnableHint': '关闭后，一键安装只安装版本，保持停用，也不自动重启。',
           'page.oneClickRestart': '自动重启 DSH',
-          'page.oneClickRestartHint': '关闭后，更新完成的提示会自动关闭。',
+          'page.oneClickRestartHint': '关闭后，安装完成的提示会自动关闭。',
           'page.jobStopTitle': '后台任务停止原因',
           'page.jobStopDesc': '在会话顶部的后台任务面板里点停止按钮时，可以顺手填写停止原因；原因会附加在任务结束后注入会话的提示里。',
           'page.jobStopHow': '打开任意会话，点顶部的「后台任务」面板，在运行中的任务右侧点停止，填写原因（可留空）后确认。',
@@ -151,7 +151,6 @@
           'jobStop.title': '停止后台任务',
           'jobStop.subtitle': '停止后无法恢复，正在运行的工作会中断。',
           'jobStop.close': '关闭',
-          'jobStop.hint': 'Enter 确认 · Esc 取消',
           'jobStop.reasonLabel': '停止原因（可选）',
           'jobStop.reasonPlaceholder': '例如：已经不需要这个结果了',
           'jobStop.reasonNote': '原因会附加在任务结束后注入会话的提示里。',
@@ -159,9 +158,9 @@
           'jobStop.confirm': '停止任务',
           'jobStop.stopping': '正在停止…',
           'jobStop.failed': '停止失败：{message}',
-          'update.button': '更新版本',
-          'update.title': '更新插件',
-          'update.subtitle': '选择版本后自动卸载旧版并安装新版本。',
+          'update.button': '安装',
+          'update.title': '安装插件',
+          'update.subtitle': '按输入框中的版本安装；已安装的副本会先移除。',
           'update.current': '当前版本',
           'update.versionLabel': '版本号',
           'update.versionPlaceholder': '输入版本号，或从列表选择',
@@ -181,7 +180,7 @@
           'update.registryMirror': '中国大陆镜像源',
           'update.registryCustom': '自定义地址',
           'update.registryFrom': '版本列表来自 {registry}',
-          'update.start': '开始更新',
+          'update.start': '开始安装',
           'update.cancel': '取消',
           'update.close': '关闭',
           'update.step.checking': '正在校验版本…',
@@ -202,14 +201,14 @@
           'update.restartUnsupported': '当前运行方式无法自动重启：{reason}',
           'update.restarting': 'DSH 正在重启，窗口即将关闭…',
           'update.restartFailed': '重启请求失败：{message}',
-          'update.selfUpdateWarning': '更新 Power-Up 会在后台卸载并安装新版本；本面板会关闭，完成后刷新页面。',
-          'update.selfUpdating': 'Power-Up 正在后台更新…',
+          'update.selfUpdateWarning': '安装 Power-Up 会在后台卸载并安装所选版本；本面板会关闭，完成后刷新页面。',
+          'update.selfUpdating': 'Power-Up 正在后台安装…',
           'update.selfRefresh': '完成后请刷新页面。',
           'update.setDefault': '设为默认',
           'update.defaultTag': '默认',
-          'update.defaultHint': '更新列表默认使用此安装源',
+          'update.defaultHint': '安装列表默认使用此安装源',
           'restart.tag': '需重启',
-          'restart.tagHint': '该插件已更新，重启 DSH 后生效',
+          'restart.tagHint': '该插件已安装新版本，重启 DSH 后生效',
           'restart.pending': '{count} 个插件待重启',
           'restart.none': '暂无插件需要重启',
           'restart.action': '重启 DSH',
@@ -217,41 +216,40 @@
           'restart.desc': '重启会关闭并重新打开 DSH，正在运行的任务会中断。',
           'restart.cancel': '取消',
           'restart.confirm': '立即重启',
-          'update.doneTitle': '更新完成',
-          'update.doneInstalled': '{name} 已更新到 {version}。',
+          'update.doneTitle': '安装完成',
+          'update.doneInstalled': '{name} 已安装 {version}。',
           'update.doneDisabled': '{name} 已安装 {version}，尚未启用。',
           'update.doneEnabled': '新版本已启用。',
           'update.doneRestart': '部分更改需要重启 DSH 后生效。',
           'update.doneAutoClose': '完成面板将在 {seconds} 秒后自动关闭。',
           'update.doneButton': '完成',
-          'update.oneClick': '一键更新',
-          'update.oneClickTitle': '一键更新',
-          'update.oneClickHint': '安装最新版本 {version}，跳过「是否启用」和「是否重启」的询问。',
+          'update.oneClick': '一键安装',
+          'update.oneClickTitle': '一键安装',
+          'update.oneClickHint': '安装输入框中的版本 {version}，跳过「是否启用」和「是否重启」的询问。',
           'update.oneClickDefaults': '自动启用：{enable} · 自动重启：{restart}。可在侧边栏 Power-Up 页面修改。',
           'update.on': '开',
           'update.off': '关',
-          'update.oneClickNoLatest': '暂时读不到最新版本，请重试或手动选择版本。',
-          'update.oneClickUpToDate': '已经是最新版本，无需更新。',
+          'update.oneClickNoVersion': '请先输入或选择要安装的版本。',
           'update.oneClickEnableFailed': '新版本已安装，但自动启用失败。请到「插件」页手动启用。',
           'update.oneClickSkippedEnable': '已按设置保持停用；需要时到「插件」页启用。',
-          'update.errorTitle': '更新失败',
+          'update.errorTitle': '安装失败',
           'update.rollbackOkTitle': '已恢复旧版本',
-          'update.rollbackOkDesc': '更新失败，{name} 已自动回滚到 {version}，仍可继续使用。',
+          'update.rollbackOkDesc': '安装失败，{name} 已自动回滚到 {version}，仍可继续使用。',
           'update.rollbackFailedTitle': '旧版本恢复失败',
           'update.rollbackFailedDesc': '自动回滚失败：{message}。请到「插件」页用「添加插件」重新安装。',
           'update.rollbackUnavailable': '无法确定旧版本号，未能自动回滚。请到「插件」页重新安装。',
-          'update.selfTitle': '请用「添加插件」更新 Power-Up 自身',
-          'update.selfDesc': '更新 Power-Up 会先卸载本插件，更新流程会随之中断。',
-          'update.notRemovable': '该插件受 DSH 管理，不能在这里更新。',
+          'update.selfTitle': '请用「添加插件」安装 Power-Up 自身',
+          'update.selfDesc': '安装 Power-Up 会先卸载本插件，安装流程会随之中断。',
+          'update.notRemovable': '该插件受 DSH 管理，不能在这里安装。',
           'update.notBundle': '该包不是 DSH 插件包。',
           'update.alreadyInstalled': '该包已安装，请先卸载旧版本。',
           'update.notFound': '安装源里找不到这个版本。',
-          'update.cancelled': '更新已取消。',
+          'update.cancelled': '安装已取消。',
           'update.installedChip': '未安装',
           'update.unknown': '未知错误',
           'update.invalidVersion': '请输入有效版本号（例如 1.2.3）',
           'update.stopProfile': '当前 profile 不能热卸载该插件，请重启 DSH 后再试。',
-          'update.unsupportedTitle': '无法自动更新',
+          'update.unsupportedTitle': '无法自动安装',
         },
         en: {
           'panel.title': 'Power-Up',
@@ -266,15 +264,15 @@
           'page.how1': 'Open a session and switch to the Trajectory view.',
           'page.how2': 'Right-click a record row; right-click empty space for session actions.',
           'page.how3': 'Use ↑ / ↓ to move, Enter to run, Esc to close.',
-          'page.updateTitle': 'Update plugins',
-          'page.updateDesc': 'Every third-party plugin on the Plugins page gains an update entry: pick a version from a registry, remove the old copy, reinstall through the Add plugin path, then enable and restart DSH — or update to the newest version in one click.',
-          'page.updateHow': 'Open Plugins in the sidebar and click the update icon at the right of a card under Installed plugins; in the update panel, One-click update installs the newest version using the defaults below.',
-          'page.oneClickTitle': 'One-click update',
-          'page.oneClickDesc': 'One-click update installs the newest version and skips both the enable and the restart questions.',
+          'page.updateTitle': 'Install plugins',
+          'page.updateDesc': 'Every third-party plugin on the Plugins page gains an install entry: read versions from a registry, install the version in the input through the Add plugin path (removing the old copy first), then enable and optionally restart DSH — or use one-click install.',
+          'page.updateHow': 'Open Plugins in the sidebar and click the install icon at the right of a card under Installed plugins; in the panel, type or choose a version and press One-click install to use the defaults below.',
+          'page.oneClickTitle': 'One-click install',
+          'page.oneClickDesc': 'One-click install installs the version in the input and skips both the enable and the restart questions.',
           'page.oneClickEnable': 'Enable the new version automatically',
-          'page.oneClickEnableHint': 'When off, one-click update only installs it, leaves it disabled, and does not restart.',
+          'page.oneClickEnableHint': 'When off, one-click install only installs the version, leaves it disabled, and does not restart.',
           'page.oneClickRestart': 'Restart DSH automatically',
-          'page.oneClickRestartHint': 'When off, the completion panel closes itself.',
+          'page.oneClickRestartHint': 'When off, the install-complete panel closes itself.',
           'page.jobStopTitle': 'Background job stop reason',
           'page.jobStopDesc': 'When you stop a running job from the background jobs panel in the session header, you can leave a reason; the reason is appended to the notice injected into the session when the job settles.',
           'page.jobStopHow': 'Open a session, expand the background jobs panel, press stop on a running job, type a reason (optional), then confirm.',
@@ -325,7 +323,6 @@
           'jobStop.title': 'Stop background job',
           'jobStop.subtitle': 'This cannot be undone; running work will be interrupted.',
           'jobStop.close': 'Close',
-          'jobStop.hint': 'Enter to confirm · Esc to cancel',
           'jobStop.reasonLabel': 'Stop reason (optional)',
           'jobStop.reasonPlaceholder': 'e.g. the result is no longer needed',
           'jobStop.reasonNote': 'The reason is appended to the notice injected into the session when the job settles.',
@@ -333,9 +330,9 @@
           'jobStop.confirm': 'Stop job',
           'jobStop.stopping': 'Stopping…',
           'jobStop.failed': 'Could not stop the job: {message}',
-          'update.button': 'Update version',
-          'update.title': 'Update plugin',
-          'update.subtitle': 'Choose a version; the old one is removed and the new one installed.',
+          'update.button': 'Install',
+          'update.title': 'Install plugin',
+          'update.subtitle': 'Install the version in the input; the installed copy is removed first.',
           'update.current': 'Current version',
           'update.versionLabel': 'Version',
           'update.versionPlaceholder': 'Type a version or pick one from the list',
@@ -355,7 +352,7 @@
           'update.registryMirror': 'Mainland China mirror',
           'update.registryCustom': 'Custom address',
           'update.registryFrom': 'Versions came from {registry}',
-          'update.start': 'Update',
+          'update.start': 'Install',
           'update.cancel': 'Cancel',
           'update.close': 'Close',
           'update.step.checking': 'Checking the version…',
@@ -376,14 +373,14 @@
           'update.restartUnsupported': 'This runtime cannot restart itself: {reason}',
           'update.restarting': 'DSH is restarting; this window will close…',
           'update.restartFailed': 'Restart request failed: {message}',
-          'update.selfUpdateWarning': 'Updating Power-Up removes and reinstalls it in the background; this panel closes, then refresh the page.',
-          'update.selfUpdating': 'Power-Up is updating in the background…',
+          'update.selfUpdateWarning': 'Installing Power-Up removes and reinstalls it in the background; this panel closes, then refresh the page.',
+          'update.selfUpdating': 'Power-Up is installing in the background…',
           'update.selfRefresh': 'Refresh the page when it finishes.',
           'update.setDefault': 'Set as default',
           'update.defaultTag': 'Default',
-          'update.defaultHint': 'The update list starts from this registry',
+          'update.defaultHint': 'The install list starts from this registry',
           'restart.tag': 'Restart needed',
-          'restart.tagHint': 'Updated; restart DSH to apply',
+          'restart.tagHint': 'Installed; restart DSH to apply',
           'restart.pending': '{count} plugins need a restart',
           'restart.none': 'No plugins need a restart',
           'restart.action': 'Restart DSH',
@@ -391,41 +388,40 @@
           'restart.desc': 'Restarting closes and reopens DSH; running tasks are interrupted.',
           'restart.cancel': 'Cancel',
           'restart.confirm': 'Restart now',
-          'update.doneTitle': 'Update complete',
-          'update.doneInstalled': '{name} is now on {version}.',
+          'update.doneTitle': 'Install complete',
+          'update.doneInstalled': '{name} installed {version}.',
           'update.doneDisabled': '{name} {version} is installed but not enabled.',
           'update.doneEnabled': 'The new version is enabled.',
           'update.doneRestart': 'Some changes apply only after DSH restarts.',
           'update.doneAutoClose': 'This panel closes itself in {seconds} seconds.',
           'update.doneButton': 'Done',
-          'update.oneClick': 'One-click update',
-          'update.oneClickTitle': 'One-click update',
-          'update.oneClickHint': 'Installs the newest version ({version}) and skips the enable and restart questions.',
+          'update.oneClick': 'One-click install',
+          'update.oneClickTitle': 'One-click install',
+          'update.oneClickHint': 'Installs the version in the input ({version}) and skips the enable and restart questions.',
           'update.oneClickDefaults': 'Auto-enable: {enable} · Auto-restart: {restart}. Change these on the Power-Up page.',
           'update.on': 'on',
           'update.off': 'off',
-          'update.oneClickNoLatest': 'The newest version is not available yet. Retry or pick a version manually.',
-          'update.oneClickUpToDate': 'Already up to date.',
-          'update.oneClickEnableFailed': 'The new version is installed but could not be enabled. Enable it on the Plugins page.',
+          'update.oneClickNoVersion': 'Type or choose a version to install first.',
+          'update.oneClickEnableFailed': 'The version is installed but could not be enabled. Enable it on the Plugins page.',
           'update.oneClickSkippedEnable': 'Left disabled as configured; enable it on the Plugins page when ready.',
-          'update.errorTitle': 'Update failed',
+          'update.errorTitle': 'Install failed',
           'update.rollbackOkTitle': 'Previous version restored',
-          'update.rollbackOkDesc': 'The update failed, so {name} was rolled back to {version} and is ready to use.',
+          'update.rollbackOkDesc': 'The install failed, so {name} was rolled back to {version} and is ready to use.',
           'update.rollbackFailedTitle': 'Could not restore the previous version',
           'update.rollbackFailedDesc': 'Automatic rollback failed: {message}. Reinstall it from the Plugins page with “Add plugin”.',
           'update.rollbackUnavailable': 'The previous version is unknown, so no automatic rollback was possible. Reinstall it from the Plugins page.',
-          'update.selfTitle': 'Update Power-Up with Add plugin',
-          'update.selfDesc': 'Updating Power-Up removes this plugin first, which interrupts this flow.',
-          'update.notRemovable': 'DSH manages this plugin; it cannot be updated here.',
+          'update.selfTitle': 'Install Power-Up with Add plugin',
+          'update.selfDesc': 'Installing Power-Up removes this plugin first, which interrupts this flow.',
+          'update.notRemovable': 'DSH manages this plugin; it cannot be installed here.',
           'update.notBundle': 'This package is not a DSH plugin bundle.',
           'update.alreadyInstalled': 'This package is already installed; remove the old version first.',
           'update.notFound': 'That version is not available from the registry.',
-          'update.cancelled': 'The update was cancelled.',
+          'update.cancelled': 'The install was cancelled.',
           'update.installedChip': 'Not installed',
           'update.unknown': 'Unknown error',
           'update.invalidVersion': 'Enter a valid version, for example 1.2.3.',
           'update.stopProfile': 'This profile cannot hot-remove the plugin; restart DSH and try again.',
-          'update.unsupportedTitle': 'Cannot update automatically',
+          'update.unsupportedTitle': 'Cannot install automatically',
         },
       };
 
@@ -838,36 +834,35 @@
 .dsh-powerup-menu-foot-id{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--dsw-font-family-code,ui-monospace,SFMono-Regular,Consolas,monospace)}
 .dsh-powerup-toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);z-index:1001;max-width:min(440px,calc(100vw - 32px));padding:7px 12px;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:var(--dsw-alias-bg-overlay,var(--dsw-alias-bg-layer-1));color:var(--dsw-alias-label-primary);box-shadow:var(--dsw-elevation-lv2,0 8px 24px rgba(15,23,42,.18));font-size:12px;line-height:1.45;pointer-events:none;animation:dsh-powerup-toast-in .14s ease-out}
 @keyframes dsh-powerup-toast-in{from{opacity:0;transform:translate(-50%,5px)}to{opacity:1;transform:translate(-50%,0)}}
-.dsh-powerup-jobstop{position:fixed;z-index:1400;box-sizing:border-box;display:flex;flex-direction:column;gap:12px;padding:14px;border:.5px solid var(--dsw-alias-border-l2);border-radius:14px;background:var(--dsw-alias-bg-overlay,var(--dsw-alias-bg-layer-1));box-shadow:var(--dsw-elevation-prominent,0 18px 44px rgba(15,23,42,.26),0 2px 8px rgba(15,23,42,.12));color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.5;pointer-events:auto;overflow-y:auto;--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2);animation:dsh-powerup-jobstop-in .16s cubic-bezier(.2,.8,.3,1)}
-@keyframes dsh-powerup-jobstop-in{from{opacity:0;transform:translateY(4px) scale(.99)}to{opacity:1;transform:none}}
-.dsh-powerup-jobstop-head{display:flex;align-items:flex-start;gap:10px}
-.dsh-powerup-jobstop-icon{flex:none;display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:9px;background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 12%,transparent);color:var(--dsw-alias-state-error-primary)}
-.dsh-powerup-jobstop-heading{display:flex;flex:1 1 auto;flex-direction:column;gap:1px;min-width:0}
-.dsh-powerup-jobstop-title{color:var(--dsw-alias-label-primary);font-size:13.5px;line-height:19px;font-weight:600}
-.dsh-powerup-jobstop-subtitle{color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:16px}
-.dsh-powerup-jobstop-close{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;margin:-3px -3px 0 0;padding:0;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;font-size:16px;line-height:1;cursor:pointer}
-.dsh-powerup-jobstop-close:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover,var(--dsw-alias-bg-layer-2));color:var(--dsw-alias-label-primary)}
-.dsh-powerup-jobstop-label{display:flex;align-items:center;gap:8px;min-width:0;margin:0;padding:7px 10px;border:.5px solid var(--dsw-alias-border-l1);border-radius:9px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font-family:var(--dsw-font-family-code,ui-monospace,SFMono-Regular,Consolas,monospace);font-size:11.5px;line-height:17px}
-.dsh-powerup-jobstop-dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--dsw-alias-state-success-primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--dsw-alias-state-success-primary) 14%,transparent)}
-.dsh-powerup-jobstop-label-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dsh-powerup-jobstop{position:fixed;z-index:1400;box-sizing:border-box;display:flex;flex-direction:column;padding:0 0 16px;border:0;border-radius:var(--dsw-radius-panel);background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);font-size:12px;line-height:18px;pointer-events:auto;overflow-y:auto;--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2);animation:dsh-powerup-jobstop-in .16s ease-out}
+@keyframes dsh-powerup-jobstop-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.dsh-powerup-jobstop-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:18px 12px 6px 20px}
+.dsh-powerup-jobstop-heading{display:flex;flex-direction:column;gap:2px;min-width:0}
+.dsh-powerup-jobstop-title{color:var(--dsw-alias-label-primary);font-size:16px;line-height:24px;font-weight:500}
+.dsh-powerup-jobstop-subtitle{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px}
+.dsh-powerup-jobstop-close{flex:none;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;margin:-4px -2px 0 0;padding:0;border:0;border-radius:var(--dsw-radius-sm);background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:18px;line-height:1;cursor:pointer}
+.dsh-powerup-jobstop-close:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
+.dsh-powerup-jobstop-label{display:flex;align-items:center;gap:6px;min-width:0;margin:6px 20px 0;font-size:11.5px;line-height:18px}
+.dsh-powerup-jobstop-dot{flex:none;width:6px;height:6px;border-radius:50%;background:var(--dsw-alias-state-success-primary)}
+.dsh-powerup-jobstop-kind{flex:none;padding:0 5px;border-radius:var(--dsw-radius-xs);background:var(--dsw-specific-menu);color:var(--dsw-alias-label-tertiary);font-family:var(--dsw-font-family-code,ui-monospace,SFMono-Regular,Consolas,monospace);font-size:10.5px;line-height:16px}
+.dsh-powerup-jobstop-label-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-primary);font-family:var(--dsw-font-family-code,ui-monospace,SFMono-Regular,Consolas,monospace);font-size:11.5px;line-height:18px}
+.dsh-powerup-jobstop-body{display:flex;flex-direction:column;gap:12px;margin-top:12px;padding:0 20px}
 .dsh-powerup-jobstop-field{display:flex;flex-direction:column;gap:6px;min-width:0}
-.dsh-powerup-jobstop-field-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .dsh-powerup-jobstop-field-label{color:var(--dsw-alias-label-secondary);font-size:11.5px;line-height:17px}
-.dsh-powerup-jobstop-count{color:var(--dsw-alias-label-caption);font-size:10.5px;line-height:16px;font-variant-numeric:tabular-nums}
-.dsh-powerup-jobstop-input{box-sizing:border-box;width:100%;height:36px;padding:0 11px;border:.5px solid var(--dsw-alias-border-l2);border-radius:9px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:20px;outline:none;transition:border-color .14s ease,box-shadow .14s ease}
-.dsh-powerup-jobstop-input::placeholder{color:var(--dsw-alias-label-caption)}
-.dsh-powerup-jobstop-input:focus{border-color:var(--dsw-alias-state-business-primary);box-shadow:inset 0 0 0 .5px var(--dsw-alias-state-business-primary)}
+.dsh-powerup-jobstop-input{box-sizing:border-box;width:100%;height:34px;padding:0 12px;border:.5px solid var(--dsw-alias-border-l4);border-radius:var(--dsw-radius-md);background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:1.5;outline:none;transition:border-color .14s ease}
+.dsh-powerup-jobstop-input::placeholder{color:var(--dsw-alias-label-dimmed)}
+.dsh-powerup-jobstop-input:focus-visible{outline:none;border-color:var(--dsw-alias-state-business-primary)}
+.dsh-powerup-jobstop-input:disabled{color:var(--dsw-alias-label-tertiary);cursor:default}
 .dsh-powerup-jobstop-note{margin:0;color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:16px}
-.dsh-powerup-jobstop-error{margin:0;padding:7px 9px;border:.5px solid color-mix(in srgb,var(--dsw-alias-state-error-primary) 32%,transparent);border-radius:8px;background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 8%,transparent);color:var(--dsw-alias-state-error-primary);font-size:11.5px;line-height:17px;overflow-wrap:anywhere}
-.dsh-powerup-jobstop-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding-top:2px}
-.dsh-powerup-jobstop-hint{color:var(--dsw-alias-label-tertiary);font-size:10.5px;line-height:16px;white-space:nowrap}
-.dsh-powerup-jobstop-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px}
-.dsh-powerup-jobstop-cancel{height:32px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12.5px;line-height:18px;cursor:pointer}
-.dsh-powerup-jobstop-cancel:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover,var(--dsw-alias-bg-layer-2));color:var(--dsw-alias-label-primary)}
-.dsh-powerup-jobstop-confirm{height:32px;padding:0 13px;border:0;border-radius:8px;background:var(--dsw-alias-state-error-primary);color:var(--dsw-alias-label-primary-foreground);font:inherit;font-size:12.5px;line-height:18px;font-weight:500;cursor:pointer;transition:background .14s ease,opacity .14s ease}
-.dsh-powerup-jobstop-confirm:hover:not(:disabled){background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 86%,var(--dsw-alias-label-primary))}
-.dsh-powerup-jobstop-confirm:disabled,.dsh-powerup-jobstop-cancel:disabled,.dsh-powerup-jobstop-close:disabled{opacity:.55;cursor:default}
-.dsh-powerup-jobstop-cancel:focus-visible,.dsh-powerup-jobstop-confirm:focus-visible,.dsh-powerup-jobstop-close:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:1px}
+.dsh-powerup-jobstop-error{margin:0;color:var(--dsw-alias-state-error-primary);font-size:11.5px;line-height:17px;overflow-wrap:anywhere}
+.dsh-powerup-jobstop-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:14px 20px 0}
+.dsh-powerup-jobstop-cancel{height:36px;padding:0 14px;border:0;border-radius:var(--dsw-radius-md);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:14px;line-height:22px;cursor:pointer}
+.dsh-powerup-jobstop-cancel:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}
+.dsh-powerup-jobstop-cancel:active:not(:disabled){background:var(--dsw-alias-interactive-bg-active)}
+.dsh-powerup-jobstop-confirm{height:36px;padding:0 14px;border:.5px solid color-mix(in srgb,var(--dsw-alias-state-error-primary) 45%,transparent);border-radius:var(--dsw-radius-md);background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 12%,transparent);color:var(--dsw-alias-state-error-primary);font:inherit;font-size:14px;line-height:22px;cursor:pointer;transition:background .14s ease}
+.dsh-powerup-jobstop-confirm:hover:not(:disabled){background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 18%,transparent)}
+.dsh-powerup-jobstop-confirm:disabled,.dsh-powerup-jobstop-cancel:disabled,.dsh-powerup-jobstop-close:disabled{opacity:.4;cursor:not-allowed}
+.dsh-powerup-jobstop-cancel:focus-visible,.dsh-powerup-jobstop-confirm:focus-visible,.dsh-powerup-jobstop-close:focus-visible,.dsh-powerup-jobstop-input:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:1px}
 @media (prefers-reduced-motion:reduce){.dsh-powerup-jobstop{animation:none}}
 .dsh-powerup-update-button{flex:none;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-caption);cursor:pointer}
 .dsh-powerup-update-button:hover{background:var(--dsw-alias-interactive-bg-hover,var(--dsw-alias-bg-layer-2));color:var(--dsw-alias-label-secondary)}
@@ -1734,30 +1729,14 @@
       }
 
       /**
-       * The version a one-click update targets: the registry's `latest` tag,
-       * falling back to the first row of the already sorted version list.
-       * @param {{ latest?: unknown, versions?: unknown }} view
-       * @returns {string} a concrete version, or '' when none is known yet.
+       * The version both install paths target: whatever is in the dialog's
+       * version input. One-click install reads the same input instead of the
+       * registry's newest version, so it can also reinstall or downgrade.
+       * @param {{ version?: unknown }} view
+       * @returns {string} a concrete version, or '' when the input is invalid.
        */
-      function oneClickVersion(view) {
-        const declared = normalizeVersionInput(view?.latest);
-        if (declared !== '') return declared;
-        const first = Array.isArray(view?.versions) ? view.versions[0] : null;
-        return normalizeVersionInput(first);
-      }
-
-      /**
-       * Whether a target version is strictly newer than the installed one.
-       * @param {unknown} target
-       * @param {unknown} current
-       * @returns {boolean}
-       */
-      function isUpdateAvailable(target, current) {
-        const version = normalizeVersionInput(target);
-        if (version === '') return false;
-        const installed = normalizeVersionInput(current);
-        if (installed === '') return true;
-        return compareVersionsDesc(version, installed) < 0;
+      function installVersion(view) {
+        return normalizeVersionInput(view?.version);
       }
 
       /** A display title for a bundle, following the page's locale fallback. */
@@ -2308,7 +2287,7 @@
         };
 
         if (target === null) return null;
-        const placement = popoverPlacement({ getBoundingClientRect: () => target.rect }, 340, 260);
+        const placement = popoverPlacement({ getBoundingClientRect: () => target.rect }, 340, 300);
         // The body portal escapes every slot's stacking context, so the same
         // panel is above the host jobs menu (z-index 100) in both themes.
         return renderInBody(h('div', {
@@ -2339,7 +2318,6 @@
           },
         },
         h('div', { className: 'dsh-powerup-jobstop-head' },
-          h('div', { className: 'dsh-powerup-jobstop-icon' }, h(StopIcon, { size: 14 })),
           h('div', { className: 'dsh-powerup-jobstop-heading' },
             h('span', { className: 'dsh-powerup-jobstop-title' }, t('jobStop.title')),
             h('span', { className: 'dsh-powerup-jobstop-subtitle' }, t('jobStop.subtitle')),
@@ -2355,42 +2333,41 @@
         ),
         h('div', { className: 'dsh-powerup-jobstop-label', title: target.job.label },
           h('span', { className: 'dsh-powerup-jobstop-dot', 'aria-hidden': 'true' }),
+          typeof target.job.kind === 'string' && target.job.kind !== ''
+            ? h('span', { className: 'dsh-powerup-jobstop-kind' }, target.job.kind)
+            : null,
           h('span', { className: 'dsh-powerup-jobstop-label-text' }, target.job.label),
         ),
-        h('label', { className: 'dsh-powerup-jobstop-field' },
-          h('span', { className: 'dsh-powerup-jobstop-field-head' },
+        h('div', { className: 'dsh-powerup-jobstop-body' },
+          h('label', { className: 'dsh-powerup-jobstop-field' },
             h('span', { className: 'dsh-powerup-jobstop-field-label' }, t('jobStop.reasonLabel')),
-            h('span', { className: 'dsh-powerup-jobstop-count' }, `${reason.length}/${JOB_STOP_REASON_MAX}`),
+            h('input', {
+              ref: inputRef,
+              className: 'dsh-powerup-jobstop-input',
+              type: 'text',
+              value: reason,
+              maxLength: JOB_STOP_REASON_MAX,
+              placeholder: t('jobStop.reasonPlaceholder'),
+              disabled: pending,
+              onChange: (event) => setReason(event.target.value),
+            }),
           ),
-          h('input', {
-            ref: inputRef,
-            className: 'dsh-powerup-jobstop-input',
-            type: 'text',
-            value: reason,
-            maxLength: JOB_STOP_REASON_MAX,
-            placeholder: t('jobStop.reasonPlaceholder'),
-            disabled: pending,
-            onChange: (event) => setReason(event.target.value),
-          }),
+          h('p', { className: 'dsh-powerup-jobstop-note' }, t('jobStop.reasonNote')),
+          error === null ? null : h('p', { className: 'dsh-powerup-jobstop-error', role: 'alert' }, error),
         ),
-        h('p', { className: 'dsh-powerup-jobstop-note' }, t('jobStop.reasonNote')),
-        error === null ? null : h('p', { className: 'dsh-powerup-jobstop-error', role: 'alert' }, error),
-        h('div', { className: 'dsh-powerup-jobstop-foot' },
-          h('span', { className: 'dsh-powerup-jobstop-hint' }, t('jobStop.hint')),
-          h('div', { className: 'dsh-powerup-jobstop-actions' },
-            h('button', {
-              type: 'button',
-              className: 'dsh-powerup-jobstop-cancel',
-              disabled: pending,
-              onClick: close,
-            }, t('jobStop.cancel')),
-            h('button', {
-              type: 'button',
-              className: 'dsh-powerup-jobstop-confirm',
-              disabled: pending,
-              onClick: () => { void submit(); },
-            }, pending ? t('jobStop.stopping') : t('jobStop.confirm')),
-          ),
+        h('div', { className: 'dsh-powerup-jobstop-actions' },
+          h('button', {
+            type: 'button',
+            className: 'dsh-powerup-jobstop-cancel',
+            disabled: pending,
+            onClick: close,
+          }, t('jobStop.cancel')),
+          h('button', {
+            type: 'button',
+            className: 'dsh-powerup-jobstop-confirm',
+            disabled: pending,
+            onClick: () => { void submit(); },
+          }, pending ? t('jobStop.stopping') : t('jobStop.confirm')),
         )));
       }
 
@@ -2926,18 +2903,14 @@
           if (token === null || current === null || current.phase !== 'choose') return;
           const t = tRef.current;
           const oneClick = options?.oneClick === true;
-          // One-click installs the registry's newest version; the manual path
-          // uses what the user typed or picked.
-          const version = oneClick ? oneClickVersion(current) : normalizeVersionInput(current.version);
+          // Both paths install the version in the input. One-click only skips
+          // the enable/restart questions, so reinstalling or downgrading works.
+          const version = installVersion(current);
           if (version === '') {
             setView((state) => state === null ? state : {
               ...state,
-              formError: t(oneClick ? 'update.oneClickNoLatest' : 'update.invalidVersion'),
+              formError: t(oneClick ? 'update.oneClickNoVersion' : 'update.invalidVersion'),
             });
-            return;
-          }
-          if (oneClick && isUpdateAvailable(version, current.currentVersion) !== true) {
-            setView((state) => state === null ? state : { ...state, formError: t('update.oneClickUpToDate') });
             return;
           }
           const choice = current.choices.find((item) => item.key === current.registryKey) ?? current.choices[0];
@@ -3235,12 +3208,9 @@
         const canClose = !busy;
         const title = view.title === undefined || view.title === '' ? view.name : view.title;
         const showVersions = view.phase === 'choose' && view.listOpen === true;
-        // The newest version a one-click update would install right now.
-        const quickVersion = oneClickVersion(view);
-        const quickAvailable = view.self !== true
-          && view.versionsState === 'ready'
-          && quickVersion !== ''
-          && isUpdateAvailable(quickVersion, view.currentVersion);
+        // One-click install uses exactly what the version input holds.
+        const quickVersion = installVersion(view);
+        const quickAvailable = view.self !== true && quickVersion !== '';
 
         const footer = (() => {
           if (view.phase === 'choose') {
@@ -3255,16 +3225,14 @@
                   disabled: !quickAvailable,
                   title: quickAvailable
                     ? t('update.oneClickHint', { version: quickVersion })
-                    : quickVersion === ''
-                      ? t('update.oneClickNoLatest')
-                      : t('update.oneClickUpToDate'),
+                    : t('update.oneClickNoVersion'),
                   onClick: () => startUpdate({ oneClick: true }),
                 }, h(QuickIcon, { size: 13 }), t('update.oneClick')),
               h('button', {
                 key: 'start',
                 type: 'button',
                 className: 'dsh-powerup-update-primary',
-                disabled: view.versionsState === 'loading' || String(view.version ?? '').trim() === '',
+                disabled: quickVersion === '',
                 onClick: () => startUpdate(),
               }, t('update.start')),
             ].filter(Boolean);
@@ -3438,9 +3406,7 @@
                   ),
                   h('p', { className: 'dsh-powerup-update-note' }, quickAvailable
                     ? t('update.oneClickHint', { version: quickVersion })
-                    : quickVersion === ''
-                      ? t('update.oneClickNoLatest')
-                      : t('update.oneClickUpToDate')),
+                    : t('update.oneClickNoVersion')),
                   quickAvailable
                     ? h('p', { className: 'dsh-powerup-update-note' }, t('update.oneClickDefaults', {
                       enable: getSettings().oneClickEnable === false ? t('update.off') : t('update.on'),
@@ -4106,8 +4072,7 @@
           readRememberedRegistry,
           packageDisplayTitle,
           normalizeVersionInput,
-          oneClickVersion,
-          isUpdateAvailable,
+          installVersion,
           readSettings,
           getSettings,
           setSettings,

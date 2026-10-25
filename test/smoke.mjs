@@ -369,10 +369,18 @@ assert.ok(CSS.includes('.dsh-powerup-update-quick{'), 'the one-click button has 
 assert.ok(CSS.includes('.dsh-powerup-settings'), 'the page renders the one-click default rows');
 assert.ok(CSS.includes('--dsw-alias-state-warn-label'), 'the one-click accent uses a host token');
 assert.ok(CSS.includes('.dsh-powerup-jobstop{position:fixed;z-index:1400'), 'the stop panel sits above host popovers');
-assert.ok(CSS.includes('.dsh-powerup-jobstop-icon'), 'the stop panel has a tinted icon chip');
+const stopRule = /\.dsh-powerup-jobstop\{([^}]*)\}/u.exec(CSS)?.[1] ?? '';
+assert.ok(stopRule.includes('background:var(--dsw-alias-bg-layer-2)'), 'the stop panel uses the host dialog surface');
+assert.ok(stopRule.includes('border-radius:var(--dsw-radius-panel)'), 'the stop panel uses the host panel radius');
+assert.ok(stopRule.includes('box-shadow:var(--dsw-elevation-prominent)'), 'the stop panel uses the host dialog elevation');
 assert.ok(
-  /\.dsh-powerup-jobstop-confirm\{[^}]*background:var\(--dsw-alias-state-error-primary\)/u.test(CSS),
-  'the stop confirm button uses a solid host error token in both themes',
+  /\.dsh-powerup-jobstop-confirm\{[^}]*border:\.5px solid color-mix\(in srgb,var\(--dsw-alias-state-error-primary\) 45%,transparent\)[^}]*background:color-mix\(in srgb,var\(--dsw-alias-state-error-primary\) 12%,transparent\)[^}]*color:var\(--dsw-alias-state-error-primary\)/u.test(CSS),
+  'the stop confirm button reuses the host armed-stop treatment',
+);
+assert.ok(CSS.includes('--dsw-specific-menu'), 'the job kind chip uses the host menu token');
+assert.ok(
+  /\.dsh-powerup-jobstop-input\{[^}]*height:34px[^}]*border:\.5px solid var\(--dsw-alias-border-l4\)[^}]*border-radius:var\(--dsw-radius-md\)/u.test(CSS),
+  'the reason input reuses the host input treatment',
 );
 
 // ---------------------------------------------------------------------------
@@ -391,16 +399,13 @@ globalThis.localStorage.getItem = () => JSON.stringify({ enabled: true, oneClick
 assert.deepEqual(update.readSettings(), { enabled: true, oneClickEnable: false, oneClickRestart: false });
 globalThis.localStorage.getItem = savedGetItem;
 
-// One-click always targets the newest published version, and only when it is
-// actually newer than the installed one.
-assert.equal(update.oneClickVersion({ latest: '2.1.0', versions: ['2.0.0'] }), '2.1.0');
-assert.equal(update.oneClickVersion({ latest: null, versions: ['2.0.0', '1.0.0'] }), '2.0.0');
-assert.equal(update.oneClickVersion({}), '');
-assert.equal(update.isUpdateAvailable('2.1.0', '2.0.0'), true);
-assert.equal(update.isUpdateAvailable('2.0.0', '2.0.0'), false);
-assert.equal(update.isUpdateAvailable('1.9.0', '2.0.0'), false);
-assert.equal(update.isUpdateAvailable('1.0.0', ''), true);
-assert.equal(update.isUpdateAvailable('', '1.0.0'), false);
+// Both install paths use the version in the dialog input, so reinstall and
+// downgrade are allowed; only a concrete version enables the action.
+assert.equal(update.installVersion({ version: '2.1.0' }), '2.1.0');
+assert.equal(update.installVersion({ version: 'v1.2.3' }), '1.2.3');
+assert.equal(update.installVersion({ version: '' }), '');
+assert.equal(update.installVersion({ version: 'latest' }), '');
+assert.equal(update.installVersion({}), '');
 const usedUpdateKeys = new Set([...source.matchAll(/t\('(update\.[A-Za-z.]+)'/gu)].map((match) => match[1]));
 for (const key of usedUpdateKeys) {
   assert.ok(DICT.zh[key] !== undefined, `zh dictionary has ${key}`);
@@ -415,7 +420,7 @@ for (const key of [
   'page.oneClickTitle', 'page.oneClickDesc', 'page.oneClickEnable', 'page.oneClickEnableHint',
   'page.oneClickRestart', 'page.oneClickRestartHint',
   'update.oneClick', 'update.oneClickTitle', 'update.oneClickHint', 'update.oneClickDefaults',
-  'update.doneAutoClose', 'update.oneClickNoLatest', 'update.oneClickUpToDate',
+  'update.doneAutoClose', 'update.oneClickNoVersion',
   'update.oneClickEnableFailed', 'update.oneClickSkippedEnable', 'update.on', 'update.off',
 ]) {
   assert.ok(DICT.zh[key] !== undefined, `zh dictionary has ${key}`);
@@ -504,7 +509,7 @@ assert.equal(update.normalizeVersionInput('@acme/x@1.0.0'), '');
 assert.equal(update.inspectReason({ problem: 'not-found' }, translate), 'That version is not available from the registry.');
 assert.equal(
   update.operationReason({ error: { code: 'management-required' } }, translate),
-  'DSH manages this plugin; it cannot be updated here.',
+  'DSH manages this plugin; it cannot be installed here.',
 );
 
 // The update removes the old copy first; a later failure must reinstall it.
@@ -629,7 +634,7 @@ const stopButton = {
   closest: (selector) => selector === 'li' ? { querySelectorAll: () => [labelNode, stopButton] } : null,
 };
 assert.equal(update.stopButtonLabel(stopButton), 'sleep 600', 'row label comes from the DOM, not the localized aria-label');
-for (const key of ['page.jobStopTitle', 'page.jobStopDesc', 'page.jobStopHow', 'jobStop.title', 'jobStop.subtitle', 'jobStop.close', 'jobStop.hint', 'jobStop.reasonLabel', 'jobStop.reasonPlaceholder', 'jobStop.reasonNote', 'jobStop.cancel', 'jobStop.confirm', 'jobStop.stopping', 'jobStop.failed']) {
+for (const key of ['page.jobStopTitle', 'page.jobStopDesc', 'page.jobStopHow', 'jobStop.title', 'jobStop.subtitle', 'jobStop.close', 'jobStop.reasonLabel', 'jobStop.reasonPlaceholder', 'jobStop.reasonNote', 'jobStop.cancel', 'jobStop.confirm', 'jobStop.stopping', 'jobStop.failed']) {
   assert.ok(DICT.zh[key] !== undefined, `zh dictionary has ${key}`);
   assert.ok(DICT.en[key] !== undefined, `en dictionary has ${key}`);
 }
@@ -759,7 +764,7 @@ assert.equal(injected.size, 1, 'one update button injected');
 const injectedButton = firstCard.end.firstElementChild;
 assert.equal(injectedButton.getAttribute('data-dsh-powerup-update'), '');
 assert.equal(injectedButton.className, 'dsh-powerup-update-button');
-assert.equal(injectedButton.title, 'Update version · @acme/dsh-widget');
+assert.equal(injectedButton.title, 'Install · @acme/dsh-widget');
 injectedButton.click();
 assert.deepEqual(opened, ['@acme/dsh-widget'], 'click opens that package');
 update.ensureUpdateButtons(cardDocument, () => {}, [], translate, injected);
@@ -777,7 +782,7 @@ const selfDocument = {
   createElement: (tag) => new FakeElement(tag),
 };
 update.ensureUpdateButtons(selfDocument, () => {}, [], translate, new Set());
-assert.equal(selfCard.end.firstElementChild.title, 'Update version · @restregular/dsh-powerup', 'self update uses the normal entry');
+assert.equal(selfCard.end.firstElementChild.title, 'Install · @restregular/dsh-powerup', 'self install uses the normal entry');
 
 const group = new FakeElement('section');
 group.setAttribute('data-plugin-group', 'bundles');
@@ -1025,7 +1030,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.5.1');
+assert.equal(host.__test.SELF_VERSION, '0.6.0');
 
 const installFailSpecs = [];
 const installFailManager = {
@@ -1071,7 +1076,7 @@ assert.equal(typeof hostRoute.handler, 'function');
 // ---------------------------------------------------------------------------
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 assert.equal(pkg.name, '@restregular/dsh-powerup');
-assert.equal(pkg.version, '0.5.1');
+assert.equal(pkg.version, '0.6.0');
 assert.equal(pkg.icon, './icon.svg');
 assert.equal(pkg.exports['./client'], './client.js');
 assert.equal(pkg.dsh.bundle.patch, './cordis.patch.yml');
@@ -1089,4 +1094,4 @@ const iconSvg = fs.readFileSync(path.join(root, 'icon.svg'), 'utf8');
 assert.ok(iconSvg.includes('viewBox="0 0 256 256"'));
 assert.ok(!iconSvg.includes('<script'));
 
-console.log('smoke ok: 6 slots, icons, page, overlays, job stop reason, update flow, bridge, helpers, theme tokens, manifest, host routes');
+console.log('smoke ok: 6 slots, icons, page, overlays, job stop reason, install flow, bridge, helpers, theme tokens, manifest, host routes');
