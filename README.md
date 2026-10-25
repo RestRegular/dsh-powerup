@@ -37,11 +37,15 @@ uses.
 ### Stop a background job with a reason
 
 The session header's background jobs panel keeps the host's list, live output,
-and stop button. Clicking a running job's stop button opens a small Power-Up
-dialog instead of the host's two-press stop:
+and stop button. Clicking a running job's stop button opens a themed Power-Up
+dialog instead of the host's two-press stop. The dialog is portaled to the
+document body, so it renders above the jobs menu (which is itself a body portal)
+and is not clipped by any slot's stacking context; its colors come only from
+`--dsw-alias-*` tokens, so light and dark themes both work.
 
 - The reason field is optional; an empty field keeps the host's default
-  `cancelled by the user` reason.
+  `cancelled by the user` reason. A live character counter shows the 200-character
+  limit, and `Enter` confirms while `Esc` cancels.
 - Confirming stops the job through the Host route, which records
   `cancelled by the user: <reason>`. The completion notice injected into the
   session and the shell tool's result therefore carry the reason.
@@ -148,6 +152,13 @@ fiber is unloaded. The panel closes; refresh the page when the install finishes.
   auto-enable off the new copy stays disabled and nothing restarts. When no
   restart happens the completion panel closes on a timer; install, enable, and
   restart failures stay on screen with their reason instead.
+- **The stop dialog is a body portal.** `shell.overlay` is an absolute layer at
+  `z-index: 20`, and the host jobs menu is a `document.body` portal at
+  `z-index: 100`; a high z-index inside the overlay layer therefore still loses.
+  The reason popover is rendered through `react-dom`'s `createPortal` into
+  `document.body`, uses `z-index: 1400`, and draws its icon chip, input, error
+  strip, and solid confirm button from host tokens, so it stays readable in both
+  themes. Without `react-dom` it falls back to in-place rendering.
 - **Restart status lives in this browser session.** A management result that
   says `restart-required` is written to `sessionStorage`; the card gets a
   **Restart needed** tag and the group heading gets a count plus a restart

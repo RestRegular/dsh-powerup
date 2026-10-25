@@ -105,8 +105,16 @@ assert.ok(loader.entries.has('@restregular/dsh-powerup'), 'module id is register
 const factory = loader.entries.get('@restregular/dsh-powerup');
 assert.equal(typeof factory, 'function');
 
+const portalCalls = [];
+const ReactDOM = {
+  createPortal(node, container) {
+    portalCalls.push(container);
+    return { portal: node, container };
+  },
+};
 const requireStub = (id) => {
   if (id === 'react') return React;
+  if (id === 'react-dom') return ReactDOM;
   throw new Error(`unexpected require: ${id}`);
 };
 
@@ -360,6 +368,12 @@ assert.ok(CSS.includes('overflow-x:hidden'), 'floating panels never scroll horiz
 assert.ok(CSS.includes('.dsh-powerup-update-quick{'), 'the one-click button has its own accent style');
 assert.ok(CSS.includes('.dsh-powerup-settings'), 'the page renders the one-click default rows');
 assert.ok(CSS.includes('--dsw-alias-state-warn-label'), 'the one-click accent uses a host token');
+assert.ok(CSS.includes('.dsh-powerup-jobstop{position:fixed;z-index:1400'), 'the stop panel sits above host popovers');
+assert.ok(CSS.includes('.dsh-powerup-jobstop-icon'), 'the stop panel has a tinted icon chip');
+assert.ok(
+  /\.dsh-powerup-jobstop-confirm\{[^}]*background:var\(--dsw-alias-state-error-primary\)/u.test(CSS),
+  'the stop confirm button uses a solid host error token in both themes',
+);
 
 // ---------------------------------------------------------------------------
 // Plugin update helpers
@@ -615,7 +629,7 @@ const stopButton = {
   closest: (selector) => selector === 'li' ? { querySelectorAll: () => [labelNode, stopButton] } : null,
 };
 assert.equal(update.stopButtonLabel(stopButton), 'sleep 600', 'row label comes from the DOM, not the localized aria-label');
-for (const key of ['page.jobStopTitle', 'page.jobStopDesc', 'page.jobStopHow', 'jobStop.title', 'jobStop.reasonLabel', 'jobStop.reasonPlaceholder', 'jobStop.reasonNote', 'jobStop.cancel', 'jobStop.confirm', 'jobStop.stopping', 'jobStop.failed']) {
+for (const key of ['page.jobStopTitle', 'page.jobStopDesc', 'page.jobStopHow', 'jobStop.title', 'jobStop.subtitle', 'jobStop.close', 'jobStop.hint', 'jobStop.reasonLabel', 'jobStop.reasonPlaceholder', 'jobStop.reasonNote', 'jobStop.cancel', 'jobStop.confirm', 'jobStop.stopping', 'jobStop.failed']) {
   assert.ok(DICT.zh[key] !== undefined, `zh dictionary has ${key}`);
   assert.ok(DICT.en[key] !== undefined, `en dictionary has ${key}`);
 }
@@ -628,6 +642,13 @@ assert.equal(resolvedStop?.sessionId, 'session-1');
 assert.equal(resolvedStop?.job.id, 'bash-live', 'the first stop button maps to the first running row');
 assert.equal(update.resolveStopTarget(fakeJobs, stopButton, 'session-1'), undefined, 'unresolvable DOM leaves the host flow alone');
 assert.equal(update.resolveStopTarget({ state: { getSnapshot: () => ({ rows: { 'session-1': [] } }) } }, stopButton, 'session-1'), undefined);
+
+// The stop panel is portaled to the document body, so a slot's stacking
+// context cannot cap it under the host jobs menu (which is itself a body portal
+// at z-index 100).
+const portaled = update.renderInBody('panel');
+assert.deepEqual(portaled, { portal: 'panel', container: document.body }, 'floating panels render through the body portal');
+assert.equal(portalCalls.at(-1), document.body, 'the portal target is document.body');
 
 // The DOM injection: one icon button in the card's action area, idempotent,
 // and clicking it opens that package. React owns these nodes, so the helper is
@@ -1004,7 +1025,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.5.0');
+assert.equal(host.__test.SELF_VERSION, '0.5.1');
 
 const installFailSpecs = [];
 const installFailManager = {
@@ -1050,7 +1071,7 @@ assert.equal(typeof hostRoute.handler, 'function');
 // ---------------------------------------------------------------------------
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 assert.equal(pkg.name, '@restregular/dsh-powerup');
-assert.equal(pkg.version, '0.5.0');
+assert.equal(pkg.version, '0.5.1');
 assert.equal(pkg.icon, './icon.svg');
 assert.equal(pkg.exports['./client'], './client.js');
 assert.equal(pkg.dsh.bundle.patch, './cordis.patch.yml');

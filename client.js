@@ -41,10 +41,35 @@
       const React = require('react');
       const h = React.createElement;
       const { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } = React;
+      // react-dom is a seed module in the host's ModuleLoader (the built-in
+      // Client packages require it too). Fall back to in-place rendering when
+      // it is missing, so an older host loses layering but keeps working.
+      const createPortal = (() => {
+        try {
+          const dom = require('react-dom');
+          return dom !== null && dom !== undefined && typeof dom.createPortal === 'function' ? dom.createPortal : null;
+        } catch {
+          return null;
+        }
+      })();
+
+      /**
+       * Render a floating panel at the document root. Slot containers own
+       * stacking contexts (`position:fixed; z-index:…`), so a high z-index
+       * inside a slot still loses to a body-level popover such as the jobs menu.
+       * Portaling escapes that context; without react-dom the node stays in
+       * place rather than failing.
+       * @param {object} node
+       * @returns {object}
+       */
+      function renderInBody(node) {
+        const body = typeof document === 'undefined' || document === null ? null : document.body;
+        return createPortal !== null && body !== null ? createPortal(node, body) : node;
+      }
 
       const NS = 'dsh-powerup';
       const SETTINGS_KEY = 'dsh-powerup:settings:v1';
-      const VERSION = '0.5.0';
+      const VERSION = '0.5.1';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** How long a one-click update's completion panel stays open when nothing restarts. */
@@ -124,6 +149,9 @@
           'toast.forkUnavailable': '当前宿主没有提供 Fork 接口',
           'toast.noSession': '还没有打开会话',
           'jobStop.title': '停止后台任务',
+          'jobStop.subtitle': '停止后无法恢复，正在运行的工作会中断。',
+          'jobStop.close': '关闭',
+          'jobStop.hint': 'Enter 确认 · Esc 取消',
           'jobStop.reasonLabel': '停止原因（可选）',
           'jobStop.reasonPlaceholder': '例如：已经不需要这个结果了',
           'jobStop.reasonNote': '原因会附加在任务结束后注入会话的提示里。',
@@ -295,6 +323,9 @@
           'toast.forkUnavailable': 'This host does not expose the fork API',
           'toast.noSession': 'No session is open',
           'jobStop.title': 'Stop background job',
+          'jobStop.subtitle': 'This cannot be undone; running work will be interrupted.',
+          'jobStop.close': 'Close',
+          'jobStop.hint': 'Enter to confirm · Esc to cancel',
           'jobStop.reasonLabel': 'Stop reason (optional)',
           'jobStop.reasonPlaceholder': 'e.g. the result is no longer needed',
           'jobStop.reasonNote': 'The reason is appended to the notice injected into the session when the job settles.',
@@ -807,26 +838,36 @@
 .dsh-powerup-menu-foot-id{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--dsw-font-family-code,ui-monospace,SFMono-Regular,Consolas,monospace)}
 .dsh-powerup-toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);z-index:1001;max-width:min(440px,calc(100vw - 32px));padding:7px 12px;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:var(--dsw-alias-bg-overlay,var(--dsw-alias-bg-layer-1));color:var(--dsw-alias-label-primary);box-shadow:var(--dsw-elevation-lv2,0 8px 24px rgba(15,23,42,.18));font-size:12px;line-height:1.45;pointer-events:none;animation:dsh-powerup-toast-in .14s ease-out}
 @keyframes dsh-powerup-toast-in{from{opacity:0;transform:translate(-50%,5px)}to{opacity:1;transform:translate(-50%,0)}}
-.dsh-powerup-jobstop{position:fixed;z-index:1002;box-sizing:border-box;display:flex;flex-direction:column;gap:10px;padding:12px;border:1px solid var(--dsw-alias-border-l2);border-radius:10px;background:var(--dsw-alias-bg-overlay,var(--dsw-alias-bg-layer-1));box-shadow:var(--dsw-elevation-prominent,0 16px 40px rgba(15,23,42,.24),0 2px 8px rgba(15,23,42,.1));color:var(--dsw-alias-label-primary);font-size:12.5px;line-height:1.45;pointer-events:auto;animation:dsh-powerup-jobstop-in .14s ease-out}
-@keyframes dsh-powerup-jobstop-in{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
-.dsh-powerup-jobstop-head{display:flex;align-items:center;gap:6px;color:var(--dsw-alias-label-tertiary);font-size:10.5px;font-weight:600;letter-spacing:.03em}
-.dsh-powerup-jobstop-head svg{flex:none;color:var(--dsw-alias-state-error-primary)}
-.dsh-powerup-jobstop-label{display:flex;align-items:center;gap:6px;min-width:0;color:var(--dsw-alias-label-secondary);font-family:var(--dsw-font-family-code,ui-monospace,SFMono-Regular,Consolas,monospace);font-size:11.5px}
-.dsh-powerup-jobstop-label span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.dsh-powerup-jobstop-field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.dsh-powerup-jobstop{position:fixed;z-index:1400;box-sizing:border-box;display:flex;flex-direction:column;gap:12px;padding:14px;border:.5px solid var(--dsw-alias-border-l2);border-radius:14px;background:var(--dsw-alias-bg-overlay,var(--dsw-alias-bg-layer-1));box-shadow:var(--dsw-elevation-prominent,0 18px 44px rgba(15,23,42,.26),0 2px 8px rgba(15,23,42,.12));color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.5;pointer-events:auto;overflow-y:auto;--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2);animation:dsh-powerup-jobstop-in .16s cubic-bezier(.2,.8,.3,1)}
+@keyframes dsh-powerup-jobstop-in{from{opacity:0;transform:translateY(4px) scale(.99)}to{opacity:1;transform:none}}
+.dsh-powerup-jobstop-head{display:flex;align-items:flex-start;gap:10px}
+.dsh-powerup-jobstop-icon{flex:none;display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:9px;background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 12%,transparent);color:var(--dsw-alias-state-error-primary)}
+.dsh-powerup-jobstop-heading{display:flex;flex:1 1 auto;flex-direction:column;gap:1px;min-width:0}
+.dsh-powerup-jobstop-title{color:var(--dsw-alias-label-primary);font-size:13.5px;line-height:19px;font-weight:600}
+.dsh-powerup-jobstop-subtitle{color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:16px}
+.dsh-powerup-jobstop-close{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;margin:-3px -3px 0 0;padding:0;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;font-size:16px;line-height:1;cursor:pointer}
+.dsh-powerup-jobstop-close:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover,var(--dsw-alias-bg-layer-2));color:var(--dsw-alias-label-primary)}
+.dsh-powerup-jobstop-label{display:flex;align-items:center;gap:8px;min-width:0;margin:0;padding:7px 10px;border:.5px solid var(--dsw-alias-border-l1);border-radius:9px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font-family:var(--dsw-font-family-code,ui-monospace,SFMono-Regular,Consolas,monospace);font-size:11.5px;line-height:17px}
+.dsh-powerup-jobstop-dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--dsw-alias-state-success-primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--dsw-alias-state-success-primary) 14%,transparent)}
+.dsh-powerup-jobstop-label-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dsh-powerup-jobstop-field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.dsh-powerup-jobstop-field-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .dsh-powerup-jobstop-field-label{color:var(--dsw-alias-label-secondary);font-size:11.5px;line-height:17px}
-.dsh-powerup-jobstop-input{box-sizing:border-box;width:100%;height:32px;padding:0 9px;border:.5px solid var(--dsw-alias-border-l4);border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);font:inherit;font-size:12.5px;line-height:18px;outline:none;transition:border-color .14s ease,box-shadow .14s ease}
+.dsh-powerup-jobstop-count{color:var(--dsw-alias-label-caption);font-size:10.5px;line-height:16px;font-variant-numeric:tabular-nums}
+.dsh-powerup-jobstop-input{box-sizing:border-box;width:100%;height:36px;padding:0 11px;border:.5px solid var(--dsw-alias-border-l2);border-radius:9px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:20px;outline:none;transition:border-color .14s ease,box-shadow .14s ease}
 .dsh-powerup-jobstop-input::placeholder{color:var(--dsw-alias-label-caption)}
 .dsh-powerup-jobstop-input:focus{border-color:var(--dsw-alias-state-business-primary);box-shadow:inset 0 0 0 .5px var(--dsw-alias-state-business-primary)}
-.dsh-powerup-jobstop-note{margin:0;color:var(--dsw-alias-label-tertiary);font-size:10.5px;line-height:15px}
-.dsh-powerup-jobstop-error{margin:0;color:var(--dsw-alias-state-error-primary);font-size:11.5px;line-height:16px;overflow-wrap:anywhere}
+.dsh-powerup-jobstop-note{margin:0;color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:16px}
+.dsh-powerup-jobstop-error{margin:0;padding:7px 9px;border:.5px solid color-mix(in srgb,var(--dsw-alias-state-error-primary) 32%,transparent);border-radius:8px;background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 8%,transparent);color:var(--dsw-alias-state-error-primary);font-size:11.5px;line-height:17px;overflow-wrap:anywhere}
+.dsh-powerup-jobstop-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding-top:2px}
+.dsh-powerup-jobstop-hint{color:var(--dsw-alias-label-tertiary);font-size:10.5px;line-height:16px;white-space:nowrap}
 .dsh-powerup-jobstop-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px}
-.dsh-powerup-jobstop-cancel{height:28px;padding:0 10px;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;line-height:18px;cursor:pointer}
+.dsh-powerup-jobstop-cancel{height:32px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12.5px;line-height:18px;cursor:pointer}
 .dsh-powerup-jobstop-cancel:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover,var(--dsw-alias-bg-layer-2));color:var(--dsw-alias-label-primary)}
-.dsh-powerup-jobstop-confirm{height:28px;padding:0 11px;border:0;border-radius:var(--dsw-radius-sm,6px);background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 12%,transparent);color:var(--dsw-alias-state-error-primary);font:inherit;font-size:12px;line-height:18px;cursor:pointer;transition:background .14s ease}
-.dsh-powerup-jobstop-confirm:hover:not(:disabled){background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 20%,transparent)}
-.dsh-powerup-jobstop-confirm:disabled,.dsh-powerup-jobstop-cancel:disabled{opacity:.55;cursor:default}
-.dsh-powerup-jobstop-cancel:focus-visible,.dsh-powerup-jobstop-confirm:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:1px}
+.dsh-powerup-jobstop-confirm{height:32px;padding:0 13px;border:0;border-radius:8px;background:var(--dsw-alias-state-error-primary);color:var(--dsw-alias-label-primary-foreground);font:inherit;font-size:12.5px;line-height:18px;font-weight:500;cursor:pointer;transition:background .14s ease,opacity .14s ease}
+.dsh-powerup-jobstop-confirm:hover:not(:disabled){background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 86%,var(--dsw-alias-label-primary))}
+.dsh-powerup-jobstop-confirm:disabled,.dsh-powerup-jobstop-cancel:disabled,.dsh-powerup-jobstop-close:disabled{opacity:.55;cursor:default}
+.dsh-powerup-jobstop-cancel:focus-visible,.dsh-powerup-jobstop-confirm:focus-visible,.dsh-powerup-jobstop-close:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:1px}
 @media (prefers-reduced-motion:reduce){.dsh-powerup-jobstop{animation:none}}
 .dsh-powerup-update-button{flex:none;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-caption);cursor:pointer}
 .dsh-powerup-update-button:hover{background:var(--dsw-alias-interactive-bg-hover,var(--dsw-alias-bg-layer-2));color:var(--dsw-alias-label-secondary)}
@@ -2267,8 +2308,10 @@
         };
 
         if (target === null) return null;
-        const placement = popoverPlacement({ getBoundingClientRect: () => target.rect }, 300, 180);
-        return h('div', {
+        const placement = popoverPlacement({ getBoundingClientRect: () => target.rect }, 340, 260);
+        // The body portal escapes every slot's stacking context, so the same
+        // panel is above the host jobs menu (z-index 100) in both themes.
+        return renderInBody(h('div', {
           ref: panelRef,
           className: 'dsh-powerup-jobstop',
           role: 'dialog',
@@ -2295,10 +2338,30 @@
             void submit();
           },
         },
-        h('div', { className: 'dsh-powerup-jobstop-head' }, h(StopIcon, { size: 12 }), t('jobStop.title')),
-        h('div', { className: 'dsh-powerup-jobstop-label', title: target.job.label }, h('span', null, target.job.label)),
+        h('div', { className: 'dsh-powerup-jobstop-head' },
+          h('div', { className: 'dsh-powerup-jobstop-icon' }, h(StopIcon, { size: 14 })),
+          h('div', { className: 'dsh-powerup-jobstop-heading' },
+            h('span', { className: 'dsh-powerup-jobstop-title' }, t('jobStop.title')),
+            h('span', { className: 'dsh-powerup-jobstop-subtitle' }, t('jobStop.subtitle')),
+          ),
+          h('button', {
+            type: 'button',
+            className: 'dsh-powerup-jobstop-close',
+            'aria-label': t('jobStop.close'),
+            title: t('jobStop.close'),
+            disabled: pending,
+            onClick: close,
+          }, '×'),
+        ),
+        h('div', { className: 'dsh-powerup-jobstop-label', title: target.job.label },
+          h('span', { className: 'dsh-powerup-jobstop-dot', 'aria-hidden': 'true' }),
+          h('span', { className: 'dsh-powerup-jobstop-label-text' }, target.job.label),
+        ),
         h('label', { className: 'dsh-powerup-jobstop-field' },
-          h('span', { className: 'dsh-powerup-jobstop-field-label' }, t('jobStop.reasonLabel')),
+          h('span', { className: 'dsh-powerup-jobstop-field-head' },
+            h('span', { className: 'dsh-powerup-jobstop-field-label' }, t('jobStop.reasonLabel')),
+            h('span', { className: 'dsh-powerup-jobstop-count' }, `${reason.length}/${JOB_STOP_REASON_MAX}`),
+          ),
           h('input', {
             ref: inputRef,
             className: 'dsh-powerup-jobstop-input',
@@ -2312,20 +2375,23 @@
         ),
         h('p', { className: 'dsh-powerup-jobstop-note' }, t('jobStop.reasonNote')),
         error === null ? null : h('p', { className: 'dsh-powerup-jobstop-error', role: 'alert' }, error),
-        h('div', { className: 'dsh-powerup-jobstop-actions' },
-          h('button', {
-            type: 'button',
-            className: 'dsh-powerup-jobstop-cancel',
-            disabled: pending,
-            onClick: close,
-          }, t('jobStop.cancel')),
-          h('button', {
-            type: 'button',
-            className: 'dsh-powerup-jobstop-confirm',
-            disabled: pending,
-            onClick: () => { void submit(); },
-          }, pending ? t('jobStop.stopping') : t('jobStop.confirm')),
-        ));
+        h('div', { className: 'dsh-powerup-jobstop-foot' },
+          h('span', { className: 'dsh-powerup-jobstop-hint' }, t('jobStop.hint')),
+          h('div', { className: 'dsh-powerup-jobstop-actions' },
+            h('button', {
+              type: 'button',
+              className: 'dsh-powerup-jobstop-cancel',
+              disabled: pending,
+              onClick: close,
+            }, t('jobStop.cancel')),
+            h('button', {
+              type: 'button',
+              className: 'dsh-powerup-jobstop-confirm',
+              disabled: pending,
+              onClick: () => { void submit(); },
+            }, pending ? t('jobStop.stopping') : t('jobStop.confirm')),
+          ),
+        )));
       }
 
       /**
@@ -4011,6 +4077,7 @@
           PowerUpOverlay,
           PluginUpdateOverlay,
           JobStopOverlay,
+          renderInBody,
           stopButtonLabel,
           resolveStopTarget,
           ensureUpdateButtons,
