@@ -69,7 +69,7 @@
 
       const NS = 'dsh-powerup';
       const SETTINGS_KEY = 'dsh-powerup:settings:v1';
-      const VERSION = '0.6.0';
+      const VERSION = '0.6.1';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** How long a one-click update's completion panel stays open when nothing restarts. */
@@ -165,7 +165,7 @@
           'update.versionLabel': '版本号',
           'update.versionPlaceholder': '输入版本号，或从列表选择',
           'update.loadingVersions': '正在从安装源读取版本…',
-          'update.loading': '正在读取插件信息…',
+          'update.loading': '正在读取插件和版本列表…',
           'update.chooseVersion': '选择版本',
           'update.hideVersions': '收起列表',
           'update.versionsCount': '共 {count} 个版本',
@@ -337,7 +337,7 @@
           'update.versionLabel': 'Version',
           'update.versionPlaceholder': 'Type a version or pick one from the list',
           'update.loadingVersions': 'Reading versions from the registry…',
-          'update.loading': 'Reading the plugin…',
+          'update.loading': 'Reading the plugin and its versions…',
           'update.chooseVersion': 'Choose',
           'update.hideVersions': 'Hide list',
           'update.versionsCount': '{count} versions',
@@ -2656,13 +2656,16 @@
               currentVersion: pkg.version ?? null,
               installed: pkg.installed === true,
               enabled: pkg.enabled !== false,
-              phase: 'choose',
               choices,
               registryKey: choice.key,
               defaultRegistryKey: starred === undefined ? null : starred.key,
               versionsState: 'loading',
             });
+            // Keep the loading spinner until the mirror's version list has
+            // settled, so the chooser never flashes with an empty list.
             await loadVersions(token, name, choice, choices, false);
+            if (tokenRef.current !== token) return;
+            patch(token, { phase: 'choose' });
           } catch (error) {
             patch(token, { phase: 'error', error: errorText(error) || t('update.unknown') });
           }

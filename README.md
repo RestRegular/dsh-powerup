@@ -63,9 +63,10 @@ install dialog:
 
 1. The dialog reads the package's published versions from the Host's configured
    registries — the same list the **Add plugin** dialog offers, including the
-   npmmirror fallback. Star any registry to make it Power-Up's default for
-   later installs; otherwise the list starts from the Add dialog's remembered
-   choice.
+   npmmirror fallback. It stays on its loading state until that list has settled
+   (loaded or failed) and only then shows the chooser. Star any registry to make
+   it Power-Up's default for later installs; otherwise the list starts from the
+   Add dialog's remembered choice.
 2. Type a version or pick one from the floating version list. The version in the
    input is authoritative: both install actions install exactly that version, so
    reinstalling or downgrading works. The installed version is tagged
