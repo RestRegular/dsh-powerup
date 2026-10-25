@@ -340,6 +340,9 @@ assert.ok(CSS.includes('--dsw-alias-label-primary'), 'primary text token');
 assert.ok(!CSS.includes('body[data-ds-dark-theme]'), 'no manual dark-theme override');
 assert.ok(!/background\s*:\s*#/.test(CSS), 'no literal background colors');
 assert.ok(!/color\s*:\s*#/.test(CSS), 'no literal text colors');
+assert.ok(CSS.includes('.dsh-powerup-update-option{box-sizing:border-box'), 'menu option padding is inside its width');
+assert.ok(CSS.includes('.dsh-powerup-update-version{box-sizing:border-box'), 'version row padding is inside its width');
+assert.ok(CSS.includes('overflow-x:hidden'), 'floating panels never scroll horizontally');
 
 // ---------------------------------------------------------------------------
 // Plugin update helpers
@@ -725,7 +728,7 @@ assert.equal(typeof hostRoute.handler, 'function');
 // ---------------------------------------------------------------------------
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 assert.equal(pkg.name, '@restregular/dsh-powerup');
-assert.equal(pkg.version, '0.3.1');
+assert.equal(pkg.version, '0.3.2');
 assert.equal(pkg.icon, './icon.svg');
 assert.equal(pkg.exports['./client'], './client.js');
 assert.equal(pkg.dsh.bundle.patch, './cordis.patch.yml');

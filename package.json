@@ -1,6 +1,6 @@
 {
   "name": "@restregular/dsh-powerup",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Power-Up — small, opt-in upgrades for DeepSeek Harness. Adds a right-click action menu to the Trajectory ledger and an update control for third-party plugins installed from the Plugins page, with version lookup from the configured registries, a starred default source, uninstall-and-reinstall through the Add plugin path, restart-needed markers, a background self-update, and an optional DSH restart. · 为 DeepSeek Harness 提供小型增强：在轨迹页面右键记录即可复制、引用、查看详情或从该记录 Fork；并在插件页为已安装插件提供带版本查询的更新按钮，安装源可设默认，沿用「添加插件」的安装流程，支持待重启标记、后台自更新与一键重启。",
   "icon": "./icon.svg",
   "type": "module",
