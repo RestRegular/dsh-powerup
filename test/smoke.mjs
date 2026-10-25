@@ -85,6 +85,10 @@ Object.defineProperty(globalThis, 'localStorage', {
   value: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
   configurable: true,
 });
+Object.defineProperty(globalThis, 'sessionStorage', {
+  value: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
+  configurable: true,
+});
 globalThis.Element = class Element {};
 globalThis.Node = class Node {};
 
@@ -261,6 +265,11 @@ function rowWithKey(key) {
 }
 
 const translate = (key) => DICT.en[key] ?? key;
+const translateParams = (key, params) => {
+  const template = DICT.en[key] ?? key;
+  if (!params) return template;
+  return template.replace(/\{(\w+)\}/gu, (match, name) => name in params ? String(params[name]) : match);
+};
 
 const assistantRow = rowWithKey(`assistant\u00003\u00002`);
 assert.equal(
@@ -341,6 +350,11 @@ for (const key of usedUpdateKeys) {
   assert.ok(DICT.zh[key] !== undefined, `zh dictionary has ${key}`);
   assert.ok(DICT.en[key] !== undefined, `en dictionary has ${key}`);
 }
+const usedRestartKeys = new Set([...source.matchAll(/t\('(restart\.[A-Za-z.]+)'/gu)].map((match) => match[1]));
+for (const key of usedRestartKeys) {
+  assert.ok(DICT.zh[key] !== undefined, `zh dictionary has ${key}`);
+  assert.ok(DICT.en[key] !== undefined, `en dictionary has ${key}`);
+}
 assert.deepEqual(
   update.sortVersions(['1.0.0', '1.10.0', '1.2.0', '1.2.0-beta.1', '1.2.0-beta.2', 'not-a-version']),
   ['1.10.0', '1.2.0', '1.2.0-beta.2', '1.2.0-beta.1', '1.0.0', 'not-a-version'],
@@ -366,20 +380,36 @@ assert.equal(update.registryHost('https://registry.npmmirror.com/'), 'registry.n
 const registryChoices = update.buildRegistryChoices(
   { registry: null, fallbackRegistries: ['https://registry.npmmirror.com/'], resolved: 'https://registry.npmjs.org/' },
   { kind: 'custom', url: 'https://npm.example.com' },
+  null,
   translate,
 );
 assert.equal(registryChoices.length, 3);
 assert.equal(registryChoices[0].value, null);
 assert.equal(registryChoices[1].label, 'Mainland China mirror');
 assert.equal(registryChoices[2].hint, 'npm.example.com');
-const picked = update.pickRegistryChoice(registryChoices, { kind: 'custom', url: 'https://npm.example.com/' });
+const picked = update.pickRegistryChoice(registryChoices, { kind: 'custom', url: 'https://npm.example.com/' }, null);
 assert.equal(picked.key, 'https://npm.example.com/');
 assert.equal(update.lookupRegistries(registryChoices, registryChoices[1]).length, 3);
 
+const starredDefault = { key: 'default', value: null, url: 'https://registry.npmjs.org/', label: 'Default registry', hint: 'registry.npmjs.org' };
+const starredChoices = update.buildRegistryChoices(
+  { registry: null, fallbackRegistries: ['https://registry.npmmirror.com/'], resolved: 'https://registry.npmjs.org/' },
+  { kind: 'custom', url: 'https://npm.example.com' },
+  starredDefault,
+  translate,
+);
+const starredPick = update.pickRegistryChoice(starredChoices, { kind: 'custom', url: 'https://npm.example.com/' }, starredDefault);
+assert.equal(starredPick.value, null, 'the starred default wins over the Add dialog memory');
+assert.equal(update.matchStoredChoice(starredChoices, starredDefault)?.key, 'default');
+
 globalThis.localStorage.getItem = () => '{"kind":"offered","registry":null}';
 assert.deepEqual(update.readRememberedRegistry(), { kind: 'offered', registry: null });
+globalThis.localStorage.getItem = () => JSON.stringify(starredDefault);
+assert.deepEqual(update.readDefaultRegistry(), starredDefault);
+update.writeDefaultRegistry(starredDefault);
 globalThis.localStorage.getItem = () => 'not json';
 assert.equal(update.readRememberedRegistry(), null);
+assert.equal(update.readDefaultRegistry(), null);
 globalThis.localStorage.getItem = () => null;
 
 const originalFetch = globalThis.fetch;
@@ -427,6 +457,7 @@ class FakeElement {
     this.title = '';
     this.className = '';
     this.innerHTML = '';
+    this.textContent = '';
     this.isConnected = true;
   }
 
@@ -479,10 +510,12 @@ class FakeElement {
   }
 
   querySelector(selector) {
-    if (selector !== '[data-dsh-powerup-update]') return null;
+    const match = /^\[(data-[a-z-]+)\]$/u.exec(selector);
+    if (match === null) return null;
+    const attribute = match[1];
     const walk = (node) => {
       for (const child of node.children) {
-        if (child.getAttribute('data-dsh-powerup-update') !== null) return child;
+        if (child.getAttribute(attribute) !== null) return child;
         const found = walk(child);
         if (found !== null) return found;
       }
@@ -496,10 +529,16 @@ function fakeCard(name) {
   const card = new FakeElement('li');
   card.setAttribute('data-plugin-package', name);
   const head = new FakeElement('div');
+  const icon = new FakeElement('span');
+  const main = new FakeElement('div');
+  const titleRow = new FakeElement('div');
   const end = new FakeElement('div');
+  main.appendChild(titleRow);
+  head.appendChild(icon);
+  head.appendChild(main);
   head.appendChild(end);
   card.appendChild(head);
-  return { card, end };
+  return { card, end, titleRow };
 }
 
 const firstCard = fakeCard('@acme/dsh-widget');
@@ -509,7 +548,7 @@ const cardDocument = {
 };
 const injected = new Set();
 const opened = [];
-update.ensureUpdateButtons(cardDocument, (name) => opened.push(name), translate, injected);
+update.ensureUpdateButtons(cardDocument, (name) => opened.push(name), [], translate, injected);
 assert.equal(injected.size, 1, 'one update button injected');
 const injectedButton = firstCard.end.firstElementChild;
 assert.equal(injectedButton.getAttribute('data-dsh-powerup-update'), '');
@@ -517,16 +556,42 @@ assert.equal(injectedButton.className, 'dsh-powerup-update-button');
 assert.equal(injectedButton.title, 'Update version · @acme/dsh-widget');
 injectedButton.click();
 assert.deepEqual(opened, ['@acme/dsh-widget'], 'click opens that package');
-update.ensureUpdateButtons(cardDocument, () => {}, translate, injected);
+update.ensureUpdateButtons(cardDocument, () => {}, [], translate, injected);
 assert.equal(firstCard.end.children.length, 1, 'injection is idempotent');
+
+update.ensureUpdateButtons(cardDocument, () => {}, ['@acme/dsh-widget'], translate, injected);
+const restartTag = firstCard.titleRow.querySelector('[data-dsh-powerup-restart-tag]');
+assert.equal(restartTag?.textContent, 'Restart needed', 'pending card carries a restart tag');
+update.ensureUpdateButtons(cardDocument, () => {}, [], translate, injected);
+assert.equal(firstCard.titleRow.querySelector('[data-dsh-powerup-restart-tag]'), null, 'tag clears when the plugin is no longer pending');
 
 const selfCard = fakeCard('@restregular/dsh-powerup');
 const selfDocument = {
   querySelectorAll: () => [selfCard.card],
   createElement: (tag) => new FakeElement(tag),
 };
-update.ensureUpdateButtons(selfDocument, () => {}, translate, new Set());
-assert.equal(selfCard.end.firstElementChild.title, 'Update Power-Up with Add plugin', 'self update is explained');
+update.ensureUpdateButtons(selfDocument, () => {}, [], translate, new Set());
+assert.equal(selfCard.end.firstElementChild.title, 'Update version · @restregular/dsh-powerup', 'self update uses the normal entry');
+
+const group = new FakeElement('section');
+group.setAttribute('data-plugin-group', 'bundles');
+const groupHead = new FakeElement('div');
+group.appendChild(groupHead);
+const groupDocument = {
+  querySelector: (selector) => selector === '[data-plugin-group="bundles"]' ? group : group.querySelector(selector),
+  querySelectorAll: () => [],
+  createElement: (tag) => new FakeElement(tag),
+};
+let restartClicks = 0;
+update.ensureRestartBar(groupDocument, 2, () => { restartClicks += 1; }, translateParams);
+const restartBar = group.querySelector('[data-dsh-powerup-restart-bar]');
+assert.ok(restartBar, 'restart bar injected beside the group heading');
+assert.equal(restartBar.firstElementChild.textContent, '2 plugins need a restart');
+assert.equal(restartBar.lastElementChild.textContent, 'Restart DSH');
+restartBar.lastElementChild.click();
+assert.equal(restartClicks, 1, 'restart bar button opens the confirmation');
+update.ensureRestartBar(groupDocument, 0, () => {}, translate);
+assert.equal(group.querySelector('[data-dsh-powerup-restart-bar]'), null, 'restart bar clears with no pending plugins');
 
 // ---------------------------------------------------------------------------
 // Host half: restart capability route
@@ -560,6 +625,15 @@ assert.equal(statusBody.ok, true);
 assert.equal(statusBody.supported, false, 'plain Node is not the Electron desktop host');
 assert.equal(typeof statusBody.reason, 'string');
 
+const selfGetResponse = fakeResponse();
+await host.__test.handle({
+  method: 'GET',
+  url: '/dsh-powerup/api/self-update',
+  headers: {},
+  socket: { remoteAddress: '127.0.0.1' },
+}, selfGetResponse);
+assert.equal(selfGetResponse.status, 405, 'self-update only accepts POST');
+
 const restartResponse = fakeResponse();
 await host.__test.handle({
   method: 'POST',
@@ -569,6 +643,51 @@ await host.__test.handle({
 }, restartResponse);
 assert.equal(restartResponse.status, 409);
 assert.equal(JSON.parse(restartResponse.body).code, 'restart-unsupported');
+
+assert.equal(host.__test.normalizeVersion('v1.2.3'), '1.2.3');
+assert.equal(host.__test.normalizeVersion('latest'), '');
+assert.equal(host.__test.normalizeVersion('@acme/x@1.0.0'), '');
+
+const selfUpdateCalls = [];
+const fakeSelfManager = {
+  async removeBundle(name) {
+    selfUpdateCalls.push(['remove', name]);
+    return { application: 'applied' };
+  },
+  async inspect(spec) {
+    selfUpdateCalls.push(['inspect', spec]);
+    return { status: 'accepted', bundle: true };
+  },
+  async installBundle(spec, options) {
+    selfUpdateCalls.push(['install', spec, options]);
+    return { application: 'applied', version: '0.3.0' };
+  },
+};
+const selfUpdateResult = await host.__test.performSelfUpdate(
+  { get: () => fakeSelfManager },
+  '0.3.0',
+  'https://registry.npmjs.org/',
+  { log: () => {} },
+);
+assert.equal(selfUpdateResult.ok, true);
+assert.deepEqual(selfUpdateCalls.map((call) => call[0]), ['remove', 'inspect', 'install']);
+assert.equal(selfUpdateCalls[2][2].enabled, true, 'self-update installs enabled');
+
+const refusedCalls = [];
+const refusedSelfManager = {
+  async removeBundle() { return { application: 'applied' }; },
+  async inspect() { refusedCalls.push('inspect'); return { status: 'refused', problem: 'not-found', reason: 'missing' }; },
+  async installBundle() { refusedCalls.push('install'); return {}; },
+};
+const refusedSelfResult = await host.__test.performSelfUpdate(
+  { get: () => refusedSelfManager },
+  '9.9.9',
+  null,
+  { log: () => {} },
+);
+assert.equal(refusedSelfResult.ok, false);
+assert.equal(refusedSelfResult.stage, 'inspect');
+assert.deepEqual(refusedCalls, ['inspect'], 'a refused version stops before install');
 
 let hostRoute = null;
 host.apply({
@@ -593,7 +712,7 @@ assert.equal(typeof hostRoute.handler, 'function');
 // ---------------------------------------------------------------------------
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 assert.equal(pkg.name, '@restregular/dsh-powerup');
-assert.equal(pkg.version, '0.2.3');
+assert.equal(pkg.version, '0.3.0');
 assert.equal(pkg.icon, './icon.svg');
 assert.equal(pkg.exports['./client'], './client.js');
 assert.equal(pkg.dsh.bundle.patch, './cordis.patch.yml');

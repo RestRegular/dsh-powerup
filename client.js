@@ -44,7 +44,7 @@
 
       const NS = 'dsh-powerup';
       const SETTINGS_KEY = 'dsh-powerup:settings:v1';
-      const VERSION = '0.2.3';
+      const VERSION = '0.3.0';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
 
@@ -154,6 +154,20 @@
           'update.restartUnsupported': '当前运行方式无法自动重启：{reason}',
           'update.restarting': 'DSH 正在重启，窗口即将关闭…',
           'update.restartFailed': '重启请求失败：{message}',
+          'update.selfUpdateWarning': '更新 Power-Up 会在后台卸载并安装新版本；本面板会关闭，完成后刷新页面。',
+          'update.selfUpdating': 'Power-Up 正在后台更新…',
+          'update.selfRefresh': '完成后请刷新页面。',
+          'update.setDefault': '设为默认',
+          'update.defaultTag': '默认',
+          'update.defaultHint': '更新列表默认使用此安装源',
+          'restart.tag': '需重启',
+          'restart.tagHint': '该插件已更新，重启 DSH 后生效',
+          'restart.pending': '{count} 个插件待重启',
+          'restart.action': '重启 DSH',
+          'restart.title': '重启 DSH？',
+          'restart.desc': '重启会关闭并重新打开 DSH，正在运行的任务会中断。',
+          'restart.cancel': '取消',
+          'restart.confirm': '立即重启',
           'update.doneTitle': '更新完成',
           'update.doneInstalled': '{name} 已更新到 {version}。',
           'update.doneDisabled': '{name} 已安装 {version}，尚未启用。',
@@ -276,6 +290,20 @@
           'update.restartUnsupported': 'This runtime cannot restart itself: {reason}',
           'update.restarting': 'DSH is restarting; this window will close…',
           'update.restartFailed': 'Restart request failed: {message}',
+          'update.selfUpdateWarning': 'Updating Power-Up removes and reinstalls it in the background; this panel closes, then refresh the page.',
+          'update.selfUpdating': 'Power-Up is updating in the background…',
+          'update.selfRefresh': 'Refresh the page when it finishes.',
+          'update.setDefault': 'Set as default',
+          'update.defaultTag': 'Default',
+          'update.defaultHint': 'The update list starts from this registry',
+          'restart.tag': 'Restart needed',
+          'restart.tagHint': 'Updated; restart DSH to apply',
+          'restart.pending': '{count} plugins need a restart',
+          'restart.action': 'Restart DSH',
+          'restart.title': 'Restart DSH?',
+          'restart.desc': 'Restarting closes and reopens DSH; running tasks are interrupted.',
+          'restart.cancel': 'Cancel',
+          'restart.confirm': 'Restart now',
           'update.doneTitle': 'Update complete',
           'update.doneInstalled': '{name} is now on {version}.',
           'update.doneDisabled': '{name} {version} is installed but not enabled.',
@@ -597,6 +625,15 @@
         );
       }
 
+      function StarIcon({ size = 12 }) {
+        return h(Icon, { size },
+          h('path', {
+            d: 'm8 2.6 1.6 3.3 3.6.5-2.6 2.5.6 3.6L8 10.8l-3.2 1.7.6-3.6L2.8 6.4l3.6-.5L8 2.6Z',
+            fill: 'currentColor',
+          }),
+        );
+      }
+
       function WarnIcon({ size = 16 }) {
         return h(Icon, { size },
           h('path', {
@@ -667,6 +704,15 @@
 @keyframes dsh-powerup-toast-in{from{opacity:0;transform:translate(-50%,5px)}to{opacity:1;transform:translate(-50%,0)}}
 .dsh-powerup-update-button{flex:none;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-caption);cursor:pointer}
 .dsh-powerup-update-button:hover{background:var(--dsw-alias-interactive-bg-hover,var(--dsw-alias-bg-layer-2));color:var(--dsw-alias-label-secondary)}
+.dsh-powerup-restart-tag{flex:none;display:inline-flex;align-items:center;height:18px;padding:0 6px;border:.5px solid color-mix(in srgb,var(--dsw-alias-state-warn-primary) 32%,transparent);border-radius:999px;background:var(--dsw-alias-state-warn-tertiary);color:var(--dsw-alias-state-warn-label);font-size:10px;line-height:16px;white-space:nowrap}
+.dsh-powerup-restart-bar{display:flex;flex:none;align-items:center;gap:8px;margin-left:8px}
+.dsh-powerup-restart-count{color:var(--dsw-alias-state-warn-label);font-size:11.5px;line-height:18px;white-space:nowrap}
+.dsh-powerup-restart-action{height:26px;padding:0 10px;border:.5px solid color-mix(in srgb,var(--dsw-alias-state-warn-primary) 36%,transparent);border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-state-warn-tertiary);color:var(--dsw-alias-state-warn-label);font:inherit;font-size:11.5px;line-height:18px;cursor:pointer}
+.dsh-powerup-restart-action:hover{background:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 14%,transparent)}
+.dsh-powerup-update-default{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-caption);cursor:pointer}
+.dsh-powerup-update-default:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-state-warn-label)}
+.dsh-powerup-update-default[aria-pressed=true]{color:var(--dsw-alias-state-warn-label)}
+.dsh-powerup-update-default-tag{flex:none;padding:0 6px;border:.5px solid color-mix(in srgb,var(--dsw-alias-state-warn-primary) 32%,transparent);border-radius:999px;color:var(--dsw-alias-state-warn-label);font-size:10px;line-height:16px;white-space:nowrap}
 .dsh-powerup-update-mask{position:fixed;inset:0;z-index:1200;display:flex;align-items:center;justify-content:center;padding:24px;background:var(--dsw-alias-bg-mask-1);backdrop-filter:var(--dsw-mask-blur,blur(3px));pointer-events:auto;animation:dsh-powerup-update-fade .16s ease-out}
 @keyframes dsh-powerup-update-fade{from{opacity:0}to{opacity:1}}
 .dsh-powerup-update-dialog{box-sizing:border-box;position:relative;display:flex;flex-direction:column;width:min(560px,100%);max-height:min(760px,calc(100vh - 48px));max-height:min(760px,calc(100dvh - 48px));border-radius:var(--dsw-radius-panel,14px);background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);color:var(--dsw-alias-label-primary);font-size:13px;line-height:20px;overflow:hidden;animation:dsh-powerup-update-rise .18s cubic-bezier(.2,.8,.3,1)}
@@ -751,7 +797,7 @@
 .dsh-powerup-update-ghost{height:36px;padding:0 14px;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:14px;line-height:22px;cursor:pointer}
 .dsh-powerup-update-ghost:hover{background:var(--dsw-alias-interactive-bg-hover)}
 .dsh-powerup-update-ghost:active{background:var(--dsw-alias-interactive-bg-active)}
-.dsh-powerup-update-close:focus-visible,.dsh-powerup-update-toggle:focus-visible,.dsh-powerup-update-version:focus-visible,.dsh-powerup-update-select-trigger:focus-visible,.dsh-powerup-update-option:focus-visible,.dsh-powerup-update-primary:focus-visible,.dsh-powerup-update-ghost:focus-visible,.dsh-powerup-update-button:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:1px}
+.dsh-powerup-update-close:focus-visible,.dsh-powerup-update-toggle:focus-visible,.dsh-powerup-update-version:focus-visible,.dsh-powerup-update-select-trigger:focus-visible,.dsh-powerup-update-option:focus-visible,.dsh-powerup-update-primary:focus-visible,.dsh-powerup-update-ghost:focus-visible,.dsh-powerup-update-button:focus-visible,.dsh-powerup-restart-action:focus-visible,.dsh-powerup-update-default:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:1px}
 @media (max-width:680px){.dsh-powerup-page{padding:20px 16px 42px}.dsh-powerup-actions{grid-template-columns:minmax(0,1fr)}.dsh-powerup-hero-art{width:54px;height:54px}.dsh-powerup-hero h1{font-size:19px}.dsh-powerup-card-head{flex-wrap:wrap}.dsh-powerup-switch{margin-left:auto}.dsh-powerup-update-mask{padding:12px}.dsh-powerup-update-dialog{max-height:calc(100dvh - 24px)}.dsh-powerup-update-head{padding:18px 12px 10px 18px}.dsh-powerup-update-body{padding:0 18px 4px}.dsh-powerup-update-foot{padding:14px 18px 18px}}
 `;
 
@@ -1139,7 +1185,10 @@
       // Plugin update: entry button on the built-in Plugins page + dialog
       // ------------------------------------------------------------------
       const PLUGIN_REGISTRY_MEMORY_KEY = 'dsh.plugin-manager.install-registry';
+      const POWERUP_REGISTRY_KEY = 'dsh-powerup:update-registry:v1';
+      const PENDING_RESTART_KEY = 'dsh-powerup:pending-restart:v1';
       const UPDATE_API = '/dsh-powerup/api/restart';
+      const SELF_UPDATE_API = '/dsh-powerup/api/self-update';
       const OFFICIAL_REGISTRY = 'https://registry.npmjs.org/';
       const REGISTRY_HOSTS = new Map([
         ['registry.npmjs.org', 'update.registryDefault'],
@@ -1189,15 +1238,74 @@
       }
 
       /**
+       * Read the registry the user starred as Power-Up's list default.
+       * @returns {{ key?: string, value?: string | null, url?: string, label?: string, hint?: string } | null}
+       */
+      function readDefaultRegistry() {
+        try {
+          const raw = localStorage.getItem(POWERUP_REGISTRY_KEY);
+          if (typeof raw !== 'string' || raw === '') return null;
+          const parsed = JSON.parse(raw);
+          if (parsed === null || typeof parsed !== 'object') return null;
+          return parsed;
+        } catch {
+          return null;
+        }
+      }
+
+      /**
+       * Persist the registry the update list should start from.
+       * @param {{ key: string, value: string | null, url: string, label: string, hint: string }} choice
+       */
+      function writeDefaultRegistry(choice) {
+        try {
+          localStorage.setItem(POWERUP_REGISTRY_KEY, JSON.stringify({
+            key: choice.key,
+            value: choice.value,
+            url: choice.url,
+            label: choice.label,
+            hint: choice.hint,
+          }));
+        } catch {
+          /* A full or private store keeps the in-memory selection. */
+        }
+      }
+
+      /** Pending-restart records for this browser session (cleared by a real restart). */
+      function readPendingRestarts() {
+        try {
+          const raw = sessionStorage.getItem(PENDING_RESTART_KEY);
+          if (typeof raw !== 'string' || raw === '') return [];
+          const parsed = JSON.parse(raw);
+          return Array.isArray(parsed) ? parsed.filter((entry) => entry !== null && typeof entry === 'object' && typeof entry.name === 'string') : [];
+        } catch {
+          return [];
+        }
+      }
+
+      /**
+       * @param {Array<{ name: string, version?: string, reason?: string, at?: number }>} entries
+       */
+      function writePendingRestarts(entries) {
+        try {
+          sessionStorage.setItem(PENDING_RESTART_KEY, JSON.stringify(entries));
+        } catch {
+          /* The badge is a hint; failing to persist it must not break updates. */
+        }
+      }
+
+      /**
        * The registry choices the update dialog offers: the Host's configured
        * default (with the URL pnpm actually names), each configured fallback,
-       * and a remembered custom address.
+       * the built-in Add dialog's remembered custom address, and Power-Up's
+       * own starred default.
        * @param {{ registry: string | null, fallbackRegistries: string[], resolved: string | null } | null} registries
        * @param {object | null} remembered
+       * @param {object | null} powerupDefault
        * @param {(key: string) => string} t
        * @returns {Array<{ key: string, label: string, hint: string, value: string | null, url: string }>}
        */
-      function buildRegistryChoices(registries, remembered, t) {
+      function buildRegistryChoices(registries, remembered, powerupDefault, t) {
         const choices = [];
         const seen = new Set();
         const add = (choice) => {
@@ -1246,6 +1354,18 @@
             url: normalizeRegistry(rememberedOffered),
           });
         }
+        if (powerupDefault !== null && typeof powerupDefault === 'object') {
+          const value = powerupDefault.value === undefined ? null : powerupDefault.value;
+          const url = powerupDefault.url ?? value ?? OFFICIAL_REGISTRY;
+          add({
+            label: typeof powerupDefault.label === 'string'
+              ? powerupDefault.label
+              : (value === null ? t('update.registryDefault') : t('update.registryCustom')),
+            hint: typeof powerupDefault.hint === 'string' ? powerupDefault.hint : registryHost(url),
+            value,
+            url: normalizeRegistry(url),
+          });
+        }
         if (choices.length === 0) {
           add({
             label: t('update.registryDefault'),
@@ -1258,12 +1378,35 @@
       }
 
       /**
-       * Choose the offered registry matching what the Add dialog remembered.
+       * Find the offered registry matching a persisted Power-Up default.
+       * @param {Array<{ key: string, value: string | null, url: string }>} choices
+       * @param {{ key?: string, value?: string | null, url?: string } | null} stored
+       * @returns {object | undefined}
+       */
+      function matchStoredChoice(choices, stored) {
+        if (stored === null || typeof stored !== 'object') return undefined;
+        if (typeof stored.key === 'string') {
+          const byKey = choices.find((choice) => choice.key === stored.key);
+          if (byKey !== undefined) return byKey;
+        }
+        const value = stored.value === undefined ? null : stored.value;
+        if (value === null) return choices.find((choice) => choice.value === null);
+        const wanted = normalizeRegistry(value ?? stored.url ?? OFFICIAL_REGISTRY);
+        return choices.find((choice) => choice.value !== null && normalizeRegistry(choice.value) === wanted)
+          ?? choices.find((choice) => normalizeRegistry(choice.url) === wanted);
+      }
+
+      /**
+       * Choose the registry the update list starts from: Power-Up's starred
+       * default, then what the Add dialog remembered, then the configured one.
        * @param {Array<{ key: string, value: string | null, url: string }>} choices
        * @param {object | null} remembered
+       * @param {object | null} powerupDefault
        * @returns {object}
        */
-      function pickRegistryChoice(choices, remembered) {
+      function pickRegistryChoice(choices, remembered, powerupDefault) {
+        const starred = matchStoredChoice(choices, powerupDefault);
+        if (starred !== undefined) return starred;
         if (remembered !== null && typeof remembered === 'object') {
           if (remembered.kind === 'offered') {
             const wanted = remembered.registry === null ? null : normalizeRegistry(remembered.registry);
@@ -1462,20 +1605,23 @@
 
       /** Tooltip/accessible label for one injected update button. */
       function updateButtonLabel(name, t) {
-        return name === MODULE_ID ? t('update.selfTitle') : `${t('update.button')} · ${name}`;
+        return `${t('update.button')} · ${name}`;
       }
 
       /**
        * Ensure every third-party card in the built-in "Installed plugins"
-       * group carries one update button. Idempotent, so React re-renders and
-       * the observer can call it repeatedly.
+       * group carries one update button and, when its update waits for a
+       * restart, a small restart tag. Idempotent, so React re-renders and the
+       * observer can call it repeatedly.
        * @param {Document} doc
        * @param {(name: string) => void} open
+       * @param {string[]} pendingNames
        * @param {(key: string, params?: object) => string} t
        * @param {Set<Element>} buttons
        */
-      function ensureUpdateButtons(doc, open, t, buttons) {
+      function ensureUpdateButtons(doc, open, pendingNames, t, buttons) {
         if (doc === null || doc === undefined || typeof doc.querySelectorAll !== 'function') return;
+        const pending = new Set(Array.isArray(pendingNames) ? pendingNames : []);
         const cards = doc.querySelectorAll('[data-plugin-group="bundles"] [data-plugin-package]');
         for (const card of cards) {
           const name = card.getAttribute('data-plugin-package');
@@ -1501,8 +1647,76 @@
           const label = updateButtonLabel(name, t);
           if (button.title !== label) button.title = label;
           if (button.getAttribute('aria-label') !== label) button.setAttribute('aria-label', label);
+
+          let tag = card.querySelector('[data-dsh-powerup-restart-tag]');
+          if (pending.has(name)) {
+            if (tag === null || tag === undefined) {
+              const head = card.firstElementChild;
+              const main = head === null || head === undefined ? null : head.children?.[1];
+              const titleRow = main === null || main === undefined ? null : main.firstElementChild;
+              if (titleRow !== null && titleRow !== undefined) {
+                tag = doc.createElement('span');
+                tag.className = 'dsh-powerup-restart-tag';
+                tag.setAttribute('data-dsh-powerup-restart-tag', '');
+                titleRow.appendChild(tag);
+              }
+            }
+            if (tag !== null && tag !== undefined) {
+              const text = t('restart.tag');
+              if (tag.textContent !== text) tag.textContent = text;
+              if (tag.title !== t('restart.tagHint')) tag.title = t('restart.tagHint');
+            }
+          } else if (tag !== null && tag !== undefined) {
+            tag.remove();
+          }
         }
         for (const button of [...buttons]) if (button.isConnected !== true) buttons.delete(button);
+      }
+
+      /**
+       * Put "N plugins need a restart" and a restart button beside the
+       * Installed plugins heading. The group head owns the h3; the injected bar
+       * sits at the end of that row and is removed when nothing is pending.
+       * @param {Document} doc
+       * @param {number} count
+       * @param {() => void} onRestart
+       * @param {(key: string, params?: object) => string} t
+       */
+      function ensureRestartBar(doc, count, onRestart, t) {
+        if (doc === null || doc === undefined || typeof doc.querySelector !== 'function') return;
+        const group = doc.querySelector('[data-plugin-group="bundles"]');
+        if (group === null || group === undefined || count <= 0) {
+          const stale = group?.querySelector?.('[data-dsh-powerup-restart-bar]');
+          stale?.remove?.();
+          return;
+        }
+        const head = group.firstElementChild;
+        if (head === null || head === undefined) return;
+        let bar = group.querySelector('[data-dsh-powerup-restart-bar]');
+        if (bar === null || bar === undefined) {
+          bar = doc.createElement('div');
+          bar.className = 'dsh-powerup-restart-bar';
+          bar.setAttribute('data-dsh-powerup-restart-bar', '');
+          const label = doc.createElement('span');
+          label.className = 'dsh-powerup-restart-count';
+          const button = doc.createElement('button');
+          button.type = 'button';
+          button.className = 'dsh-powerup-restart-action';
+          button.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onRestart();
+          });
+          bar.appendChild(label);
+          bar.appendChild(button);
+          head.appendChild(bar);
+        }
+        const label = bar.firstElementChild;
+        const button = bar.lastElementChild;
+        const text = t('restart.pending', { count });
+        if (label !== null && label !== undefined && label.textContent !== text) label.textContent = text;
+        const action = t('restart.action');
+        if (button !== null && button !== undefined && button.textContent !== action) button.textContent = action;
       }
 
       /**
@@ -1542,6 +1756,11 @@
       function PluginUpdateOverlay({ manager, remote, ctx }) {
         const [view, setView] = useState(null);
         const [localeTick, forceLocale] = useState(0);
+        const [pending, setPending] = useState(() => readPendingRestarts());
+        const [restartAsk, setRestartAsk] = useState(false);
+        const [restartCapability, setRestartCapability] = useState(null);
+        const [restartBusy, setRestartBusy] = useState(false);
+        const [restartError, setRestartError] = useState(null);
         const tokenRef = useRef(null);
         const abortRef = useRef(null);
         const buttonsRef = useRef(new Set());
@@ -1551,6 +1770,7 @@
         const registryRef = useRef(null);
         const registryPanelRef = useRef(null);
         const versionSeq = useRef(0);
+        const openRestartRef = useRef(() => {});
         const tRef = useRef((key, params) => translateCurrent(key, params));
         tRef.current = (key, params) => translateCurrent(key, params);
 
@@ -1570,7 +1790,7 @@
 
         const close = useCallback(() => {
           const current = view;
-          if (current !== null && (current.phase === 'working' || current.phase === 'restarting' || current.enabling === true)) return;
+          if (current !== null && (current.phase === 'working' || current.phase === 'self-updating' || current.phase === 'restarting' || current.enabling === true)) return;
           tokenRef.current = null;
           try {
             abortRef.current?.abort?.();
@@ -1589,6 +1809,25 @@
             listPopover: null,
             registryOpen: false,
             registryPopover: null,
+          });
+        }, []);
+
+        /** Remember that one updated plugin waits for a whole-app restart. */
+        const recordPending = useCallback((entry) => {
+          setPending((current) => {
+            const next = current.filter((item) => item.name !== entry.name);
+            next.push({ ...entry, at: Date.now() });
+            writePendingRestarts(next);
+            return next;
+          });
+        }, []);
+
+        /** Drop a pending marker when its update never started. */
+        const removePending = useCallback((name) => {
+          setPending((current) => {
+            const next = current.filter((item) => item.name !== name);
+            writePendingRestarts(next);
+            return next;
           });
         }, []);
 
@@ -1640,11 +1879,13 @@
           setView({
             name,
             title: name,
+            self: name === MODULE_ID,
             currentVersion: null,
             phase: 'loading',
             step: null,
             choices: [],
             registryKey: '',
+            defaultRegistryKey: null,
             versions: [],
             versionsState: 'loading',
             versionsError: null,
@@ -1660,10 +1901,6 @@
             enabling: false,
             restarting: false,
           });
-          if (name === MODULE_ID) {
-            patch(token, { phase: 'self' });
-            return;
-          }
           try {
             const [bundles, registries] = await Promise.all([manager.listBundles(), manager.registries()]);
             if (tokenRef.current !== token) return;
@@ -1680,8 +1917,10 @@
               return;
             }
             const remembered = readRememberedRegistry();
-            const choices = buildRegistryChoices(registries.ok ? registries.value : null, remembered, t);
-            const choice = pickRegistryChoice(choices, remembered);
+            const powerupDefault = readDefaultRegistry();
+            const choices = buildRegistryChoices(registries.ok ? registries.value : null, remembered, powerupDefault, t);
+            const choice = pickRegistryChoice(choices, remembered, powerupDefault);
+            const starred = matchStoredChoice(choices, powerupDefault);
             patch(token, {
               title: packageDisplayTitle(pkg),
               currentVersion: pkg.version ?? null,
@@ -1689,6 +1928,7 @@
               phase: 'choose',
               choices,
               registryKey: choice.key,
+              defaultRegistryKey: starred === undefined ? null : starred.key,
               versionsState: 'loading',
             });
             await loadVersions(token, name, choice, choices, false);
@@ -1710,7 +1950,9 @@
           const ensure = () => {
             scheduled = false;
             if (stopped) return;
-            ensureUpdateButtons(document, (name) => openRef.current(name), tRef.current, buttons);
+            const names = pending.map((entry) => entry.name);
+            ensureUpdateButtons(document, (name) => openRef.current(name), names, tRef.current, buttons);
+            ensureRestartBar(document, pending.length, () => openRestartRef.current(), tRef.current);
           };
           const schedule = () => {
             if (scheduled || stopped) return;
@@ -1733,7 +1975,7 @@
             }
             buttons.clear();
           };
-        }, [localeTick]);
+        }, [localeTick, pending]);
 
         // Keep the selected version input focused when the chooser opens.
         useEffect(() => {
@@ -1824,6 +2066,19 @@
           };
         }, [remote]);
 
+        // Escape dismisses the list-header restart confirmation unless a
+        // restart request is already in flight.
+        useEffect(() => {
+          if (!restartAsk) return undefined;
+          const onKeyDown = (event) => {
+            if (event.key !== 'Escape' || restartBusy) return;
+            event.stopPropagation();
+            setRestartAsk(false);
+          };
+          document.addEventListener('keydown', onKeyDown, true);
+          return () => document.removeEventListener('keydown', onKeyDown, true);
+        }, [restartAsk, restartBusy]);
+
         const chooseVersion = (version) => {
           if (tokenRef.current === null) return;
           setView((current) => current === null ? current : { ...current, version, listOpen: false, listPopover: null, formError: null });
@@ -1838,6 +2093,19 @@
           if (choice === undefined) return;
           setView((state) => state === null ? state : { ...state, registryKey: key, registryOpen: false, registryPopover: null, formError: null });
           loadVersions(token, current.name, choice, current.choices, true);
+        };
+
+        /** Star one registry as Power-Up's default and select it for this update. */
+        const setDefaultRegistry = (choice) => {
+          if (choice === null || choice === undefined) return;
+          const current = view;
+          writeDefaultRegistry(choice);
+          setView((state) => state === null ? state : {
+            ...state,
+            defaultRegistryKey: choice.key,
+            registryKey: choice.key,
+          });
+          if (current !== null) loadVersions(tokenRef.current, current.name, choice, current.choices, true);
         };
 
         /** Open or close the floating version list under the input row. */
@@ -1892,7 +2160,29 @@
           const registry = registryValue(choice);
           const spec = `${current.name}@${version}`;
           const requestId = newRequestId();
-          patch(token, { phase: 'working', step: 'removing', error: null, formError: null, log: '', logLabel: spec });
+          patch(token, { phase: 'working', step: current.self === true ? 'installing' : 'removing', error: null, formError: null, log: '', logLabel: spec });
+          if (current.self === true) {
+            // Power-Up cannot reinstall itself from its own client: removing
+            // the bundle unloads this dialog. The Host route receives the
+            // request, answers, then hands remove+inspect+install to the
+            // built-in manager service, which keeps running in the Host
+            // process after this plugin unloads.
+            recordPending({ name: MODULE_ID, version, reason: 'self-update' });
+            try {
+              const response = await fetch(SELF_UPDATE_API, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ version, registry }),
+              });
+              const data = await response.json().catch(() => null);
+              if (!response.ok || data?.ok !== true) throw new Error(data?.error ?? `HTTP ${response.status}`);
+              patch(token, { phase: 'self-updating', step: null });
+            } catch (error) {
+              removePending(MODULE_ID);
+              patch(token, { phase: 'error', step: null, error: errorText(error) || t('update.unknown') });
+            }
+            return;
+          }
           try {
             // The update flow removes the old version first: the Host's
             // inspection refuses a package that is still installed, so the
@@ -1915,11 +2205,19 @@
             const value = installed.value;
             if (value.error !== undefined || value.application === 'failed') throw new Error(operationReason(value, t));
             if (value.application === 'cancelled') throw new Error(t('update.cancelled'));
+            const restartRequired = value.application === 'restart-required';
+            if (restartRequired) {
+              recordPending({
+                name: current.name,
+                version: value.version ?? version,
+                reason: value.restartReason ?? '',
+              });
+            }
             patch(token, {
               phase: 'enable',
               step: null,
               installedVersion: value.version ?? version,
-              restartRequired: value.application === 'restart-required',
+              restartRequired,
               enabling: false,
             });
           } catch (error) {
@@ -1941,6 +2239,35 @@
           }
         };
 
+        /** Open the list-header restart confirmation and read the capability. */
+        const openRestart = () => {
+          setRestartAsk(true);
+          setRestartCapability(null);
+          setRestartError(null);
+          setRestartBusy(false);
+          void readRestartCapability().then((capability) => setRestartCapability(capability));
+        };
+        openRestartRef.current = openRestart;
+
+        /** Confirm the list-header restart. */
+        const confirmRestart = async () => {
+          if (restartBusy) return;
+          setRestartBusy(true);
+          setRestartError(null);
+          try {
+            const response = await fetch(UPDATE_API, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ action: 'restart' }),
+            });
+            const data = await response.json().catch(() => null);
+            if (!response.ok || data?.ok !== true) throw new Error(data?.error ?? `HTTP ${response.status}`);
+          } catch (error) {
+            setRestartBusy(false);
+            setRestartError(errorText(error) || tRef.current('update.unknown'));
+          }
+        };
+
         const enableNow = async () => {
           const token = tokenRef.current;
           const current = view;
@@ -1952,6 +2279,13 @@
             if (tokenRef.current !== token) return;
             if (!result.ok) throw new Error(result.error?.message ?? t('update.unknown'));
             if (result.value.error !== undefined) throw new Error(operationReason(result.value, t));
+            if (result.value.application === 'restart-required' || current.restartRequired === true) {
+              recordPending({
+                name: current.name,
+                version: current.installedVersion ?? '',
+                reason: result.value.restartReason ?? '',
+              });
+            }
             const restart = await readRestartCapability();
             patch(token, { phase: 'restart', enabling: false, restart });
           } catch (error) {
@@ -1990,9 +2324,64 @@
           }
         };
 
-        if (view === null) return null;
         const t = (key, params) => translateCurrent(key, params);
-        const busy = view.phase === 'working' || view.phase === 'restarting' || view.enabling === true;
+
+        /** One tinted notice: the success/warn/error states share this chrome. */
+        const notice = (tone, icon, title, message) => h('div', { className: `dsh-powerup-update-notice ${tone}` },
+          icon,
+          h('div', { className: 'dsh-powerup-update-notice-copy' },
+            title === null || title === undefined ? null : h('span', { className: 'dsh-powerup-update-notice-title' }, title),
+            message === null || message === undefined ? null : h('span', null, message),
+          ),
+        );
+
+        const restartPrompt = restartAsk ? h('div', {
+          className: 'dsh-powerup-update-mask',
+          onMouseDown: (event) => {
+            if (event.target === event.currentTarget && !restartBusy) setRestartAsk(false);
+          },
+        },
+        h('div', {
+          className: 'dsh-powerup-update-dialog',
+          style: { width: 'min(420px,100%)' },
+          role: 'dialog',
+          'aria-modal': 'true',
+          'aria-labelledby': 'dsh-powerup-restart-title',
+        },
+        h('div', { className: 'dsh-powerup-update-head' },
+          h('div', { className: 'dsh-powerup-update-heading' },
+            h('h2', { id: 'dsh-powerup-restart-title' }, t('restart.title')),
+            h('p', null, t('restart.pending', { count: pending.length })),
+          ),
+          restartBusy ? null : h('button', { type: 'button', className: 'dsh-powerup-update-close', 'aria-label': t('update.close'), onClick: () => setRestartAsk(false) }, '×'),
+        ),
+        h('div', { className: 'dsh-powerup-update-body' },
+          h('p', { className: 'dsh-powerup-update-note' }, t('restart.desc')),
+          restartCapability !== null && restartCapability.supported !== true
+            ? notice('warn', h(WarnIcon, { size: 14 }), null, t('update.restartUnsupported', { reason: restartCapability.reason ?? '' }))
+            : null,
+          restartError === null ? null : notice('error', h(WarnIcon, { size: 14 }), null, restartError),
+          restartBusy
+            ? h('div', { className: 'dsh-powerup-update-status' },
+              h('span', { className: 'dsh-powerup-update-spinner', 'aria-hidden': 'true' }),
+              t('update.restarting'),
+            )
+            : null,
+        ),
+        h('div', { className: 'dsh-powerup-update-foot' },
+          h('button', { type: 'button', className: 'dsh-powerup-update-ghost', disabled: restartBusy, onClick: () => setRestartAsk(false) }, t('restart.cancel')),
+          h('button', {
+            type: 'button',
+            className: 'dsh-powerup-update-primary',
+            disabled: restartBusy || restartCapability?.supported !== true,
+            onClick: confirmRestart,
+          }, restartBusy ? t('update.restarting') : t('restart.confirm')),
+        ),
+        ),
+        ) : null;
+
+        if (view === null) return restartPrompt;
+        const busy = view.phase === 'working' || view.phase === 'self-updating' || view.phase === 'restarting' || view.enabling === true;
         const canClose = !busy;
         const title = view.title === undefined || view.title === '' ? view.name : view.title;
         const showVersions = view.phase === 'choose' && view.listOpen === true;
@@ -2023,20 +2412,11 @@
               supported ? h('button', { key: 'now', type: 'button', className: 'dsh-powerup-update-primary', disabled: view.restarting === true, onClick: restartNow }, view.restarting === true ? t('update.restarting') : t('update.restartNow')) : null,
             ].filter(Boolean);
           }
-          if (view.phase === 'restarting' || view.phase === 'working' || view.phase === 'loading') return [];
+          if (view.phase === 'restarting' || view.phase === 'working' || view.phase === 'self-updating' || view.phase === 'loading') return [];
           return [
             h('button', { key: 'done', type: 'button', className: 'dsh-powerup-update-primary', onClick: close }, view.phase === 'done' ? t('update.doneButton') : t('update.close')),
           ];
         })();
-
-        /** One tinted notice: the success/warn/error states share this chrome. */
-        const notice = (tone, icon, title, message) => h('div', { className: `dsh-powerup-update-notice ${tone}` },
-          icon,
-          h('div', { className: 'dsh-powerup-update-notice-copy' },
-            title === null || title === undefined ? null : h('span', { className: 'dsh-powerup-update-notice-title' }, title),
-            message === null || message === undefined ? null : h('span', null, message),
-          ),
-        );
 
         const currentChoice = view.choices.find((item) => item.key === view.registryKey) ?? view.choices[0];
 
@@ -2102,8 +2482,15 @@
               t('update.loading'),
             );
           }
-          if (view.phase === 'self') {
-            return notice('warn', h(WarnIcon, { size: 15 }), t('update.selfTitle'), t('update.selfDesc'));
+          if (view.phase === 'self-updating') {
+            return [
+              h('div', { key: 'status', className: 'dsh-powerup-update-status' },
+                h('span', { className: 'dsh-powerup-update-spinner', 'aria-hidden': 'true' }),
+                t('update.selfUpdating'),
+              ),
+              h('p', { key: 'note', className: 'dsh-powerup-update-note' }, t('update.selfRefresh')),
+              h('span', { key: 'name', className: 'dsh-powerup-update-name' }, view.name),
+            ];
           }
           if (view.phase === 'blocked') {
             return notice('error', h(WarnIcon, { size: 15 }), t('update.unsupportedTitle'), view.error ?? t('update.notRemovable'));
@@ -2118,6 +2505,9 @@
                 ),
                 h('span', { className: 'dsh-powerup-update-name' }, view.name),
               ),
+              view.self === true
+                ? notice('warn', h(WarnIcon, { size: 14 }), null, t('update.selfUpdateWarning'))
+                : null,
               h('div', { key: 'version', className: 'dsh-powerup-update-field' },
                 h('label', { className: 'dsh-powerup-update-label', htmlFor: 'dsh-powerup-update-version' }, t('update.versionLabel')),
                 h('div', { className: 'dsh-powerup-update-row', ref: versionRef },
@@ -2289,20 +2679,42 @@
               role: 'listbox',
               'aria-label': t('update.registry'),
               style: view.registryPopover ?? fallbackPopover,
-            }, view.choices.map((choice) => h('button', {
-              key: choice.key,
-              type: 'button',
-              role: 'option',
-              className: 'dsh-powerup-update-option',
-              'aria-selected': choice.key === view.registryKey ? 'true' : 'false',
-              onClick: () => chooseRegistry(choice.key),
-            },
-            h('span', { className: 'dsh-powerup-update-option-copy' },
-              h('span', { className: 'dsh-powerup-update-option-title' }, choice.label),
-              h('span', { className: 'dsh-powerup-update-option-host' }, choice.hint),
-            ),
-            choice.key === view.registryKey ? h('span', { className: 'dsh-powerup-update-check' }, h(CheckIcon, { size: 13 })) : null,
-            )))
+            }, view.choices.map((choice) => {
+              const isDefault = choice.key === view.defaultRegistryKey;
+              const isChosen = choice.key === view.registryKey;
+              return h('div', {
+                key: choice.key,
+                role: 'option',
+                tabIndex: 0,
+                className: 'dsh-powerup-update-option',
+                'aria-selected': isChosen ? 'true' : 'false',
+                onClick: () => chooseRegistry(choice.key),
+                onKeyDown: (event) => {
+                  if (event.key !== 'Enter' && event.key !== ' ') return;
+                  event.preventDefault();
+                  chooseRegistry(choice.key);
+                },
+              },
+              h('span', { className: 'dsh-powerup-update-option-copy' },
+                h('span', { className: 'dsh-powerup-update-option-title' }, choice.label),
+                h('span', { className: 'dsh-powerup-update-option-host' }, choice.hint),
+              ),
+              isDefault
+                ? h('span', { className: 'dsh-powerup-update-default-tag', title: t('update.defaultHint') }, t('update.defaultTag'))
+                : h('button', {
+                  type: 'button',
+                  className: 'dsh-powerup-update-default',
+                  title: t('update.setDefault'),
+                  'aria-label': `${t('update.setDefault')} ${choice.label}`,
+                  onClick: (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setDefaultRegistry(choice);
+                  },
+                }, h(StarIcon, { size: 12 })),
+              isChosen ? h('span', { className: 'dsh-powerup-update-check' }, h(CheckIcon, { size: 13 })) : null,
+              );
+            }))
             : null,
         );
       }
@@ -2677,6 +3089,7 @@
           PowerUpOverlay,
           PluginUpdateOverlay,
           ensureUpdateButtons,
+          ensureRestartBar,
           updateButtonLabel,
           popoverPlacement,
           rowKeyParts,
@@ -2690,6 +3103,10 @@
           compareVersionsDesc,
           buildRegistryChoices,
           pickRegistryChoice,
+          matchStoredChoice,
+          readDefaultRegistry,
+          writeDefaultRegistry,
+          readPendingRestarts,
           lookupRegistries,
           fetchRegistryVersions,
           registryHost,

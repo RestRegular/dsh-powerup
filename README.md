@@ -41,20 +41,31 @@ Open the built-in **Plugins** page. Every third-party card under **Installed
 plugins** gains a small update icon in its action area. Clicking it opens the
 update dialog:
 
-1. The dialog reads the package's published versions from the same registry the
-   **Add plugin** dialog uses — the remembered choice, or the Host's configured
-   registry, with npmmirror as a configured fallback. Type a version or pick one
-   from the dropdown.
-2. Confirming removes the installed copy, checks the new spec the way **Add
+1. The dialog reads the package's published versions from the Host's configured
+   registries — the same list the **Add plugin** dialog offers, including the
+   npmmirror fallback. Star any registry to make it Power-Up's default for
+   later updates; otherwise the list starts from the Add dialog's remembered
+   choice.
+2. Type a version or pick one from the floating version list. The current
+   installed version is tagged **Current**; the newest is tagged **latest**, and
+   a version that is both uses one **Current · latest** tag.
+3. Confirming removes the installed copy, checks the new spec the way **Add
    plugin** does, and installs the selected version without enabling it.
-3. The dialog then asks whether to enable the new version.
-4. After enabling, it asks whether to restart DSH. On the desktop app the
+4. The dialog then asks whether to enable the new version.
+5. After enabling, it asks whether to restart DSH. On the desktop app the
    `lib/restart-helper.cjs` helper relaunches the exact executable after the old
    Host exits; under `dsh web` the dialog explains that the terminal owns the
    process.
+6. A management call that reports `restart-required` keeps a **Restart needed**
+   tag on the card and adds the plugin to the count beside the **Installed
+   plugins** heading, where a **Restart DSH** button confirms and performs the
+   same restart.
 
-Power-Up does not update itself through this button: removing the plugin would
-unload the dialog mid-flow. Use **Add plugin** with the new package version.
+Power-Up updates itself through the same dialog. Because removing the plugin
+unloads this panel, the Host answers first and then hands `removeBundle` →
+`inspect` → `installBundle(enabled: true)` to the built-in manager service,
+which keeps running after the Power-Up Host fiber is unloaded. The panel closes;
+refresh the page when the install finishes.
 
 ## Design notes
 
@@ -78,9 +89,21 @@ unload the dialog mid-flow. Use **Add plugin** with the new package version.
   no per-card slot, so the overlay injects one button into every
   `[data-plugin-group="bundles"] [data-plugin-package]` card and re-asserts it
   after React renders. Version listing is a plain registry `GET`; removal and
-  installation use the same `remote.pluginManager` calls as **Add plugin**. Only
-  the process restart needs Host code: a loopback-only
-  `/dsh-powerup/api/restart` route.
+  installation use the same `remote.pluginManager` calls as **Add plugin**. The
+  Host adds two loopback-only routes: `/dsh-powerup/api/restart` for the
+  process restart, and `/dsh-powerup/api/self-update` for the self-update
+  handoff.
+- **Self-update outlives its own unload.** The Host route sends its answer, then
+  a timer starts `removeBundle` → `inspect` → `installBundle(enabled: true)`
+  through the built-in manager service. Removing the bundle unloads Power-Up's
+  own Host fiber, but the manager service and the pending promise stay in the
+  Host process, so the reinstall finishes; failures are appended to
+  `~/.dsh/powerup/self-update.log`.
+- **Restart status lives in this browser session.** A management result that
+  says `restart-required` is written to `sessionStorage`; the card gets a
+  **Restart needed** tag and the group heading gets a count plus a restart
+  button. A real app restart clears the session, while a page refresh keeps the
+  markers.
 - **The dialog mirrors the host modal.** The backdrop is
   `--dsw-alias-bg-mask-1` with the shared mask blur, the surface is
   `--dsw-alias-bg-layer-2` with `--dsw-radius-panel` and

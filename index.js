@@ -1,22 +1,37 @@
 /**
  * Host half of dsh-powerup.
  *
- * The plugin is primarily a Client UI upgrade. This Host entry exists for one
- * operation the browser cannot perform itself: restarting the whole DSH
- * desktop application after a plugin update. It exposes a small loopback-only
- * route under `/dsh-powerup/api`:
+ * The plugin is primarily a Client UI upgrade. This Host entry owns the two
+ * operations the browser cannot perform itself:
  *
- *   GET  /dsh-powerup/api/restart   → { ok, supported, reason? }
- *   POST /dsh-powerup/api/restart   → schedules the restart, then answers
+ *   GET  /dsh-powerup/api/restart       → { ok, supported, reason? }
+ *   POST /dsh-powerup/api/restart       → schedules a whole-app restart
+ *   POST /dsh-powerup/api/self-update   → removes and reinstalls this plugin
+ *                                         in the background, surviving the
+ *                                         plugin's own unload
  *
- * The Client half drives plugin installation through the built-in
- * `pluginManager` Remote; only the process restart needs Host code.
+ * The Client half drives other plugins' installation through the built-in
+ * `pluginManager` Remote. Only the process restart and the self-update handoff
+ * need Host code.
  */
 
+import { randomUUID } from 'node:crypto';
+import { appendFileSync, mkdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { homedir } from 'node:os';
 import { describeRestart, requestRestart } from './lib/restart.js';
 
 /** Prefix owned by this plugin. */
 const ROUTE = '/dsh-powerup/api';
+
+/** The bundle this pair of routes may replace while its own UI unloads. */
+const MODULE_ID = '@restregular/dsh-powerup';
+
+/** Let the HTTP response reach the browser before the plugin unloads. */
+const SELF_UPDATE_DELAY_MS = 600;
+
+/** Request body bound for the small JSON commands. */
+const BODY_LIMIT = 16 * 1024;
 
 /**
  * @param {import('node:http').ServerResponse} res
@@ -32,6 +47,23 @@ function sendJson(res, payload, status = 200) {
     'content-length': String(Buffer.byteLength(body)),
   });
   res.end(body);
+}
+
+/**
+ * Read a bounded JSON request body.
+ * @param {import('node:http').IncomingMessage} req
+ * @returns {Promise<unknown>}
+ */
+async function readJsonBody(req) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > BODY_LIMIT) throw new Error('body-too-large');
+    chunks.push(chunk);
+  }
+  if (size === 0) return {};
+  return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
 
 /**
@@ -65,10 +97,88 @@ function sameOrigin(req) {
 }
 
 /**
+ * Append one line to the self-update log; logging never blocks the operation.
+ * @param {string} line
+ */
+function appendSelfUpdateLog(line) {
+  try {
+    const path = join(process.env.DSH_HOME?.trim() || join(homedir(), '.dsh'), 'powerup', 'self-update.log');
+    mkdirSync(dirname(path), { recursive: true });
+    appendFileSync(path, `${new Date().toISOString()} ${line}\n`);
+  } catch {
+    /* The diagnostic log is optional. */
+  }
+}
+
+/**
+ * The concrete versions the update dialog accepts. The Client applies the same
+ * shape before it removes anything; this is the Host-side guard.
+ * @param {unknown} value
+ * @returns {string}
+ */
+function normalizeVersion(value) {
+  const text = String(value ?? '').trim().replace(/^v/u, '');
+  if (text === '' || /\s/u.test(text) || text.includes('@')) return '';
+  return /^\d+(?:\.\d+)*(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u.test(text) ? text : '';
+}
+
+/**
+ * Remove and reinstall this plugin through the built-in manager. The function
+ * is started after the HTTP response and keeps running in the Host process
+ * even when removing the bundle unloads this plugin's own Host fiber.
+ *
+ * @param {import('@deepseek-ai/cordis').Context} ctx
+ * @param {string} version
+ * @param {string | null} registry
+ * @param {{ manager?: unknown, log?: (line: string) => void }} [options]
+ * @returns {Promise<{ ok: boolean, stage?: string, error?: string }>}
+ */
+export async function performSelfUpdate(ctx, version, registry, options = {}) {
+  const log = options.log ?? appendSelfUpdateLog;
+  const manager = options.manager ?? ctx?.get?.('pluginManager');
+  if (manager === undefined || typeof manager.installBundle !== 'function') {
+    log('self-update: pluginManager service is unavailable');
+    return { ok: false, stage: 'manager', error: 'pluginManager service is unavailable' };
+  }
+  const spec = `${MODULE_ID}@${version}`;
+  log(`self-update: start ${spec} registry=${String(registry)}`);
+  let stage = 'remove';
+  try {
+    const removed = await manager.removeBundle(MODULE_ID);
+    if (removed?.error !== undefined) {
+      throw new Error(`remove failed: ${removed.error.code ?? 'error'} ${removed.error.diagnostic ?? ''}`.trim());
+    }
+    log(`self-update: removed (application=${removed?.application ?? 'unknown'})`);
+    stage = 'inspect';
+    const checked = await manager.inspect(spec, { registry });
+    if (checked?.status !== 'accepted') {
+      throw new Error(`inspect refused: ${checked?.problem ?? 'unknown'} ${checked?.reason ?? ''}`.trim());
+    }
+    log(`self-update: inspected (bundle=${String(checked.bundle)})`);
+    stage = 'install';
+    const installed = await manager.installBundle(spec, {
+      enabled: true,
+      registry,
+      requestId: randomUUID(),
+    });
+    if (installed?.error !== undefined) {
+      throw new Error(`install failed: ${installed.error.code ?? 'error'} ${installed.error.diagnostic ?? ''}`.trim());
+    }
+    log(`self-update: installed (application=${installed?.application ?? 'unknown'}, version=${installed?.version ?? 'unknown'})`);
+    return { ok: true, stage: 'install' };
+  } catch (error) {
+    const message = String(error?.message ?? error);
+    log(`self-update: failed at ${stage}: ${message}${error?.stack === undefined ? '' : `\n${error.stack}`}`);
+    return { ok: false, stage, error: message };
+  }
+}
+
+/**
  * @param {import('node:http').IncomingMessage} req
  * @param {import('node:http').ServerResponse} res
+ * @param {import('@deepseek-ai/cordis').Context} ctx
  */
-async function handle(req, res) {
+async function handle(req, res, ctx) {
   if (!isLoopback(req) || !sameOrigin(req)) {
     sendJson(res, { ok: false, error: 'forbidden' }, 403);
     return;
@@ -76,8 +186,41 @@ async function handle(req, res) {
 
   const url = new URL(req.url ?? ROUTE, 'http://localhost');
   const op = url.pathname.slice(ROUTE.length).replace(/^\/+/u, '') || url.searchParams.get('op') || '';
-  if (op !== '' && op !== 'restart') {
+  if (op !== '' && op !== 'restart' && op !== 'self-update') {
     sendJson(res, { ok: false, error: 'not-found' }, 404);
+    return;
+  }
+
+  if (op === 'self-update') {
+    if (req.method !== 'POST') {
+      sendJson(res, { ok: false, error: 'method-not-allowed' }, 405);
+      return;
+    }
+    let body;
+    try {
+      body = await readJsonBody(req);
+    } catch (error) {
+      sendJson(res, { ok: false, error: String(error?.message ?? error) }, 400);
+      return;
+    }
+    const version = normalizeVersion(body?.version);
+    if (version === '') {
+      sendJson(res, { ok: false, code: 'invalid-version', error: 'a concrete version is required' }, 400);
+      return;
+    }
+    const registry = typeof body?.registry === 'string' && body.registry.trim() !== '' ? body.registry.trim() : null;
+    const manager = ctx?.get?.('pluginManager');
+    if (manager === undefined || typeof manager.removeBundle !== 'function' || typeof manager.installBundle !== 'function' || typeof manager.inspect !== 'function') {
+      sendJson(res, { ok: false, code: 'manager-unavailable', error: 'pluginManager service is unavailable' }, 503);
+      return;
+    }
+    sendJson(res, { ok: true, started: true, version });
+    const timer = setTimeout(() => {
+      void performSelfUpdate(ctx, version, registry, { manager }).catch((error) => {
+        appendSelfUpdateLog(`self-update: uncaught ${String(error?.stack ?? error)}`);
+      });
+    }, SELF_UPDATE_DELAY_MS);
+    timer.unref?.();
     return;
   }
 
@@ -100,7 +243,7 @@ async function handle(req, res) {
 }
 
 /**
- * Mount the restart route once the Web server exists.
+ * Mount the restart and self-update routes once the Web server exists.
  * @param {import('@deepseek-ai/cordis').Context} ctx
  */
 export function apply(ctx) {
@@ -109,11 +252,15 @@ export function apply(ctx) {
     const webServer = scope.get('webServer');
     if (webServer === undefined || typeof webServer.register !== 'function') return;
     scope.effect(
-      () => webServer.register({ kind: 'prefix', path: ROUTE, handler: handle }),
-      'dsh-powerup: restart route',
+      () => webServer.register({
+        kind: 'prefix',
+        path: ROUTE,
+        handler: (req, res) => handle(req, res, ctx),
+      }),
+      'dsh-powerup: restart and self-update routes',
     );
   });
 }
 
 /** Exported for tests only; the Host never reads this. */
-export const __test = { handle, isLoopback, sameOrigin, ROUTE };
+export const __test = { handle, isLoopback, sameOrigin, performSelfUpdate, normalizeVersion, ROUTE, MODULE_ID };
