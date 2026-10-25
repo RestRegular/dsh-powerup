@@ -30,7 +30,9 @@ Right-click empty space in the ledger:
 - **Open the Power-Up page** — the sidebar control panel.
 
 The sidebar **Power-Up** page turns the menu on or off and lists the available
-actions. The setting is stored in the browser.
+actions. The setting is stored in the browser. It also holds the defaults for
+**one-click update** (auto-enable and auto-restart), which the plugin updater
+uses.
 
 ### Stop a background job with a reason
 
@@ -64,18 +66,25 @@ update dialog:
 2. Type a version or pick one from the floating version list. The current
    installed version is tagged **Current**; the newest is tagged **latest**, and
    a version that is both uses one **Current · latest** tag.
-3. Confirming removes the installed copy, checks the new spec the way **Add
-   plugin** does, and installs the selected version without enabling it.
-   Because the old copy is already gone at that point, a refused check or a
+3. **One-click update** installs the newest version and skips both questions:
+   by default the new copy is enabled and DSH restarts automatically. The
+   Power-Up page can turn either default off. With auto-enable off, the new
+   version is left disabled and nothing restarts. With auto-restart off (or when
+   the current runtime cannot restart itself), the completion panel closes
+   itself after a few seconds instead of staying on screen. Power-Up's own
+   update keeps its background handoff and does not offer one-click.
+4. Otherwise, confirming removes the installed copy, checks the new spec the
+   way **Add plugin** does, and installs the selected version without enabling
+   it. Because the old copy is already gone at that point, a refused check or a
    failed install automatically re-installs the removed version with its
    previous enabled state; the dialog reports both the failure and the rollback
    result.
-4. The dialog then asks whether to enable the new version.
-5. After enabling, it asks whether to restart DSH. On the desktop app the
+5. The dialog then asks whether to enable the new version.
+6. After enabling, it asks whether to restart DSH. On the desktop app the
    `lib/restart-helper.cjs` helper relaunches the exact executable after the old
    Host exits; under `dsh web` the dialog explains that the terminal owns the
    process.
-6. A management call that reports `restart-required` keeps a **Restart needed**
+7. A management call that reports `restart-required` keeps a **Restart needed**
    tag on the card and adds the plugin to the count beside the **Installed
    plugins** heading. The heading bar is always present — with **No plugins need
    a restart** and the restart button when nothing is pending — and a **Restart
@@ -84,11 +93,11 @@ update dialog:
    the built-in **Add plugin** / **Update** UI, or before this page loaded, are
    marked too.
 
-Power-Up updates itself through the same dialog. Because removing the plugin
-unloads this panel, the Host answers first and then hands `removeBundle` →
-`inspect` → `installBundle(enabled: true)` to the built-in manager service,
-which keeps running after the Power-Up Host fiber is unloaded. The panel closes;
-refresh the page when the install finishes.
+Power-Up updates itself through the same dialog (the one-click action is hidden
+for itself). Because removing the plugin unloads this panel, the Host answers
+first and then hands `removeBundle` → `inspect` → `installBundle(enabled: true)`
+to the built-in manager service, which keeps running after the Power-Up Host
+fiber is unloaded. The panel closes; refresh the page when the install finishes.
 
 ## Design notes
 
@@ -131,6 +140,14 @@ refresh the page when the install finishes.
   `~/.dsh/powerup/self-update.log`. The Host captures the version it was loaded
   from before removal and re-installs that version if the check or install
   fails, so a failed self-update does not leave Power-Up missing.
+- **One-click update is a client-side decision.** The newest version and both
+  defaults live in the shared settings store (`dsh-powerup:settings:v1`), so the
+  Power-Up page and an open dialog agree without a reload. A one-click run
+  installs disabled — the same shape as **Add plugin** — then enables through
+  `setBundleEnabled`, and posts the restart only when the defaults allow it. With
+  auto-enable off the new copy stays disabled and nothing restarts. When no
+  restart happens the completion panel closes on a timer; install, enable, and
+  restart failures stay on screen with their reason instead.
 - **Restart status lives in this browser session.** A management result that
   says `restart-required` is written to `sessionStorage`; the card gets a
   **Restart needed** tag and the group heading gets a count plus a restart

@@ -236,6 +236,7 @@ resetHooks();
 const page = moduleExports.__test.PowerUpPage({ ctx });
 assert.equal(page.type, 'div');
 assert.ok(JSON.stringify(page).includes('dsh-powerup-hero'));
+assert.ok(JSON.stringify(page).includes('dsh-powerup-settings'), 'the page exposes the one-click update defaults');
 
 // Overlay renders nothing until a context menu opens, but the component body
 // must be valid in the root overlay slot.
@@ -356,11 +357,36 @@ assert.ok(!/color\s*:\s*#/.test(CSS), 'no literal text colors');
 assert.ok(CSS.includes('.dsh-powerup-update-option{box-sizing:border-box'), 'menu option padding is inside its width');
 assert.ok(CSS.includes('.dsh-powerup-update-version{box-sizing:border-box'), 'version row padding is inside its width');
 assert.ok(CSS.includes('overflow-x:hidden'), 'floating panels never scroll horizontally');
+assert.ok(CSS.includes('.dsh-powerup-update-quick{'), 'the one-click button has its own accent style');
+assert.ok(CSS.includes('.dsh-powerup-settings'), 'the page renders the one-click default rows');
+assert.ok(CSS.includes('--dsw-alias-state-warn-label'), 'the one-click accent uses a host token');
 
 // ---------------------------------------------------------------------------
 // Plugin update helpers
 // ---------------------------------------------------------------------------
 const update = moduleExports.__test;
+
+// One-click update settings default to automatic enable + restart, and a
+// stored false (from an older settings object or the page switches) wins.
+const savedGetItem = globalThis.localStorage.getItem;
+globalThis.localStorage.getItem = () => null;
+assert.deepEqual(update.readSettings(), { enabled: true, oneClickEnable: true, oneClickRestart: true });
+globalThis.localStorage.getItem = () => '{"enabled":false}';
+assert.deepEqual(update.readSettings(), { enabled: false, oneClickEnable: true, oneClickRestart: true }, 'older settings gain the one-click defaults');
+globalThis.localStorage.getItem = () => JSON.stringify({ enabled: true, oneClickEnable: false, oneClickRestart: false });
+assert.deepEqual(update.readSettings(), { enabled: true, oneClickEnable: false, oneClickRestart: false });
+globalThis.localStorage.getItem = savedGetItem;
+
+// One-click always targets the newest published version, and only when it is
+// actually newer than the installed one.
+assert.equal(update.oneClickVersion({ latest: '2.1.0', versions: ['2.0.0'] }), '2.1.0');
+assert.equal(update.oneClickVersion({ latest: null, versions: ['2.0.0', '1.0.0'] }), '2.0.0');
+assert.equal(update.oneClickVersion({}), '');
+assert.equal(update.isUpdateAvailable('2.1.0', '2.0.0'), true);
+assert.equal(update.isUpdateAvailable('2.0.0', '2.0.0'), false);
+assert.equal(update.isUpdateAvailable('1.9.0', '2.0.0'), false);
+assert.equal(update.isUpdateAvailable('1.0.0', ''), true);
+assert.equal(update.isUpdateAvailable('', '1.0.0'), false);
 const usedUpdateKeys = new Set([...source.matchAll(/t\('(update\.[A-Za-z.]+)'/gu)].map((match) => match[1]));
 for (const key of usedUpdateKeys) {
   assert.ok(DICT.zh[key] !== undefined, `zh dictionary has ${key}`);
@@ -368,6 +394,16 @@ for (const key of usedUpdateKeys) {
 }
 const usedRestartKeys = new Set([...source.matchAll(/t\('(restart\.[A-Za-z.]+)'/gu)].map((match) => match[1]));
 for (const key of usedRestartKeys) {
+  assert.ok(DICT.zh[key] !== undefined, `zh dictionary has ${key}`);
+  assert.ok(DICT.en[key] !== undefined, `en dictionary has ${key}`);
+}
+for (const key of [
+  'page.oneClickTitle', 'page.oneClickDesc', 'page.oneClickEnable', 'page.oneClickEnableHint',
+  'page.oneClickRestart', 'page.oneClickRestartHint',
+  'update.oneClick', 'update.oneClickTitle', 'update.oneClickHint', 'update.oneClickDefaults',
+  'update.doneAutoClose', 'update.oneClickNoLatest', 'update.oneClickUpToDate',
+  'update.oneClickEnableFailed', 'update.oneClickSkippedEnable', 'update.on', 'update.off',
+]) {
   assert.ok(DICT.zh[key] !== undefined, `zh dictionary has ${key}`);
   assert.ok(DICT.en[key] !== undefined, `en dictionary has ${key}`);
 }
@@ -490,6 +526,79 @@ await assert.rejects(
   () => update.restorePreviousBundle({ async installBundle() { return { ok: true, value: { application: 'failed', error: { code: 'install-failed', diagnostic: 'disk full' } } }; } }, { name: '@acme/dsh-widget', version: '1.2.3' }, translate),
   /disk full/u,
 );
+
+// One-click update: after installing, apply the stored defaults without any
+// enable/restart question, and close the completion panel when nothing restarts.
+async function oneClickRun(settings, options = {}) {
+  const applied = [];
+  const pending = [];
+  const calls = [];
+  const manager = {
+    async setBundleEnabled(name, enabled) {
+      calls.push(['enable', name, enabled]);
+      if (options.enableError !== undefined) return { ok: false, error: { message: options.enableError } };
+      return { ok: true, value: options.enableResult ?? { application: 'applied' } };
+    },
+  };
+  await update.runOneClickUpdate({
+    manager,
+    name: '@acme/dsh-widget',
+    installedVersion: '1.3.0',
+    restartRequired: options.restartRequired === true,
+    settings,
+    apply: (delta) => applied.push(delta),
+    isCurrent: () => options.current ?? true,
+    recordPending: (entry) => pending.push(entry),
+    readRestartCapability: async () => options.capability ?? { supported: true, reason: '' },
+    requestRestart: async () => {
+      calls.push(['restart']);
+      if (options.restartError !== undefined) throw new Error(options.restartError);
+    },
+    t: translate,
+  });
+  return { applied, pending, calls };
+}
+
+const defaultsRun = await oneClickRun({ oneClickEnable: true, oneClickRestart: true });
+assert.deepEqual(defaultsRun.calls, [['enable', '@acme/dsh-widget', true], ['restart']], 'defaults enable and restart');
+assert.equal(defaultsRun.applied.at(-1).phase, 'restarting', 'the panel shows the restart, not a question');
+
+const noEnableRun = await oneClickRun({ oneClickEnable: false, oneClickRestart: true });
+assert.deepEqual(noEnableRun.calls, [], 'auto-enable off means no enable and no restart');
+assert.equal(noEnableRun.applied.at(-1).enabled, false);
+assert.equal(noEnableRun.applied.at(-1).skippedEnable, true);
+assert.equal(noEnableRun.applied.at(-1).autoClose, true, 'a completion panel that does not restart closes itself');
+
+const noRestartRun = await oneClickRun({ oneClickEnable: true, oneClickRestart: false });
+assert.deepEqual(noRestartRun.calls, [['enable', '@acme/dsh-widget', true]], 'auto-restart off enables but does not restart');
+assert.equal(noRestartRun.applied.at(-1).restartSkipped, true);
+assert.equal(noRestartRun.applied.at(-1).autoClose, true);
+
+const unsupportedRun = await oneClickRun(
+  { oneClickEnable: true, oneClickRestart: true },
+  { capability: { supported: false, reason: 'dsh web owns the process' } },
+);
+assert.equal(unsupportedRun.applied.at(-1).restartUnsupported, 'dsh web owns the process');
+assert.equal(unsupportedRun.applied.at(-1).autoClose, true);
+
+const enableFailRun = await oneClickRun({ oneClickEnable: true, oneClickRestart: true }, { enableError: 'plugin manager busy' });
+assert.equal(enableFailRun.applied.at(-1).enableError, 'plugin manager busy');
+assert.equal(enableFailRun.applied.at(-1).autoClose, false, 'an enable failure stays on screen');
+assert.deepEqual(enableFailRun.calls, [['enable', '@acme/dsh-widget', true]], 'a failed enable never restarts');
+
+const restartFailRun = await oneClickRun({ oneClickEnable: true, oneClickRestart: true }, { restartError: 'restart refused' });
+assert.equal(restartFailRun.applied.at(-1).restartError, 'restart refused');
+assert.equal(restartFailRun.applied.at(-1).autoClose, false, 'a restart failure stays on screen');
+
+const pendingRun = await oneClickRun(
+  { oneClickEnable: true, oneClickRestart: true },
+  { restartRequired: true, enableResult: { application: 'restart-required', restartReason: 'new bundle files' } },
+);
+assert.deepEqual(pendingRun.pending, [{ name: '@acme/dsh-widget', version: '1.3.0', reason: 'new bundle files' }], 'restart-required keeps the card marker');
+
+const staleRun = await oneClickRun({ oneClickEnable: true, oneClickRestart: true }, { current: false });
+assert.deepEqual(staleRun.calls, [['enable', '@acme/dsh-widget', true]], 'a dialog replaced mid-flight stops before restarting');
+assert.equal(staleRun.applied.some((delta) => delta.phase === 'restarting'), false);
 
 resetHooks();
 assert.equal(update.PluginUpdateOverlay({ manager: pluginManager, remote, ctx }), null, 'update overlay is inert until opened');
@@ -895,7 +1004,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.4.1');
+assert.equal(host.__test.SELF_VERSION, '0.5.0');
 
 const installFailSpecs = [];
 const installFailManager = {
@@ -941,7 +1050,7 @@ assert.equal(typeof hostRoute.handler, 'function');
 // ---------------------------------------------------------------------------
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 assert.equal(pkg.name, '@restregular/dsh-powerup');
-assert.equal(pkg.version, '0.4.1');
+assert.equal(pkg.version, '0.5.0');
 assert.equal(pkg.icon, './icon.svg');
 assert.equal(pkg.exports['./client'], './client.js');
 assert.equal(pkg.dsh.bundle.patch, './cordis.patch.yml');
