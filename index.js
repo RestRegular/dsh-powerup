@@ -10,10 +10,14 @@
  *   POST /dsh-powerup/api/self-update   → removes and reinstalls this plugin
  *                                         in the background, surviving the
  *                                         plugin's own unload
+ *   POST /dsh-powerup/api/job-kill      → stops one background job with an
+ *                                         optional human reason
  *
  * The Client half drives other plugins' installation through the built-in
- * `pluginManager` Remote. Only the process restart and the self-update handoff
- * need Host code.
+ * `pluginManager` Remote. Only the process restart, the self-update handoff,
+ * and the stop-with-reason kill need Host code: the built-in `job.kill` Remote
+ * hard-codes `cancelled by the user`, while the registry's own `kill` accepts
+ * a reason that settlement merges into the job's `detail` line.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -167,6 +171,40 @@ function appendSelfUpdateLog(line) {
   }
 }
 
+/** The reason core records for a human kill; a custom reason is appended. */
+const HUMAN_KILL_REASON = 'cancelled by the user';
+
+/** Upper bound for the optional reason, in characters. */
+const STOP_REASON_LIMIT = 200;
+
+/**
+ * Normalize the optional reason typed in the stop dialog. Control characters
+ * and line breaks collapse into spaces so the reason stays one line inside the
+ * completion notice.
+ * @param {unknown} value
+ * @returns {string} the cleaned reason ('' when nothing was typed)
+ */
+function normalizeStopReason(value) {
+  if (typeof value !== 'string') return '';
+  return value
+    .replace(/[\u0000-\u001f\u007f]+/gu, ' ')
+    .replace(/\s+/gu, ' ')
+    .trim()
+    .slice(0, STOP_REASON_LIMIT);
+}
+
+/**
+ * The reason recorded with a human kill. An empty custom reason keeps the
+ * core phrase; a typed one appends to it, so the injected completion notice
+ * reads `cancelled by the user: <reason>`.
+ * @param {unknown} value
+ * @returns {string}
+ */
+function killReasonFor(value) {
+  const reason = normalizeStopReason(value);
+  return reason === '' ? HUMAN_KILL_REASON : `${HUMAN_KILL_REASON}: ${reason}`;
+}
+
 /**
  * The concrete versions the update dialog accepts. The Client applies the same
  * shape before it removes anything; this is the Host-side guard.
@@ -243,8 +281,42 @@ async function handle(req, res, ctx) {
 
   const url = new URL(req.url ?? ROUTE, 'http://localhost');
   const op = url.pathname.slice(ROUTE.length).replace(/^\/+/u, '') || url.searchParams.get('op') || '';
-  if (op !== '' && op !== 'restart' && op !== 'self-update' && op !== 'audit') {
+  if (op !== '' && op !== 'restart' && op !== 'self-update' && op !== 'audit' && op !== 'job-kill') {
     sendJson(res, { ok: false, error: 'not-found' }, 404);
+    return;
+  }
+
+  if (op === 'job-kill') {
+    if (req.method !== 'POST') {
+      sendJson(res, { ok: false, error: 'method-not-allowed' }, 405);
+      return;
+    }
+    let body;
+    try {
+      body = await readJsonBody(req);
+    } catch (error) {
+      sendJson(res, { ok: false, error: String(error?.message ?? error) }, 400);
+      return;
+    }
+    const jobId = typeof body?.jobId === 'string' ? body.jobId.trim() : '';
+    const sessionId = typeof body?.sessionId === 'string' ? body.sessionId.trim() : '';
+    if (jobId === '' || sessionId === '') {
+      sendJson(res, { ok: false, code: 'invalid-request', error: 'jobId and sessionId are required' }, 400);
+      return;
+    }
+    const jobs = ctx?.get?.('jobs');
+    if (jobs === undefined || typeof jobs.kill !== 'function') {
+      sendJson(res, { ok: false, code: 'jobs-unavailable', error: 'jobs service is unavailable' }, 503);
+      return;
+    }
+    try {
+      // The registry's owner fence checks that this session can see the job,
+      // and records the reason so settlement merges it into `detail`.
+      const outcome = jobs.kill(jobId, sessionId, killReasonFor(body?.reason));
+      sendJson(res, { ok: true, outcome });
+    } catch (error) {
+      sendJson(res, { ok: false, code: 'kill-failed', error: String(error?.message ?? error) }, 404);
+    }
     return;
   }
 
@@ -334,4 +406,17 @@ export function apply(ctx) {
 }
 
 /** Exported for tests only; the Host never reads this. */
-export const __test = { handle, isLoopback, sameOrigin, performSelfUpdate, normalizeVersion, auditProfileBundles, profileDirectory, HOST_STARTED_AT, ROUTE, MODULE_ID };
+export const __test = {
+  handle,
+  isLoopback,
+  sameOrigin,
+  performSelfUpdate,
+  normalizeVersion,
+  normalizeStopReason,
+  killReasonFor,
+  auditProfileBundles,
+  profileDirectory,
+  HOST_STARTED_AT,
+  ROUTE,
+  MODULE_ID,
+};

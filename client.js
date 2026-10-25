@@ -44,7 +44,7 @@
 
       const NS = 'dsh-powerup';
       const SETTINGS_KEY = 'dsh-powerup:settings:v1';
-      const VERSION = '0.3.2';
+      const VERSION = '0.4.0';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
 
@@ -68,6 +68,9 @@
           'page.updateTitle': '插件自更新',
           'page.updateDesc': '在插件页为每个第三方已安装插件提供更新入口：从安装源选版本、卸载旧版、按「添加插件」流程重装，并可立即启用与重启 DSH。',
           'page.updateHow': '打开侧边栏的「插件」页，在「已安装插件」分组中点击卡片右侧的更新图标。',
+          'page.jobStopTitle': '后台任务停止原因',
+          'page.jobStopDesc': '在会话顶部的后台任务面板里点停止按钮时，可以顺手填写停止原因；原因会附加在任务结束后注入会话的提示里。',
+          'page.jobStopHow': '打开任意会话，点顶部的「后台任务」面板，在运行中的任务右侧点停止，填写原因（可留空）后确认。',
           'page.footer': 'Power-Up {version} · 设置在浏览器本地保存',
           'page.localOnly': '仅影响当前浏览器',
           'action.copy': '复制内容',
@@ -112,6 +115,14 @@
           'toast.sessionCopied': '会话 ID 已复制',
           'toast.forkUnavailable': '当前宿主没有提供 Fork 接口',
           'toast.noSession': '还没有打开会话',
+          'jobStop.title': '停止后台任务',
+          'jobStop.reasonLabel': '停止原因（可选）',
+          'jobStop.reasonPlaceholder': '例如：已经不需要这个结果了',
+          'jobStop.reasonNote': '原因会附加在任务结束后注入会话的提示里。',
+          'jobStop.cancel': '取消',
+          'jobStop.confirm': '停止任务',
+          'jobStop.stopping': '正在停止…',
+          'jobStop.failed': '停止失败：{message}',
           'update.button': '更新版本',
           'update.title': '更新插件',
           'update.subtitle': '选择版本后自动卸载旧版并安装新版本。',
@@ -205,6 +216,9 @@
           'page.updateTitle': 'Update plugins',
           'page.updateDesc': 'Every third-party plugin on the Plugins page gains an update entry: pick a version from a registry, remove the old copy, reinstall through the Add plugin path, then enable and restart DSH.',
           'page.updateHow': 'Open Plugins in the sidebar and click the update icon at the right of a card under Installed plugins.',
+          'page.jobStopTitle': 'Background job stop reason',
+          'page.jobStopDesc': 'When you stop a running job from the background jobs panel in the session header, you can leave a reason; the reason is appended to the notice injected into the session when the job settles.',
+          'page.jobStopHow': 'Open a session, expand the background jobs panel, press stop on a running job, type a reason (optional), then confirm.',
           'page.footer': 'Power-Up {version} · Settings are stored in this browser',
           'page.localOnly': 'This browser only',
           'action.copy': 'Copy content',
@@ -249,6 +263,14 @@
           'toast.sessionCopied': 'Session ID copied',
           'toast.forkUnavailable': 'This host does not expose the fork API',
           'toast.noSession': 'No session is open',
+          'jobStop.title': 'Stop background job',
+          'jobStop.reasonLabel': 'Stop reason (optional)',
+          'jobStop.reasonPlaceholder': 'e.g. the result is no longer needed',
+          'jobStop.reasonNote': 'The reason is appended to the notice injected into the session when the job settles.',
+          'jobStop.cancel': 'Cancel',
+          'jobStop.confirm': 'Stop job',
+          'jobStop.stopping': 'Stopping…',
+          'jobStop.failed': 'Could not stop the job: {message}',
           'update.button': 'Update version',
           'update.title': 'Update plugin',
           'update.subtitle': 'Choose a version; the old one is removed and the new one installed.',
@@ -607,6 +629,15 @@
         );
       }
 
+      function StopIcon({ size = 16 }) {
+        return h(Icon, { size },
+          h('rect', {
+            x: '3.2', y: '3.2', width: '9.6', height: '9.6', rx: '1.7',
+            fill: 'none', stroke: 'currentColor', strokeWidth: '1.3',
+          }),
+        );
+      }
+
       function CheckIcon({ size = 16 }) {
         return h(Icon, { size },
           h('path', {
@@ -704,6 +735,27 @@
 .dsh-powerup-menu-foot-id{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--dsw-font-family-code,ui-monospace,SFMono-Regular,Consolas,monospace)}
 .dsh-powerup-toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);z-index:1001;max-width:min(440px,calc(100vw - 32px));padding:7px 12px;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:var(--dsw-alias-bg-overlay,var(--dsw-alias-bg-layer-1));color:var(--dsw-alias-label-primary);box-shadow:var(--dsw-elevation-lv2,0 8px 24px rgba(15,23,42,.18));font-size:12px;line-height:1.45;pointer-events:none;animation:dsh-powerup-toast-in .14s ease-out}
 @keyframes dsh-powerup-toast-in{from{opacity:0;transform:translate(-50%,5px)}to{opacity:1;transform:translate(-50%,0)}}
+.dsh-powerup-jobstop{position:fixed;z-index:1002;box-sizing:border-box;display:flex;flex-direction:column;gap:10px;padding:12px;border:1px solid var(--dsw-alias-border-l2);border-radius:10px;background:var(--dsw-alias-bg-overlay,var(--dsw-alias-bg-layer-1));box-shadow:var(--dsw-elevation-prominent,0 16px 40px rgba(15,23,42,.24),0 2px 8px rgba(15,23,42,.1));color:var(--dsw-alias-label-primary);font-size:12.5px;line-height:1.45;pointer-events:auto;animation:dsh-powerup-jobstop-in .14s ease-out}
+@keyframes dsh-powerup-jobstop-in{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+.dsh-powerup-jobstop-head{display:flex;align-items:center;gap:6px;color:var(--dsw-alias-label-tertiary);font-size:10.5px;font-weight:600;letter-spacing:.03em}
+.dsh-powerup-jobstop-head svg{flex:none;color:var(--dsw-alias-state-error-primary)}
+.dsh-powerup-jobstop-label{display:flex;align-items:center;gap:6px;min-width:0;color:var(--dsw-alias-label-secondary);font-family:var(--dsw-font-family-code,ui-monospace,SFMono-Regular,Consolas,monospace);font-size:11.5px}
+.dsh-powerup-jobstop-label span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dsh-powerup-jobstop-field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.dsh-powerup-jobstop-field-label{color:var(--dsw-alias-label-secondary);font-size:11.5px;line-height:17px}
+.dsh-powerup-jobstop-input{box-sizing:border-box;width:100%;height:32px;padding:0 9px;border:.5px solid var(--dsw-alias-border-l4);border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);font:inherit;font-size:12.5px;line-height:18px;outline:none;transition:border-color .14s ease,box-shadow .14s ease}
+.dsh-powerup-jobstop-input::placeholder{color:var(--dsw-alias-label-caption)}
+.dsh-powerup-jobstop-input:focus{border-color:var(--dsw-alias-state-business-primary);box-shadow:inset 0 0 0 .5px var(--dsw-alias-state-business-primary)}
+.dsh-powerup-jobstop-note{margin:0;color:var(--dsw-alias-label-tertiary);font-size:10.5px;line-height:15px}
+.dsh-powerup-jobstop-error{margin:0;color:var(--dsw-alias-state-error-primary);font-size:11.5px;line-height:16px;overflow-wrap:anywhere}
+.dsh-powerup-jobstop-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px}
+.dsh-powerup-jobstop-cancel{height:28px;padding:0 10px;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;line-height:18px;cursor:pointer}
+.dsh-powerup-jobstop-cancel:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover,var(--dsw-alias-bg-layer-2));color:var(--dsw-alias-label-primary)}
+.dsh-powerup-jobstop-confirm{height:28px;padding:0 11px;border:0;border-radius:var(--dsw-radius-sm,6px);background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 12%,transparent);color:var(--dsw-alias-state-error-primary);font:inherit;font-size:12px;line-height:18px;cursor:pointer;transition:background .14s ease}
+.dsh-powerup-jobstop-confirm:hover:not(:disabled){background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 20%,transparent)}
+.dsh-powerup-jobstop-confirm:disabled,.dsh-powerup-jobstop-cancel:disabled{opacity:.55;cursor:default}
+.dsh-powerup-jobstop-cancel:focus-visible,.dsh-powerup-jobstop-confirm:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:1px}
+@media (prefers-reduced-motion:reduce){.dsh-powerup-jobstop{animation:none}}
 .dsh-powerup-update-button{flex:none;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-caption);cursor:pointer}
 .dsh-powerup-update-button:hover{background:var(--dsw-alias-interactive-bg-hover,var(--dsw-alias-bg-layer-2));color:var(--dsw-alias-label-secondary)}
 .dsh-powerup-restart-tag{flex:none;display:inline-flex;align-items:center;height:18px;padding:0 6px;border:.5px solid color-mix(in srgb,var(--dsw-alias-state-warn-primary) 32%,transparent);border-radius:999px;background:var(--dsw-alias-state-warn-tertiary);color:var(--dsw-alias-state-warn-label);font-size:10px;line-height:16px;white-space:nowrap}
@@ -1195,6 +1247,9 @@
       const UPDATE_API = '/dsh-powerup/api/restart';
       const AUDIT_API = '/dsh-powerup/api/audit';
       const SELF_UPDATE_API = '/dsh-powerup/api/self-update';
+      const JOB_KILL_API = '/dsh-powerup/api/job-kill';
+      /** Character cap shared by the stop dialog and the Host normalizer. */
+      const JOB_STOP_REASON_MAX = 200;
       const OFFICIAL_REGISTRY = 'https://registry.npmjs.org/';
       const REGISTRY_HOSTS = new Map([
         ['registry.npmjs.org', 'update.registryDefault'],
@@ -1782,6 +1837,262 @@
           ...(above ? { bottom: viewportHeight - rect.top + gap } : { top: rect.bottom + gap }),
           maxHeight: Math.max(120, Math.min(preferredHeight, above ? spaceAbove : spaceBelow)),
         };
+      }
+
+      /**
+       * The row label as the host renders it. Live job rows carry one element
+       * whose text and `title` are both the job label; the stop button's own
+       * `title` is the localized action name, so it is skipped. Reading the DOM
+       * instead of stripping the localized `aria-label` keeps this working in
+       * every host language.
+       * @param {Element | null | undefined} button
+       * @returns {string | undefined}
+       */
+      function stopButtonLabel(button) {
+        if (button === null || button === undefined || typeof button.closest !== 'function') return undefined;
+        const item = button.closest('li');
+        if (item === null || typeof item.querySelectorAll !== 'function') return undefined;
+        for (const node of item.querySelectorAll('[title]')) {
+          if (node === button) continue;
+          const title = node.getAttribute('title');
+          if (typeof title !== 'string' || title === '') continue;
+          if (node.textContent === title) return title;
+        }
+        return undefined;
+      }
+
+      /**
+       * The session the open jobs panel belongs to. The bridge publishes the
+       * active session; when it is unavailable yet, a single watched session
+       * with live jobs is unambiguous.
+       * @param {{ rows?: Record<string, Array<{ status: string }>> }} snapshot
+       * @param {string | undefined} sessionId
+       * @returns {string | undefined}
+       */
+      function stopTargetSession(snapshot, sessionId) {
+        const rows = snapshot?.rows ?? {};
+        if (typeof sessionId === 'string' && sessionId !== '') return sessionId;
+        const candidates = Object.keys(rows).filter((key) => (rows[key] ?? []).some((job) => job.status === 'running'));
+        return candidates.length === 1 ? candidates[0] : undefined;
+      }
+
+      /**
+       * Resolve the job behind a host stop button without importing the jobs
+       * plugin: the open panel renders its live rows in start order, so the
+       * n-th stop button in the document belongs to the n-th running job. The
+       * row label cross-checks that pairing. Returning undefined leaves the
+       * host's own stop flow untouched.
+       * @param {{ state?: { getSnapshot?: () => { rows?: Record<string, Array<object>> } } } | undefined} jobsService
+       * @param {Element | null | undefined} button
+       * @param {string | undefined} sessionId
+       * @returns {{ sessionId: string, job: { id: string, label: string } } | undefined}
+       */
+      function resolveStopTarget(jobsService, button, sessionId) {
+        if (jobsService === null || jobsService === undefined || button === null || button === undefined) return undefined;
+        const state = jobsService.state;
+        if (state === undefined || typeof state.getSnapshot !== 'function') return undefined;
+        const snapshot = state.getSnapshot();
+        const owner = stopTargetSession(snapshot, sessionId);
+        if (owner === undefined) return undefined;
+        const live = (snapshot?.rows?.[String(owner)] ?? [])
+          .filter((job) => job.status === 'running')
+          .sort((left, right) => left.startedAt - right.startedAt);
+        if (live.length === 0) return undefined;
+        const buttons = [...document.querySelectorAll('button[data-kill-state]')];
+        const index = buttons.indexOf(button);
+        if (index < 0) return undefined;
+        const label = stopButtonLabel(button);
+        let job = index < live.length ? live[index] : undefined;
+        if (job !== undefined && label !== undefined && job.label !== label) job = undefined;
+        if (job === undefined && label !== undefined) job = live.find((candidate) => candidate.label === label);
+        if (job === undefined) return undefined;
+        return { sessionId: owner, job };
+      }
+
+      /**
+       * The stop-reason popover. The host jobs panel owns an irreversible
+       * two-press stop and always records `cancelled by the user`; this overlay
+       * intercepts the first press, asks for an optional reason, and posts it to
+       * the Host route that kills through the registry with that reason, so the
+       * injected completion notice and the model's tool result carry it. If the
+       * button cannot be resolved to a job, the event is left alone and the
+       * host's original stop flow runs unchanged.
+       */
+      function JobStopOverlay({ jobs, ctx }) {
+        const [target, setTarget] = useState(null);
+        const [reason, setReason] = useState('');
+        const [pending, setPending] = useState(false);
+        const [error, setError] = useState(null);
+        const panelRef = useRef(null);
+        const inputRef = useRef(null);
+        const sequenceRef = useRef(0);
+        const t = useCallback((key, params) => translateCurrent(key, params), []);
+
+        const close = useCallback(() => {
+          sequenceRef.current += 1;
+          setTarget(null);
+          setPending(false);
+          setError(null);
+        }, []);
+
+        useEffect(() => {
+          const onClick = (event) => {
+            if (event.defaultPrevented) return;
+            const node = event.target;
+            if (!(node instanceof Element)) return;
+            const button = node.closest('button[data-kill-state]');
+            if (button === null) return;
+            const resolved = resolveStopTarget(jobs, button, bridge.sessionId);
+            if (resolved === undefined) return;
+            event.preventDefault();
+            event.stopPropagation();
+            sequenceRef.current += 1;
+            setReason('');
+            setError(null);
+            setPending(false);
+            setTarget({ ...resolved, rect: button.getBoundingClientRect() });
+          };
+          document.addEventListener('click', onClick, true);
+          return () => document.removeEventListener('click', onClick, true);
+        }, [jobs]);
+
+        useEffect(() => {
+          if (target === null) return undefined;
+          const onPointerDown = (event) => {
+            const panel = panelRef.current;
+            if (panel !== null && event.target instanceof Node && panel.contains(event.target)) return;
+            close();
+          };
+          const onScroll = (event) => {
+            const panel = panelRef.current;
+            if (panel !== null && event.target instanceof Node && panel.contains(event.target)) return;
+            close();
+          };
+          const onResize = () => close();
+          document.addEventListener('pointerdown', onPointerDown, true);
+          document.addEventListener('scroll', onScroll, true);
+          window.addEventListener('resize', onResize);
+          return () => {
+            document.removeEventListener('pointerdown', onPointerDown, true);
+            document.removeEventListener('scroll', onScroll, true);
+            window.removeEventListener('resize', onResize);
+          };
+        }, [target, close]);
+
+        // A settled job needs no stop dialog; close it when the roster says it
+        // finished (another stop path, a producer exit, or our own request).
+        useEffect(() => {
+          if (target === null || jobs?.state === undefined) return undefined;
+          const state = jobs.state;
+          if (typeof state.getSnapshot !== 'function' || typeof state.subscribe !== 'function') return undefined;
+          const check = () => {
+            const rows = state.getSnapshot()?.rows?.[String(target.sessionId)] ?? [];
+            const row = rows.find((job) => String(job.id) === String(target.job.id));
+            if (row === undefined || row.status !== 'running') close();
+          };
+          return state.subscribe(check);
+        }, [target, jobs, close]);
+
+        useEffect(() => {
+          if (target === null) return undefined;
+          const timer = window.setTimeout(() => inputRef.current?.focus(), 0);
+          return () => window.clearTimeout(timer);
+        }, [target]);
+
+        const submit = async () => {
+          if (target === null || pending) return;
+          const token = sequenceRef.current;
+          setPending(true);
+          setError(null);
+          try {
+            const response = await fetch(JOB_KILL_API, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                sessionId: target.sessionId,
+                jobId: String(target.job.id),
+                reason: reason.trim(),
+              }),
+            });
+            let payload = null;
+            try {
+              payload = await response.json();
+            } catch {
+              payload = null;
+            }
+            if (!response.ok || payload?.ok !== true) throw new Error(payload?.error ?? `HTTP ${response.status}`);
+            if (sequenceRef.current !== token) return;
+            setTarget(null);
+            setPending(false);
+            setReason('');
+            setError(null);
+          } catch (failure) {
+            if (sequenceRef.current !== token) return;
+            setPending(false);
+            setError(format(t('jobStop.failed'), { message: failure?.message ?? String(failure) }));
+          }
+        };
+
+        if (target === null) return null;
+        const placement = popoverPlacement({ getBoundingClientRect: () => target.rect }, 300, 180);
+        return h('div', {
+          ref: panelRef,
+          className: 'dsh-powerup-jobstop',
+          role: 'dialog',
+          'aria-label': t('jobStop.title'),
+          style: {
+            left: `${placement.left}px`,
+            width: `${placement.width}px`,
+            ...(placement.top !== undefined ? { top: `${placement.top}px` } : { bottom: `${placement.bottom}px` }),
+            maxHeight: `${placement.maxHeight}px`,
+          },
+          // Keep the host jobs menu open while the user interacts: its
+          // outside-pointer handler listens on document and would close it.
+          onPointerDown: (event) => event.stopPropagation(),
+          onKeyDown: (event) => {
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              close();
+              return;
+            }
+            if (event.key !== 'Enter' || event.isComposing === true) return;
+            const tag = event.target?.tagName;
+            if (tag !== 'INPUT' && tag !== 'TEXTAREA') return;
+            event.preventDefault();
+            void submit();
+          },
+        },
+        h('div', { className: 'dsh-powerup-jobstop-head' }, h(StopIcon, { size: 12 }), t('jobStop.title')),
+        h('div', { className: 'dsh-powerup-jobstop-label', title: target.job.label }, h('span', null, target.job.label)),
+        h('label', { className: 'dsh-powerup-jobstop-field' },
+          h('span', { className: 'dsh-powerup-jobstop-field-label' }, t('jobStop.reasonLabel')),
+          h('input', {
+            ref: inputRef,
+            className: 'dsh-powerup-jobstop-input',
+            type: 'text',
+            value: reason,
+            maxLength: JOB_STOP_REASON_MAX,
+            placeholder: t('jobStop.reasonPlaceholder'),
+            disabled: pending,
+            onChange: (event) => setReason(event.target.value),
+          }),
+        ),
+        h('p', { className: 'dsh-powerup-jobstop-note' }, t('jobStop.reasonNote')),
+        error === null ? null : h('p', { className: 'dsh-powerup-jobstop-error', role: 'alert' }, error),
+        h('div', { className: 'dsh-powerup-jobstop-actions' },
+          h('button', {
+            type: 'button',
+            className: 'dsh-powerup-jobstop-cancel',
+            disabled: pending,
+            onClick: close,
+          }, t('jobStop.cancel')),
+          h('button', {
+            type: 'button',
+            className: 'dsh-powerup-jobstop-confirm',
+            disabled: pending,
+            onClick: () => { void submit(); },
+          }, pending ? t('jobStop.stopping') : t('jobStop.confirm')),
+        ));
       }
 
       /**
@@ -3102,6 +3413,16 @@
               h('p', { className: 'dsh-powerup-update-note', style: { marginTop: '12px' } }, t('page.updateHow')),
             ),
             h('section', { className: 'dsh-powerup-card' },
+              h('div', { className: 'dsh-powerup-card-head' },
+                h('div', { className: 'dsh-powerup-card-icon' }, h(StopIcon, { size: 18 })),
+                h('div', { className: 'dsh-powerup-card-copy' },
+                  h('h2', null, t('page.jobStopTitle')),
+                  h('p', null, t('page.jobStopDesc')),
+                ),
+              ),
+              h('p', { className: 'dsh-powerup-update-note', style: { marginTop: '12px' } }, t('page.jobStopHow')),
+            ),
+            h('section', { className: 'dsh-powerup-card' },
               h('h2', { className: 'dsh-powerup-section-title', style: { marginBottom: '10px' } }, t('page.howTitle')),
               h('ol', { className: 'dsh-powerup-steps' },
                 h('li', { className: 'dsh-powerup-step' },
@@ -3216,6 +3537,29 @@
             console.warn('[dsh-powerup] plugin update registration failed:', error?.message ?? error);
           }
         }
+
+        // The stop-reason popover reads the Client jobs snapshot while the
+        // built-in jobs panel owns the stop buttons. Wait for the jobs service
+        // in a nested inject scope so a late-provided service still registers.
+        if (typeof ctx.inject === 'function') {
+          try {
+            ctx.inject(['jobs'], (scope) => {
+              const jobs = scope.get('jobs');
+              const childSlots = scope.get('slots');
+              if (jobs === undefined || childSlots === undefined || typeof childSlots.register !== 'function') return;
+              scope.effect(
+                () => childSlots.inject('shell.overlay', () => childSlots.register({
+                  name: 'shell.overlay',
+                  id: 'powerup-job-stop',
+                  order: 57,
+                }, () => h(JobStopOverlay, { jobs, ctx: scope }))),
+                'dsh-powerup: job stop reason',
+              );
+            });
+          } catch (error) {
+            console.warn('[dsh-powerup] job stop registration failed:', error?.message ?? error);
+          }
+        }
       }
 
       return {
@@ -3231,6 +3575,9 @@
           PowerUpPage,
           PowerUpOverlay,
           PluginUpdateOverlay,
+          JobStopOverlay,
+          stopButtonLabel,
+          resolveStopTarget,
           ensureUpdateButtons,
           ensureRestartBar,
           updateButtonLabel,

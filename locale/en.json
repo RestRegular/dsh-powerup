@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Power-Up",
-    "description": "Adds a right-click action menu to the Trajectory ledger: copy a record, copy a Markdown quote, quote it into the composer, open the record inspector, fork the session at that record, export the trajectory snapshot, and copy the session ID. The Plugins page gains an update control on every third-party installed plugin: choose a version from the registry, uninstall the old copy, reinstall through the Add plugin path, then enable and optionally restart DSH."
+    "description": "Adds a right-click action menu to the Trajectory ledger: copy a record, copy a Markdown quote, quote it into the composer, open the record inspector, fork the session at that record, export the trajectory snapshot, and copy the session ID. The session header's background jobs panel gains an optional stop reason when a job is stopped by hand; the reason is appended to the completion notice injected into the session. The Plugins page gains an update control on every third-party installed plugin: choose a version from the registry, uninstall the old copy, reinstall through the Add plugin path, then enable and optionally restart DSH."
   }
 }

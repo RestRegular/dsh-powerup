@@ -143,6 +143,17 @@ const pluginBundles = [
   { name: '@acme/dsh-widget', official: false, installed: true, enabled: true, removable: true, version: '1.2.3', availability: 'profile', rows: [] },
   { name: '@restregular/dsh-powerup', official: false, installed: true, enabled: true, removable: true, version: '0.1.0', availability: 'profile', rows: [] },
 ];
+const fakeJobsState = {
+  rows: {
+    'session-1': [
+      { id: 'bash-live', kind: 'bash', label: 'sleep 600', status: 'running', startedAt: 10 },
+      { id: 'bash-done', kind: 'bash', label: 'git status', status: 'completed', startedAt: 5, finishedAt: 9 },
+    ],
+  },
+  getSnapshot() { return { rows: this.rows, observed: {} }; },
+  subscribe() { return () => {}; },
+};
+const fakeJobs = { state: fakeJobsState, kill() { throw new Error('not used in the smoke test'); } };
 const pluginManager = {
   async listBundles() { return { ok: true, value: pluginBundles }; },
   async listPlugins() { return { ok: true, value: [] }; },
@@ -170,6 +181,7 @@ const ctx = {
       get(name) {
         if (name === 'remote.pluginManager') return pluginManager;
         if (name === 'remote') return remote;
+        if (name === 'jobs') return fakeJobs;
         return ctx.get(name);
       },
       effect(fn, label) {
@@ -192,7 +204,7 @@ assert.equal(typeof moduleExports.apply, 'function');
 assert.deepEqual(moduleExports.inject, ['slots', 'locale']);
 moduleExports.apply(ctx);
 
-assert.equal(registrations.length, 5, 'five slot registrations');
+assert.equal(registrations.length, 6, 'six slot registrations');
 const bySlot = new Map(registrations.map((entry) => [entry.options.name, entry]));
 for (const slot of ['sidebar.panellist', 'main', 'shell.overlay', 'conversation.session.header.utilities']) {
   assert.ok(bySlot.has(slot), `registered ${slot}`);
@@ -200,9 +212,10 @@ for (const slot of ['sidebar.panellist', 'main', 'shell.overlay', 'conversation.
 assert.equal(bySlot.get('sidebar.panellist').options.id, 'powerup');
 assert.equal(bySlot.get('main').options.key, 'powerup');
 const overlayIds = registrations.filter((entry) => entry.options.name === 'shell.overlay').map((entry) => entry.options.id).sort();
-assert.deepEqual(overlayIds, ['powerup-context-menu', 'powerup-plugin-update'], 'context menu and update overlay');
+assert.deepEqual(overlayIds, ['powerup-context-menu', 'powerup-job-stop', 'powerup-plugin-update'], 'context menu, stop reason, and update overlay');
 assert.ok(registrations.some((entry) => entry.options.id === 'powerup-plugin-update'), 'plugin update overlay registered');
 assert.ok(scopes.some((entry) => entry.deps.includes('remote.pluginManager')), 'update overlay waits for the plugin manager remote');
+assert.ok(scopes.some((entry) => entry.deps.includes('jobs')), 'stop overlay waits for the client jobs service');
 
 // Sidebar icon: the host passes size/active; the component must stay a 16-grid
 // currentColor line drawing.
@@ -447,6 +460,32 @@ assert.equal(
 resetHooks();
 assert.equal(update.PluginUpdateOverlay({ manager: pluginManager, remote, ctx }), null, 'update overlay is inert until opened');
 
+// ---------------------------------------------------------------------------
+// Background-job stop reason
+// ---------------------------------------------------------------------------
+resetHooks();
+assert.equal(update.JobStopOverlay({ jobs: fakeJobs, ctx }), null, 'stop overlay is inert until a stop button is pressed');
+
+const labelNode = { textContent: 'sleep 600', getAttribute: (name) => name === 'title' ? 'sleep 600' : null };
+const stopButton = {
+  getAttribute: (name) => name === 'aria-label' ? '停止任务 sleep 600' : null,
+  closest: (selector) => selector === 'li' ? { querySelectorAll: () => [labelNode, stopButton] } : null,
+};
+assert.equal(update.stopButtonLabel(stopButton), 'sleep 600', 'row label comes from the DOM, not the localized aria-label');
+for (const key of ['page.jobStopTitle', 'page.jobStopDesc', 'page.jobStopHow', 'jobStop.title', 'jobStop.reasonLabel', 'jobStop.reasonPlaceholder', 'jobStop.reasonNote', 'jobStop.cancel', 'jobStop.confirm', 'jobStop.stopping', 'jobStop.failed']) {
+  assert.ok(DICT.zh[key] !== undefined, `zh dictionary has ${key}`);
+  assert.ok(DICT.en[key] !== undefined, `en dictionary has ${key}`);
+}
+
+const originalQuerySelectorAll = document.querySelectorAll;
+document.querySelectorAll = () => [stopButton];
+const resolvedStop = update.resolveStopTarget(fakeJobs, stopButton, 'session-1');
+document.querySelectorAll = originalQuerySelectorAll;
+assert.equal(resolvedStop?.sessionId, 'session-1');
+assert.equal(resolvedStop?.job.id, 'bash-live', 'the first stop button maps to the first running row');
+assert.equal(update.resolveStopTarget(fakeJobs, stopButton, 'session-1'), undefined, 'unresolvable DOM leaves the host flow alone');
+assert.equal(update.resolveStopTarget({ state: { getSnapshot: () => ({ rows: { 'session-1': [] } }) } }, stopButton, 'session-1'), undefined);
+
 // The DOM injection: one icon button in the card's action area, idempotent,
 // and clicking it opens that package. React owns these nodes, so the helper is
 // re-run by the observer; a second run must not duplicate the button.
@@ -660,6 +699,91 @@ await host.__test.handle({
 assert.equal(restartResponse.status, 409);
 assert.equal(JSON.parse(restartResponse.body).code, 'restart-unsupported');
 
+// ---------------------------------------------------------------------------
+// Host half: stop a background job with an optional reason
+// ---------------------------------------------------------------------------
+function fakeJsonRequest(url, payload) {
+  return {
+    method: 'POST',
+    url,
+    headers: {},
+    socket: { remoteAddress: '127.0.0.1' },
+    async *[Symbol.asyncIterator]() {
+      yield Buffer.from(JSON.stringify(payload));
+    },
+  };
+}
+
+const killCalls = [];
+const killJobs = {
+  kill(jobId, sessionId, reason) {
+    killCalls.push({ jobId, sessionId, reason });
+    return 'requested';
+  },
+};
+const killResponse = fakeResponse();
+await host.__test.handle(
+  fakeJsonRequest('/dsh-powerup/api/job-kill', { jobId: 'bash-1', sessionId: 'session-1', reason: '  改方案\n了  ' }),
+  killResponse,
+  { get: (name) => name === 'jobs' ? killJobs : undefined },
+);
+assert.equal(killResponse.status, 200);
+assert.deepEqual(JSON.parse(killResponse.body), { ok: true, outcome: 'requested' });
+assert.deepEqual(killCalls, [
+  { jobId: 'bash-1', sessionId: 'session-1', reason: 'cancelled by the user: 改方案 了' },
+], 'the typed reason is appended to the core phrase and stays one line');
+
+const blankKillResponse = fakeResponse();
+await host.__test.handle(
+  fakeJsonRequest('/dsh-powerup/api/job-kill', { jobId: 'bash-2', sessionId: 'session-1', reason: '   ' }),
+  blankKillResponse,
+  { get: (name) => name === 'jobs' ? killJobs : undefined },
+);
+assert.equal(JSON.parse(blankKillResponse.body).ok, true);
+assert.equal(killCalls[1].reason, 'cancelled by the user', 'an empty reason keeps the host behavior');
+
+const invalidKillResponse = fakeResponse();
+await host.__test.handle(
+  fakeJsonRequest('/dsh-powerup/api/job-kill', { jobId: '', sessionId: 'session-1' }),
+  invalidKillResponse,
+  { get: () => undefined },
+);
+assert.equal(invalidKillResponse.status, 400);
+assert.equal(JSON.parse(invalidKillResponse.body).code, 'invalid-request');
+
+const unavailableKillResponse = fakeResponse();
+await host.__test.handle(
+  fakeJsonRequest('/dsh-powerup/api/job-kill', { jobId: 'bash-1', sessionId: 'session-1' }),
+  unavailableKillResponse,
+  { get: () => undefined },
+);
+assert.equal(unavailableKillResponse.status, 503);
+assert.equal(JSON.parse(unavailableKillResponse.body).code, 'jobs-unavailable');
+
+const getKillResponse = fakeResponse();
+await host.__test.handle({
+  method: 'GET',
+  url: '/dsh-powerup/api/job-kill',
+  headers: {},
+  socket: { remoteAddress: '127.0.0.1' },
+}, getKillResponse, { get: () => undefined });
+assert.equal(getKillResponse.status, 405, 'job-kill only accepts POST');
+
+const failedKillResponse = fakeResponse();
+await host.__test.handle(
+  fakeJsonRequest('/dsh-powerup/api/job-kill', { jobId: 'missing', sessionId: 'session-1' }),
+  failedKillResponse,
+  { get: () => ({ kill() { throw new Error('job not visible to session'); } }) },
+);
+assert.equal(failedKillResponse.status, 404);
+assert.equal(JSON.parse(failedKillResponse.body).code, 'kill-failed');
+
+assert.equal(host.__test.normalizeStopReason('  a\nb\tc  '), 'a b c');
+assert.equal(host.__test.normalizeStopReason(null), '');
+assert.equal(host.__test.normalizeStopReason('x'.repeat(300)).length, 200);
+assert.equal(host.__test.killReasonFor(''), 'cancelled by the user');
+assert.equal(host.__test.killReasonFor('换方案'), 'cancelled by the user: 换方案');
+
 assert.equal(host.__test.normalizeVersion('v1.2.3'), '1.2.3');
 assert.equal(host.__test.normalizeVersion('latest'), '');
 assert.equal(host.__test.normalizeVersion('@acme/x@1.0.0'), '');
@@ -728,7 +852,7 @@ assert.equal(typeof hostRoute.handler, 'function');
 // ---------------------------------------------------------------------------
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 assert.equal(pkg.name, '@restregular/dsh-powerup');
-assert.equal(pkg.version, '0.3.2');
+assert.equal(pkg.version, '0.4.0');
 assert.equal(pkg.icon, './icon.svg');
 assert.equal(pkg.exports['./client'], './client.js');
 assert.equal(pkg.dsh.bundle.patch, './cordis.patch.yml');
@@ -746,4 +870,4 @@ const iconSvg = fs.readFileSync(path.join(root, 'icon.svg'), 'utf8');
 assert.ok(iconSvg.includes('viewBox="0 0 256 256"'));
 assert.ok(!iconSvg.includes('<script'));
 
-console.log('smoke ok: 5 slots, icons, page, overlay, update flow, bridge, helpers, theme tokens, manifest, host route');
+console.log('smoke ok: 6 slots, icons, page, overlays, job stop reason, update flow, bridge, helpers, theme tokens, manifest, host routes');

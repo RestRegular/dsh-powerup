@@ -1,7 +1,8 @@
 # Power-Up
 
 Small, opt-in upgrades for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness).
-The first upgrade is a **right-click action menu in the Trajectory view**.
+The upgrades include a **right-click action menu in the Trajectory view**, an
+optional **stop reason for background jobs**, and an in-place **plugin updater**.
 
 ## Install
 
@@ -30,6 +31,20 @@ Right-click empty space in the ledger:
 
 The sidebar **Power-Up** page turns the menu on or off and lists the available
 actions. The setting is stored in the browser.
+
+### Stop a background job with a reason
+
+The session header's background jobs panel keeps the host's list, live output,
+and stop button. Clicking a running job's stop button opens a small Power-Up
+dialog instead of the host's two-press stop:
+
+- The reason field is optional; an empty field keeps the host's default
+  `cancelled by the user` reason.
+- Confirming stops the job through the Host route, which records
+  `cancelled by the user: <reason>`. The completion notice injected into the
+  session and the shell tool's result therefore carry the reason.
+- If the button cannot be resolved to a live job, the click is left alone and
+  the host's original stop flow runs unchanged.
 
 ### Menu keys
 
@@ -89,6 +104,13 @@ refresh the page when the install finishes.
   observes the trajectory package's own `data-*` contracts. If those attributes
   change, row-specific actions degrade gracefully; session-level actions in the
   empty ledger area keep working.
+- **The stop reason rides the host's own job registry.** The panel belongs to
+  `@deepseek-ai/dsh-client-ui-jobs`, so Power-Up does not replace it: a capture
+  listener recognizes its `button[data-kill-state]`, maps the button to the live
+  row (DOM order plus the row's `title` label), and opens the reason dialog.
+  The typed reason goes to `POST /dsh-powerup/api/job-kill`, which calls the
+  registry's `kill(id, session, reason)` — the same admission the built-in
+  Remote uses, with the reason settlement merges into the job's `detail` line.
 - **The update entry uses the built-in page's contracts.** The Plugins page has
   no per-card slot, so the overlay injects one button into every
   `[data-plugin-group="bundles"] [data-plugin-package]` card and re-asserts it
@@ -129,7 +151,7 @@ node test/smoke.mjs
 
 The smoke test loads the real Client module with React/browser doubles, applies
 it to a fake slot context, and checks registrations, icons, helpers, theme
-tokens, and the manifest.
+tokens, the stop-reason mapping and Host route, and the manifest.
 
 ## License
 
