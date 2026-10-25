@@ -457,6 +457,40 @@ assert.equal(
   'DSH manages this plugin; it cannot be updated here.',
 );
 
+// The update removes the old copy first; a later failure must reinstall it.
+const restoreCalls = [];
+const restoreManager = {
+  async installBundle(spec, options) {
+    restoreCalls.push({ spec, options });
+    return { ok: true, value: { application: 'applied', version: '1.2.3' } };
+  },
+};
+const restored = await update.restorePreviousBundle(
+  restoreManager,
+  { name: '@acme/dsh-widget', version: '1.2.3', enabled: false, registry: 'https://registry.example.com/' },
+  translate,
+);
+assert.equal(restored.version, '1.2.3');
+assert.equal(restored.restartRequired, false);
+assert.equal(restoreCalls[0].spec, '@acme/dsh-widget@1.2.3');
+assert.equal(restoreCalls[0].options.enabled, false, 'restores the pre-update enabled state');
+assert.equal(restoreCalls[0].options.registry, 'https://registry.example.com/');
+assert.equal(typeof restoreCalls[0].options.requestId, 'string');
+
+await assert.rejects(
+  () => update.restorePreviousBundle(restoreManager, { name: '@acme/dsh-widget', version: '' }, translate),
+  /previous version is unknown/u,
+  'a missing previous version cannot be rolled back silently',
+);
+await assert.rejects(
+  () => update.restorePreviousBundle({ async installBundle() { return { ok: false, error: { message: 'registry down' } }; } }, { name: '@acme/dsh-widget', version: '1.2.3' }, translate),
+  /registry down/u,
+);
+await assert.rejects(
+  () => update.restorePreviousBundle({ async installBundle() { return { ok: true, value: { application: 'failed', error: { code: 'install-failed', diagnostic: 'disk full' } } }; } }, { name: '@acme/dsh-widget', version: '1.2.3' }, translate),
+  /disk full/u,
+);
+
 resetHooks();
 assert.equal(update.PluginUpdateOverlay({ manager: pluginManager, remote, ctx }), null, 'update overlay is inert until opened');
 
@@ -815,19 +849,74 @@ assert.equal(selfUpdateCalls[2][2].enabled, true, 'self-update installs enabled'
 
 const refusedCalls = [];
 const refusedSelfManager = {
-  async removeBundle() { return { application: 'applied' }; },
+  async removeBundle() { refusedCalls.push('remove'); return { application: 'applied' }; },
   async inspect() { refusedCalls.push('inspect'); return { status: 'refused', problem: 'not-found', reason: 'missing' }; },
-  async installBundle() { refusedCalls.push('install'); return {}; },
+  async installBundle(spec, options) { refusedCalls.push(['install', spec, options]); return { application: 'applied' }; },
 };
 const refusedSelfResult = await host.__test.performSelfUpdate(
   { get: () => refusedSelfManager },
   '9.9.9',
   null,
-  { log: () => {} },
+  { log: () => {}, previousVersion: '0.4.0' },
 );
 assert.equal(refusedSelfResult.ok, false);
 assert.equal(refusedSelfResult.stage, 'inspect');
-assert.deepEqual(refusedCalls, ['inspect'], 'a refused version stops before install');
+assert.equal(refusedSelfResult.rolledBack, true, 'a failed self-update reinstalls the previous version');
+assert.deepEqual(refusedCalls.map((call) => Array.isArray(call) ? call[0] : call), ['remove', 'inspect', 'install'], 'the old copy is put back');
+assert.deepEqual(refusedCalls[2], ['install', '@restregular/dsh-powerup@0.4.0', refusedCalls[2][2]]);
+assert.equal(refusedCalls[2][2].enabled, true, 'the restored self keeps its enabled state');
+
+const rollbackFailureManager = {
+  async removeBundle() { return { application: 'applied' }; },
+  async inspect() { return { status: 'refused', problem: 'not-found', reason: 'missing' }; },
+  async installBundle() { return { error: { code: 'install-failed', diagnostic: 'registry down' } }; },
+};
+const rollbackFailureResult = await host.__test.performSelfUpdate(
+  { get: () => rollbackFailureManager },
+  '9.9.9',
+  null,
+  { log: () => {}, previousVersion: '0.4.0' },
+);
+assert.equal(rollbackFailureResult.ok, false);
+assert.equal(rollbackFailureResult.rolledBack, false);
+assert.match(rollbackFailureResult.rollbackError, /registry down/u, 'a failed rollback surfaces its own reason');
+
+const removeFailureManager = {
+  async removeBundle() { return { error: { code: 'remove-failed', diagnostic: 'locked' } }; },
+  async inspect() { throw new Error('must not inspect after a failed remove'); },
+  async installBundle() { throw new Error('must not roll back when nothing was removed'); },
+};
+const removeFailureResult = await host.__test.performSelfUpdate(
+  { get: () => removeFailureManager },
+  '9.9.9',
+  null,
+  { log: () => {}, previousVersion: '0.4.0' },
+);
+assert.equal(removeFailureResult.ok, false);
+assert.equal(removeFailureResult.rolledBack, false);
+assert.equal(removeFailureResult.rollbackError, undefined);
+assert.equal(host.__test.SELF_VERSION, '0.4.1');
+
+const installFailSpecs = [];
+const installFailManager = {
+  async removeBundle() { return { application: 'applied' }; },
+  async inspect() { return { status: 'accepted', bundle: true }; },
+  async installBundle(spec) {
+    installFailSpecs.push(spec);
+    if (spec === '@restregular/dsh-powerup@9.9.9') return { application: 'failed' };
+    return { application: 'applied', version: '0.4.1' };
+  },
+};
+const installFailResult = await host.__test.performSelfUpdate(
+  { get: () => installFailManager },
+  '9.9.9',
+  null,
+  { log: () => {}, previousVersion: '0.4.1' },
+);
+assert.equal(installFailResult.ok, false);
+assert.equal(installFailResult.stage, 'install');
+assert.equal(installFailResult.rolledBack, true, 'a failed target install also restores the old version');
+assert.deepEqual(installFailSpecs, ['@restregular/dsh-powerup@9.9.9', '@restregular/dsh-powerup@0.4.1']);
 
 let hostRoute = null;
 host.apply({
@@ -852,7 +941,7 @@ assert.equal(typeof hostRoute.handler, 'function');
 // ---------------------------------------------------------------------------
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 assert.equal(pkg.name, '@restregular/dsh-powerup');
-assert.equal(pkg.version, '0.4.0');
+assert.equal(pkg.version, '0.4.1');
 assert.equal(pkg.icon, './icon.svg');
 assert.equal(pkg.exports['./client'], './client.js');
 assert.equal(pkg.dsh.bundle.patch, './cordis.patch.yml');

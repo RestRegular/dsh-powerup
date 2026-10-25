@@ -44,7 +44,7 @@
 
       const NS = 'dsh-powerup';
       const SETTINGS_KEY = 'dsh-powerup:settings:v1';
-      const VERSION = '0.4.0';
+      const VERSION = '0.4.1';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
 
@@ -151,6 +151,7 @@
           'update.step.checking': '正在校验版本…',
           'update.step.removing': '正在卸载旧版…',
           'update.step.installing': '正在安装 {version}…',
+          'update.step.rollback': '正在恢复旧版本 {version}…',
           'update.step.enabling': '正在启用…',
           'update.log': '安装输出',
           'update.enableTitle': '安装完成，是否立即启用？',
@@ -187,6 +188,11 @@
           'update.doneRestart': '部分更改需要重启 DSH 后生效。',
           'update.doneButton': '完成',
           'update.errorTitle': '更新失败',
+          'update.rollbackOkTitle': '已恢复旧版本',
+          'update.rollbackOkDesc': '更新失败，{name} 已自动回滚到 {version}，仍可继续使用。',
+          'update.rollbackFailedTitle': '旧版本恢复失败',
+          'update.rollbackFailedDesc': '自动回滚失败：{message}。请到「插件」页用「添加插件」重新安装。',
+          'update.rollbackUnavailable': '无法确定旧版本号，未能自动回滚。请到「插件」页重新安装。',
           'update.selfTitle': '请用「添加插件」更新 Power-Up 自身',
           'update.selfDesc': '更新 Power-Up 会先卸载本插件，更新流程会随之中断。',
           'update.notRemovable': '该插件受 DSH 管理，不能在这里更新。',
@@ -299,6 +305,7 @@
           'update.step.checking': 'Checking the version…',
           'update.step.removing': 'Removing the old version…',
           'update.step.installing': 'Installing {version}…',
+          'update.step.rollback': 'Restoring {version}…',
           'update.step.enabling': 'Enabling…',
           'update.log': 'Install output',
           'update.enableTitle': 'Installed. Enable it now?',
@@ -335,6 +342,11 @@
           'update.doneRestart': 'Some changes apply only after DSH restarts.',
           'update.doneButton': 'Done',
           'update.errorTitle': 'Update failed',
+          'update.rollbackOkTitle': 'Previous version restored',
+          'update.rollbackOkDesc': 'The update failed, so {name} was rolled back to {version} and is ready to use.',
+          'update.rollbackFailedTitle': 'Could not restore the previous version',
+          'update.rollbackFailedDesc': 'Automatic rollback failed: {message}. Reinstall it from the Plugins page with “Add plugin”.',
+          'update.rollbackUnavailable': 'The previous version is unknown, so no automatic rollback was possible. Reinstall it from the Plugins page.',
           'update.selfTitle': 'Update Power-Up with Add plugin',
           'update.selfDesc': 'Updating Power-Up removes this plugin first, which interrupts this flow.',
           'update.notRemovable': 'DSH manages this plugin; it cannot be updated here.',
@@ -1662,6 +1674,35 @@
       }
 
       /**
+       * Reinstall the version an update removed. The update removes the old
+       * copy before the new spec is inspected, so a refused inspection or a
+       * failed install leaves the plugin missing; this puts the old version
+       * back with the enabled state it had before the update.
+       * @param {{ installBundle: Function }} manager
+       * @param {{ name: string, version: string | null | undefined, enabled?: boolean, registry?: string | null }} target
+       * @param {(key: string, params?: object) => string} t
+       * @returns {Promise<{ version: string }>}
+       */
+      async function restorePreviousBundle(manager, target, t) {
+        const version = typeof target.version === 'string' ? target.version.trim() : '';
+        if (version === '') throw new Error(t('update.rollbackUnavailable'));
+        const installed = await manager.installBundle(`${target.name}@${version}`, {
+          enabled: target.enabled !== false,
+          requestId: newRequestId(),
+          registry: target.registry ?? null,
+        });
+        if (!installed.ok) throw new Error(installed.error?.message ?? t('update.unknown'));
+        const value = installed.value ?? {};
+        if (value.error !== undefined || value.application === 'failed') throw new Error(operationReason(value, t));
+        if (value.application === 'cancelled') throw new Error(t('update.cancelled'));
+        return {
+          version: typeof value.version === 'string' && value.version !== '' ? value.version : version,
+          restartRequired: value.application === 'restart-required',
+          restartReason: typeof value.restartReason === 'string' ? value.restartReason : '',
+        };
+      }
+
+      /**
        * The package name of a registry install spec. Git, tarball, and local
        * paths return null; their installed name comes from the Host result.
        * @param {unknown} spec
@@ -2379,6 +2420,7 @@
               title: packageDisplayTitle(pkg),
               currentVersion: pkg.version ?? null,
               installed: pkg.installed === true,
+              enabled: pkg.enabled !== false,
               phase: 'choose',
               choices,
               registryKey: choice.key,
@@ -2614,6 +2656,9 @@
           const registry = registryValue(choice);
           const spec = `${current.name}@${version}`;
           const requestId = newRequestId();
+          const previousVersion = typeof current.currentVersion === 'string' && current.currentVersion !== '' ? current.currentVersion : null;
+          const previousEnabled = current.enabled !== false;
+          let removedOld = false;
           patch(token, { phase: 'working', step: current.self === true ? 'installing' : 'removing', error: null, formError: null, log: '', logLabel: spec });
           if (current.self === true) {
             // Power-Up cannot reinstall itself from its own client: removing
@@ -2645,7 +2690,9 @@
             const removed = await manager.removeBundle(current.name);
             if (tokenRef.current !== token) return;
             if (!removed.ok) throw new Error(removed.error?.message ?? t('update.unknown'));
-            if (removed.value.error !== undefined) throw new Error(operationReason(removed.value, t));
+            if (removed.value.error !== undefined || removed.value.application === 'failed') throw new Error(operationReason(removed.value, t));
+            if (removed.value.application === 'cancelled') throw new Error(t('update.cancelled'));
+            removedOld = true;
             patch(token, { step: 'checking' });
             const checked = await manager.inspect(spec, { registry });
             if (tokenRef.current !== token) return;
@@ -2675,7 +2722,40 @@
               enabling: false,
             });
           } catch (error) {
-            patch(token, { phase: 'error', step: null, error: errorText(error) || t('update.unknown') });
+            const original = errorText(error) || t('update.unknown');
+            // Before the first successful step the old copy is still installed;
+            // after it, a failed inspect/install must put the old version back.
+            if (!removedOld) {
+              patch(token, { phase: 'error', step: null, error: original });
+              return;
+            }
+            if (previousVersion === null) {
+              patch(token, { phase: 'error', step: null, error: original, rollbackUnavailable: true });
+              return;
+            }
+            patch(token, { phase: 'working', step: 'rollback', rollbackVersion: previousVersion, error: null, formError: null });
+            try {
+              const restored = await restorePreviousBundle(manager, {
+                name: current.name,
+                version: previousVersion,
+                enabled: previousEnabled,
+                registry,
+              }, t);
+              if (tokenRef.current !== token) return;
+              if (restored.restartRequired === true) {
+                recordPending({ name: current.name, version: restored.version, reason: restored.restartReason });
+              }
+              patch(token, { phase: 'error', step: null, error: original, rolledBack: true, rollbackVersion: restored.version });
+            } catch (rollbackFailure) {
+              if (tokenRef.current !== token) return;
+              patch(token, {
+                phase: 'error',
+                step: null,
+                error: original,
+                rollbackVersion: previousVersion,
+                rollbackError: errorText(rollbackFailure) || t('update.unknown'),
+              });
+            }
           }
         };
 
@@ -3020,7 +3100,9 @@
               ? t('update.step.removing')
               : view.step === 'installing'
                 ? t('update.step.installing', { version: view.logLabel ?? '' })
-                : t('update.step.checking');
+                : view.step === 'rollback'
+                  ? t('update.step.rollback', { version: view.rollbackVersion ?? view.currentVersion ?? '' })
+                  : t('update.step.checking');
             return [
               h('div', { key: 'status', className: 'dsh-powerup-update-status' },
                 h('span', { className: 'dsh-powerup-update-spinner', 'aria-hidden': 'true' }),
@@ -3084,6 +3166,18 @@
           if (view.phase === 'error') {
             return [
               notice('error', h(WarnIcon, { size: 15 }), t('update.errorTitle'), view.error ?? t('update.unknown')),
+              view.rolledBack === true
+                ? notice('success', h(CheckIcon, { size: 15 }), t('update.rollbackOkTitle'), t('update.rollbackOkDesc', {
+                  name: view.name,
+                  version: view.rollbackVersion ?? view.currentVersion ?? '',
+                }))
+                : null,
+              view.rollbackError !== undefined && view.rollbackError !== null
+                ? notice('warn', h(WarnIcon, { size: 15 }), t('update.rollbackFailedTitle'), t('update.rollbackFailedDesc', { message: view.rollbackError }))
+                : null,
+              view.rollbackUnavailable === true
+                ? notice('warn', h(WarnIcon, { size: 15 }), t('update.rollbackFailedTitle'), t('update.rollbackUnavailable'))
+                : null,
               h('span', { key: 'name', className: 'dsh-powerup-update-name' }, view.name),
             ];
           }
@@ -3606,6 +3700,7 @@
           normalizeVersionInput,
           inspectReason,
           operationReason,
+          restorePreviousBundle,
         },
       };
     },

@@ -9,7 +9,9 @@
  *   GET  /dsh-powerup/api/audit         → profile bundles newer than this Host
  *   POST /dsh-powerup/api/self-update   → removes and reinstalls this plugin
  *                                         in the background, surviving the
- *                                         plugin's own unload
+ *                                         plugin's own unload; a failed step
+ *                                         reinstalls the version that was
+ *                                         removed
  *   POST /dsh-powerup/api/job-kill      → stops one background job with an
  *                                         optional human reason
  *
@@ -21,7 +23,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { appendFileSync, mkdirSync, statSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 import { describeRestart, requestRestart } from './lib/restart.js';
@@ -40,6 +42,24 @@ const BODY_LIMIT = 16 * 1024;
 
 /** The moment this Host process started; a profile file newer than it may await a restart. */
 const HOST_STARTED_AT = Date.now() - process.uptime() * 1000;
+
+/**
+ * The version this Host module was loaded from. A self-update removes the only
+ * installed copy before inspecting the target, so a failure must reinstall this
+ * exact version instead of leaving Power-Up missing.
+ * @returns {string}
+ */
+function selfVersion() {
+  try {
+    const manifest = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
+    return typeof manifest?.version === 'string' ? manifest.version : '';
+  } catch {
+    return '';
+  }
+}
+
+/** Captured at load time, before self-update touches the package directory. */
+const SELF_VERSION = selfVersion();
 
 /**
  * The desktop profile directory, resolved without depending on the shell tool.
@@ -225,12 +245,13 @@ function normalizeVersion(value) {
  * @param {import('@deepseek-ai/cordis').Context} ctx
  * @param {string} version
  * @param {string | null} registry
- * @param {{ manager?: unknown, log?: (line: string) => void }} [options]
- * @returns {Promise<{ ok: boolean, stage?: string, error?: string }>}
+ * @param {{ manager?: unknown, log?: (line: string) => void, previousVersion?: string }} [options]
+ * @returns {Promise<{ ok: boolean, stage?: string, error?: string, rolledBack?: boolean, rollbackError?: string }>}
  */
 export async function performSelfUpdate(ctx, version, registry, options = {}) {
   const log = options.log ?? appendSelfUpdateLog;
   const manager = options.manager ?? ctx?.get?.('pluginManager');
+  const previousVersion = typeof options.previousVersion === 'string' ? options.previousVersion : SELF_VERSION;
   if (manager === undefined || typeof manager.installBundle !== 'function') {
     log('self-update: pluginManager service is unavailable');
     return { ok: false, stage: 'manager', error: 'pluginManager service is unavailable' };
@@ -238,11 +259,16 @@ export async function performSelfUpdate(ctx, version, registry, options = {}) {
   const spec = `${MODULE_ID}@${version}`;
   log(`self-update: start ${spec} registry=${String(registry)}`);
   let stage = 'remove';
+  let removedOld = false;
   try {
     const removed = await manager.removeBundle(MODULE_ID);
     if (removed?.error !== undefined) {
       throw new Error(`remove failed: ${removed.error.code ?? 'error'} ${removed.error.diagnostic ?? ''}`.trim());
     }
+    if (removed?.application === 'cancelled' || removed?.application === 'failed') {
+      throw new Error(`remove ${removed.application}`);
+    }
+    removedOld = true;
     log(`self-update: removed (application=${removed?.application ?? 'unknown'})`);
     stage = 'inspect';
     const checked = await manager.inspect(spec, { registry });
@@ -256,15 +282,54 @@ export async function performSelfUpdate(ctx, version, registry, options = {}) {
       registry,
       requestId: randomUUID(),
     });
-    if (installed?.error !== undefined) {
-      throw new Error(`install failed: ${installed.error.code ?? 'error'} ${installed.error.diagnostic ?? ''}`.trim());
+    if (installed?.error !== undefined || installed?.application === 'failed') {
+      const detail = installed?.error === undefined
+        ? ''
+        : `${installed.error.code ?? 'error'} ${installed.error.diagnostic ?? ''}`.trim();
+      throw new Error(`install failed${detail === '' ? '' : `: ${detail}`}`);
     }
     log(`self-update: installed (application=${installed?.application ?? 'unknown'}, version=${installed?.version ?? 'unknown'})`);
     return { ok: true, stage: 'install' };
   } catch (error) {
     const message = String(error?.message ?? error);
     log(`self-update: failed at ${stage}: ${message}${error?.stack === undefined ? '' : `\n${error.stack}`}`);
-    return { ok: false, stage, error: message };
+    // Removing the old copy is the first step, so any later failure leaves
+    // Power-Up uninstalled. Put the running version back instead.
+    let rolledBack = false;
+    let rollbackError;
+    if (removedOld) {
+      if (previousVersion === '') {
+        rollbackError = 'the previous version is unknown';
+        log('self-update: cannot roll back: previous version unknown');
+      } else {
+        log(`self-update: rolling back to ${MODULE_ID}@${previousVersion}`);
+        try {
+          const restored = await manager.installBundle(`${MODULE_ID}@${previousVersion}`, {
+            enabled: true,
+            registry,
+            requestId: randomUUID(),
+          });
+          if (restored?.error !== undefined || restored?.application === 'failed') {
+            const detail = restored?.error === undefined
+              ? ''
+              : `${restored.error.code ?? 'error'} ${restored.error.diagnostic ?? ''}`.trim();
+            throw new Error(`rollback install failed${detail === '' ? '' : `: ${detail}`}`);
+          }
+          rolledBack = true;
+          log(`self-update: rolled back to ${previousVersion} (application=${restored?.application ?? 'unknown'})`);
+        } catch (rollbackFailure) {
+          rollbackError = String(rollbackFailure?.message ?? rollbackFailure);
+          log(`self-update: rollback failed: ${rollbackError}`);
+        }
+      }
+    }
+    return {
+      ok: false,
+      stage,
+      error: message,
+      rolledBack,
+      ...(rollbackError === undefined ? {} : { rollbackError }),
+    };
   }
 }
 
@@ -414,9 +479,11 @@ export const __test = {
   normalizeVersion,
   normalizeStopReason,
   killReasonFor,
+  selfVersion,
   auditProfileBundles,
   profileDirectory,
   HOST_STARTED_AT,
+  SELF_VERSION,
   ROUTE,
   MODULE_ID,
 };

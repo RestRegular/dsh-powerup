@@ -66,6 +66,10 @@ update dialog:
    a version that is both uses one **Current · latest** tag.
 3. Confirming removes the installed copy, checks the new spec the way **Add
    plugin** does, and installs the selected version without enabling it.
+   Because the old copy is already gone at that point, a refused check or a
+   failed install automatically re-installs the removed version with its
+   previous enabled state; the dialog reports both the failure and the rollback
+   result.
 4. The dialog then asks whether to enable the new version.
 5. After enabling, it asks whether to restart DSH. On the desktop app the
    `lib/restart-helper.cjs` helper relaunches the exact executable after the old
@@ -124,7 +128,9 @@ refresh the page when the install finishes.
   through the built-in manager service. Removing the bundle unloads Power-Up's
   own Host fiber, but the manager service and the pending promise stay in the
   Host process, so the reinstall finishes; failures are appended to
-  `~/.dsh/powerup/self-update.log`.
+  `~/.dsh/powerup/self-update.log`. The Host captures the version it was loaded
+  from before removal and re-installs that version if the check or install
+  fails, so a failed self-update does not leave Power-Up missing.
 - **Restart status lives in this browser session.** A management result that
   says `restart-required` is written to `sessionStorage`; the card gets a
   **Restart needed** tag and the group heading gets a count plus a restart
