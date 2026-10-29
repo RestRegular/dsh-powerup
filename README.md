@@ -1,8 +1,10 @@
 # Power-Up
 
 Small, opt-in upgrades for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness).
-The upgrades include a **right-click action menu in the Trajectory view**, an
-optional **stop reason for background jobs**, and an in-place **plugin installer**.
+The upgrades include a **right-click action menu in the Trajectory view**, a
+**copyable step reference** that an agent can resolve back into the raw session
+data, an optional **stop reason for background jobs**, and an in-place
+**plugin installer**.
 
 ## Install
 
@@ -21,6 +23,8 @@ Right-click a trajectory record:
 - **Quote in composer** — insert that quote into the current input box.
 - **Open record details** — open the host's record inspector.
 - **Fork from here** — fork the session at that record (inclusive).
+- **Copy step reference** — copy `dsh-step:<session-id>/<step-id>`; the
+  `powerup_step_read` tool turns that string back into the raw session data.
 - **Copy session ID**.
 
 Right-click empty space in the ledger:
@@ -54,6 +58,34 @@ and is not clipped by any slot's stacking context; its colors come only from
 ### Menu keys
 
 `↑` / `↓` move, `Home` / `End` jump, `Enter` runs, `Esc` closes.
+
+### Step references
+
+**Copy step reference** copies a single line such as
+`dsh-step:session-1a2b…/turn.0.step.3`. The reference carries the session id
+plus a stable step id:
+
+| Step id | Copied from | Resolves to |
+| --- | --- | --- |
+| `turn.<turn>.step.<step>` | an assistant row | every raw event between `step/start` and `step/end` |
+| `call.<call-id>` | a tool row | that tool call and its `tool/result` |
+| `seq.<n>` | any other raw-event row | that single event |
+| `index.<n>` | a synthetic row | nothing — the menu disables the action |
+
+Paste the line into the session and the agent can call
+**`powerup_step_read`**, a read-only Host tool registered while both `tools` and
+`sessionQuery` are composed:
+
+```json
+{ "ref": "dsh-step:session-1a2b…/turn.0.step.3", "requests": false }
+```
+
+It returns the raw events as JSON. Optional arguments: `before` / `after` add up
+to 50 neighboring events on each side, and `requests: true` also includes the
+`request/header` snapshots (the full system prompt and tool schemas), which are
+omitted by default because they are large. The tool is workspace-agnostic: it
+reads the session named in the reference through `ctx.sessionQuery`, so an agent
+can open a step in a session it never had to locate on disk.
 
 ## Install a plugin
 
@@ -119,6 +151,14 @@ fiber is unloaded. The panel closes; refresh the page when the install finishes.
   the mark gets the full grid, so the chevrons and the amber baseline never
   collide with a border. The reference line artwork is
   `design/sidebar-icon.svg`; the runtime copy lives in `client.js`.
+- **The step reference is plain coordinates plus one Host reader.** The Client
+  copies only `dsh-step:<session-id>/<step-id>` — no data, no URL, no port — so
+  the line survives restarts and can be pasted into any agent. The Host half
+  registers `powerup_step_read` when `tools` and `sessionQuery` are composed,
+  resolves the step through `sessionQuery.readSession` (raw events, ascending
+  seq), and returns the matching event window as JSON. A nested `run_code`
+  sub-call has no raw `tool/call` event of its own, so it falls back to the step
+  that owns it. Nothing is written to disk and no public route is added.
 - **No imports from Harness Client packages.** The menu is plain React + CSS and
   observes the trajectory package's own `data-*` contracts. If those attributes
   change, row-specific actions degrade gracefully; session-level actions in the
@@ -187,12 +227,15 @@ fiber is unloaded. The panel closes; refresh the page when the install finishes.
 ## Development
 
 ```bash
-node test/smoke.mjs
+npm test
 ```
 
-The smoke test loads the real Client module with React/browser doubles, applies
-it to a fake slot context, and checks registrations, icons, helpers, theme
-tokens, the stop-reason mapping and Host route, and the manifest.
+`node test/smoke.mjs` loads the real Client module with React/browser doubles,
+applies it to a fake slot context, and checks registrations, icons, helpers,
+theme tokens, the step-reference copy path, the stop-reason mapping, the Host
+routes, and the manifest. `node test/host.mjs` exercises the step-reference codec
+and resolver plus the `powerup_step_read` tool against a fake `sessionQuery` and
+a raw event log.
 
 ## License
 

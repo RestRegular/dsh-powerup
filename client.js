@@ -69,9 +69,11 @@
 
       const NS = 'dsh-powerup';
       const SETTINGS_KEY = 'dsh-powerup:settings:v1';
-      const VERSION = '0.6.1';
+      const VERSION = '0.7.0';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
+      /** Reference scheme understood by the Host's `powerup_step_read` tool. */
+      const STEP_REF_PREFIX = 'dsh-step:';
       /** How long a one-click update's completion panel stays open when nothing restarts. */
       const ONE_CLICK_AUTO_CLOSE_MS = 4000;
 
@@ -84,7 +86,7 @@
           'page.title': 'Power-Up',
           'page.subtitle': '给 DeepSeek Harness 加一点助推。',
           'page.featureTitle': '轨迹右键菜单',
-          'page.featureDesc': '在轨迹页面右键任意记录，快速复制、引用、查看详情，或从该记录 Fork 出一个新会话。',
+          'page.featureDesc': '在轨迹页面右键任意记录，快速复制、引用、查看详情、复制步骤引用，或从该记录 Fork 出一个新会话。',
           'page.enabled': '已启用',
           'page.disabled': '已停用',
           'page.actions': '可用操作',
@@ -116,6 +118,8 @@
           'action.inspectHint': '打开宿主自带的记录检查器',
           'action.fork': '从此处 Fork 会话',
           'action.forkHint': '带着这条记录及其之前的内容分支',
+          'action.stepRef': '复制步骤引用',
+          'action.stepRefHint': '复制「会话 ID + 步骤 ID」，Agent 用 powerup_step_read 即可取回该步骤的完整数据',
           'action.export': '导出轨迹 JSON',
           'action.exportHint': '把当前轨迹快照保存为 JSON 文件',
           'action.session': '复制会话 ID',
@@ -130,6 +134,8 @@
           'menu.inspect': '查看记录详情',
           'menu.fork': '从此处 Fork 会话',
           'menu.forkHint': '含此条',
+          'menu.stepRef': '复制步骤引用',
+          'menu.noStepRef': '这条记录没有可引用的步骤 ID',
           'menu.export': '导出轨迹 JSON',
           'menu.session': '复制会话 ID',
           'menu.panel': '打开 Power-Up 页面',
@@ -146,6 +152,7 @@
           'toast.empty': '这条记录没有可复制的文本',
           'toast.actionFailed': '操作失败：{message}',
           'toast.sessionCopied': '会话 ID 已复制',
+          'toast.stepRefCopied': '步骤引用已复制',
           'toast.forkUnavailable': '当前宿主没有提供 Fork 接口',
           'toast.noSession': '还没有打开会话',
           'jobStop.title': '停止后台任务',
@@ -256,7 +263,7 @@
           'page.title': 'Power-Up',
           'page.subtitle': 'A little boost for DeepSeek Harness.',
           'page.featureTitle': 'Trajectory context menu',
-          'page.featureDesc': 'Right-click any trajectory record to copy it, quote it, open its inspector, or fork the session at that point.',
+          'page.featureDesc': 'Right-click any trajectory record to copy it, quote it, open its inspector, copy a step reference, or fork the session at that point.',
           'page.enabled': 'Enabled',
           'page.disabled': 'Disabled',
           'page.actions': 'What you can do',
@@ -288,6 +295,8 @@
           'action.inspectHint': 'Open the host record inspector',
           'action.fork': 'Fork from here',
           'action.forkHint': 'Branch with this record and everything before it',
+          'action.stepRef': 'Copy step reference',
+          'action.stepRefHint': 'Copy "session ID + step ID"; the agent can read the full step data with powerup_step_read',
           'action.export': 'Export trajectory JSON',
           'action.exportHint': 'Save the current trajectory snapshot as JSON',
           'action.session': 'Copy session ID',
@@ -302,6 +311,8 @@
           'menu.inspect': 'Open record details',
           'menu.fork': 'Fork from here',
           'menu.forkHint': 'inclusive',
+          'menu.stepRef': 'Copy step reference',
+          'menu.noStepRef': 'This record has no referenceable step ID',
           'menu.export': 'Export trajectory JSON',
           'menu.session': 'Copy session ID',
           'menu.panel': 'Open the Power-Up page',
@@ -318,6 +329,7 @@
           'toast.empty': 'This record has no text to copy',
           'toast.actionFailed': 'Action failed: {message}',
           'toast.sessionCopied': 'Session ID copied',
+          'toast.stepRefCopied': 'Step reference copied',
           'toast.forkUnavailable': 'This host does not expose the fork API',
           'toast.noSession': 'No session is open',
           'jobStop.title': 'Stop background job',
@@ -688,6 +700,16 @@
         );
       }
 
+      function TagIcon({ size = 16 }) {
+        return h(Icon, { size },
+          h('path', {
+            d: 'M2.9 7.2V3.6a.7.7 0 0 1 .7-.7h3.6a.7.7 0 0 1 .5.2l5.4 5.4a.9.9 0 0 1 0 1.3l-2.9 2.9a.9.9 0 0 1-1.3 0L3.1 7.7a.7.7 0 0 1-.2-.5Z',
+            stroke: 'currentColor', strokeWidth: '1.25', strokeLinejoin: 'round',
+          }),
+          h('circle', { cx: '5.5', cy: '5.5', r: '.85', fill: 'currentColor' }),
+        );
+      }
+
       function LayoutIcon({ size = 16 }) {
         return h(Icon, { size },
           h('rect', {
@@ -1027,6 +1049,54 @@
         } catch {
           return [];
         }
+      }
+
+      /**
+       * The trajectory record id behind a ledger row. The DOM attribute is the
+       * URI-encoded record id; a folded summary row appends a raw
+       * `\0summary\0<kind>` suffix that is not part of the record identity.
+       */
+      function rowRecordId(row) {
+        const raw = row.getAttribute('data-trajectory-row-key');
+        if (typeof raw !== 'string' || raw === '') return '';
+        let decoded = raw;
+        try {
+          decoded = decodeURIComponent(raw);
+        } catch {
+          /* Keep the literal attribute. */
+        }
+        const summaryCut = decoded.indexOf('\u0000summary\u0000');
+        return summaryCut === -1 ? decoded : decoded.slice(0, summaryCut);
+      }
+
+      /**
+       * The step id a step reference carries: assistant rows resolve to their
+       * turn/step, tool rows to their call id, raw-event rows to their seq.
+       * Synthetic index rows have no stable identity and yield `''`.
+       */
+      function rowStepId(row) {
+        const recordId = rowRecordId(row);
+        if (recordId === '') return '';
+        const parts = recordId.split('\u0000');
+        if (parts.length < 3) return '';
+        if (parts[0] === 'assistant') {
+          // `assistant\0T\0S` today; `assistant\0turn\0T\0step\0S` in older logs.
+          const turn = Number(parts[1] === 'turn' ? parts[2] : parts[1]);
+          const step = Number(parts[1] === 'turn' ? parts[4] : parts[2]);
+          if (Number.isInteger(turn) && Number.isInteger(step) && turn >= 0 && step >= 0) {
+            return `turn.${turn}.step.${step}`;
+          }
+          return '';
+        }
+        if (parts[1] === 'call' && parts[2] !== '') return `call.${encodeURIComponent(parts[2])}`;
+        if (parts[1] === 'seq' && Number.isInteger(Number(parts[2]))) return `seq.${Number(parts[2])}`;
+        return '';
+      }
+
+      /** The reference the Host step reader resolves: session id + step id. */
+      function rowStepReference(sessionId, stepId) {
+        if (typeof sessionId !== 'string' || sessionId === '' || stepId === '') return '';
+        return `${STEP_REF_PREFIX}${sessionId}/${stepId}`;
       }
 
       /** The full visible content of one ledger row. */
@@ -3615,6 +3685,8 @@
         const quote = markdownQuote(row, t);
         const hasText = text !== '';
         const hasSession = typeof sessionId === 'string' && sessionId !== '';
+        const stepId = rowStepId(row);
+        const stepReference = rowStepReference(hasSession ? sessionId : '', stepId);
         return [
           {
             id: 'copy',
@@ -3688,6 +3760,21 @@
             title: forkSeq === null ? t('menu.noFork') : undefined,
             run: async () => {
               await forkAt(ctx, forkSeq, sessionId, notify, t);
+            },
+          },
+          {
+            id: 'stepref',
+            label: t('menu.stepRef'),
+            icon: h(TagIcon, { size: 15 }),
+            disabled: stepReference === '',
+            title: stepReference === '' ? t('menu.noStepRef') : undefined,
+            run: async () => {
+              if (stepReference === '') {
+                notify(t('menu.noStepRef'));
+                return;
+              }
+              await copyText(stepReference);
+              notify(t('toast.stepRefCopied'));
             },
           },
           {
@@ -3793,6 +3880,7 @@
           { id: 'insert', icon: ComposerIcon, name: t('action.insert'), hint: t('action.insertHint') },
           { id: 'inspect', icon: InspectIcon, name: t('action.inspect'), hint: t('action.inspectHint') },
           { id: 'fork', icon: ForkIcon, name: t('action.fork'), hint: t('action.forkHint') },
+          { id: 'stepref', icon: TagIcon, name: t('action.stepRef'), hint: t('action.stepRefHint') },
           { id: 'export', icon: ExportIcon, name: t('action.export'), hint: t('action.exportHint') },
         ];
         /** One label/description row with a host-styled switch. */
@@ -4054,6 +4142,9 @@
           updateButtonLabel,
           popoverPlacement,
           rowKeyParts,
+          rowRecordId,
+          rowStepId,
+          rowStepReference,
           resolveForkSeq,
           markdownQuote,
           jsonSafe,

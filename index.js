@@ -14,19 +14,27 @@
  *                                         removed
  *   POST /dsh-powerup/api/job-kill      → stops one background job with an
  *                                         optional human reason
+ *   tool powerup_step_read             → resolves a `dsh-step:` reference
+ *                                         copied from the Trajectory menu into
+ *                                         the raw session events it identifies
  *
  * The Client half drives other plugins' installation through the built-in
  * `pluginManager` Remote. Only the process restart, the self-update handoff,
  * and the stop-with-reason kill need Host code: the built-in `job.kill` Remote
  * hard-codes `cancelled by the user`, while the registry's own `kill` accepts
  * a reason that settlement merges into the job's `detail` line.
+ *
+ * The step-reference tool reads `ctx.sessionQuery`; both the reference codec
+ * and the tool spec live in `lib/` so offline tests can exercise them.
  */
 
 import { randomUUID } from 'node:crypto';
 import { appendFileSync, mkdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
+import { defineTool } from '@deepseek-ai/dsh-tools';
 import { describeRestart, requestRestart } from './lib/restart.js';
+import { createStepReadTool } from './lib/step-tool.js';
 
 /** Prefix owned by this plugin. */
 const ROUTE = '/dsh-powerup/api';
@@ -451,7 +459,9 @@ async function handle(req, res, ctx) {
 }
 
 /**
- * Mount the restart and self-update routes once the Web server exists.
+ * Mount the restart and self-update routes once the Web server exists, and
+ * register the step-reference reader once both the tool registry and the
+ * session-query service are composed.
  * @param {import('@deepseek-ai/cordis').Context} ctx
  */
 export function apply(ctx) {
@@ -466,6 +476,17 @@ export function apply(ctx) {
         handler: (req, res) => handle(req, res, ctx),
       }),
       'dsh-powerup: restart and self-update routes',
+    );
+  });
+  ctx.inject(['tools', 'sessionQuery'], (scope) => {
+    const tools = scope.get('tools');
+    if (tools === undefined || typeof tools.register !== 'function') return;
+    scope.effect(
+      () => tools.register(createStepReadTool(defineTool, {
+        // Re-read the service at call time: the scope owns the live instance.
+        getSessionQuery: () => scope.get('sessionQuery'),
+      })),
+      'dsh-powerup: step reference reader',
     );
   });
 }

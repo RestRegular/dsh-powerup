@@ -1,9 +1,21 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { registerHooks } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+
+// The Host half imports the DSH tool DSL. Map it to a local stub so the suite
+// runs outside a DSH installation; every other specifier resolves normally.
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (specifier === '@deepseek-ai/dsh-tools') {
+      return { url: new URL('./dsh-tools-stub.mjs', import.meta.url).href, shortCircuit: true };
+    }
+    return nextResolve(specifier, context);
+  },
+});
 
 // ---------------------------------------------------------------------------
 // Minimal browser + React doubles. The Client half is a classic script that
@@ -311,6 +323,23 @@ assert.equal(
   '> **User**\n> hello\n> world',
 );
 
+// Step references: the copied string is session id + a resolvable step id.
+assert.equal(moduleExports.__test.rowRecordId(assistantRow), 'assistant\u00003\u00002');
+assert.equal(moduleExports.__test.rowStepId(assistantRow), 'turn.3.step.2');
+assert.equal(moduleExports.__test.rowStepId(rowWithKey(`tool\u0000call\u0000call_abc`)), 'call.call_abc');
+assert.equal(moduleExports.__test.rowStepId(rowWithKey(`tool\u0000seq\u000010`)), 'seq.10');
+assert.equal(moduleExports.__test.rowStepId(rowWithKey(`user\u0000index\u00005`)), '');
+assert.equal(
+  moduleExports.__test.rowRecordId(rowWithKey(`assistant\u00003\u00002\u0000summary\u0000assistant`)),
+  'assistant\u00003\u00002',
+  'a folded summary suffix is not part of the record identity',
+);
+assert.equal(
+  moduleExports.__test.rowStepReference('session-1', 'turn.3.step.2'),
+  'dsh-step:session-1/turn.3.step.2',
+);
+assert.equal(moduleExports.__test.rowStepReference('', 'turn.3.step.2'), '');
+
 const notices = [];
 const rowItems = moduleExports.__test.buildRowItems(
   rowWithKey(`user\u0000index\u00005`),
@@ -322,11 +351,33 @@ const rowItems = moduleExports.__test.buildRowItems(
 );
 assert.deepEqual(
   rowItems.filter((item) => item.type !== 'separator').map((item) => item.id),
-  ['copy', 'quote', 'insert', 'inspect', 'fork', 'session'],
+  ['copy', 'quote', 'insert', 'inspect', 'fork', 'stepref', 'session'],
 );
 assert.equal(rowItems.find((item) => item.id === 'copy').label, 'Copy content');
 assert.equal(rowItems.find((item) => item.id === 'fork').disabled, true);
+assert.equal(rowItems.find((item) => item.id === 'stepref').label, 'Copy step reference');
+assert.equal(rowItems.find((item) => item.id === 'stepref').disabled, true, 'index rows have no stable step id');
 assert.equal(rowItems.find((item) => item.id === 'session').disabled, false);
+
+const copied = [];
+const savedClipboard = globalThis.navigator.clipboard;
+Object.defineProperty(globalThis.navigator, 'clipboard', {
+  value: { writeText: async (value) => { copied.push(value); } },
+  configurable: true,
+});
+const referenceItems = moduleExports.__test.buildRowItems(
+  assistantRow,
+  { requests: [{ purpose: 'assistant', turn: 3, step: 2, resultSeq: 42 }], eventNodes: [] },
+  translate,
+  'session-1',
+  ctx,
+  () => {},
+);
+const stepRefItem = referenceItems.find((item) => item.id === 'stepref');
+assert.equal(stepRefItem.disabled, false);
+await stepRefItem.run();
+assert.deepEqual(copied, ['dsh-step:session-1/turn.3.step.2']);
+Object.defineProperty(globalThis.navigator, 'clipboard', { value: savedClipboard, configurable: true });
 
 const forkable = moduleExports.__test.buildRowItems(
   assistantRow,
@@ -422,6 +473,7 @@ for (const key of [
   'update.oneClick', 'update.oneClickTitle', 'update.oneClickHint', 'update.oneClickDefaults',
   'update.doneAutoClose', 'update.oneClickNoVersion',
   'update.oneClickEnableFailed', 'update.oneClickSkippedEnable', 'update.on', 'update.off',
+  'action.stepRef', 'action.stepRefHint', 'menu.stepRef', 'menu.noStepRef', 'toast.stepRefCopied',
 ]) {
   assert.ok(DICT.zh[key] !== undefined, `zh dictionary has ${key}`);
   assert.ok(DICT.en[key] !== undefined, `en dictionary has ${key}`);
@@ -1030,7 +1082,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.6.1');
+assert.equal(host.__test.SELF_VERSION, '0.7.0');
 
 const installFailSpecs = [];
 const installFailManager = {
@@ -1076,7 +1128,7 @@ assert.equal(typeof hostRoute.handler, 'function');
 // ---------------------------------------------------------------------------
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 assert.equal(pkg.name, '@restregular/dsh-powerup');
-assert.equal(pkg.version, '0.6.1');
+assert.equal(pkg.version, '0.7.0');
 assert.equal(pkg.icon, './icon.svg');
 assert.equal(pkg.exports['./client'], './client.js');
 assert.equal(pkg.dsh.bundle.patch, './cordis.patch.yml');
@@ -1084,6 +1136,8 @@ assert.equal(pkg.dsh.client.platform, 'web');
 assert.ok(pkg.files.includes('client.js'));
 assert.ok(pkg.files.includes('lib/restart.js'));
 assert.ok(pkg.files.includes('lib/restart-helper.cjs'));
+assert.ok(pkg.files.includes('lib/step-reference.js'));
+assert.ok(pkg.files.includes('lib/step-tool.js'));
 assert.ok(pkg.files.includes('locale/*.json'));
 for (const localeFile of ['en.json', 'zh.json']) {
   const dict = JSON.parse(fs.readFileSync(path.join(root, 'locale', localeFile), 'utf8'));
