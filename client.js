@@ -69,7 +69,7 @@
 
       const NS = 'dsh-powerup';
       const SETTINGS_KEY = 'dsh-powerup:settings:v1';
-      const VERSION = '0.8.1';
+      const VERSION = '0.8.2';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -115,6 +115,7 @@
           'launcher.renameHint': '点击重命名',
           'launcher.dissolve': '解散分组',
           'launcher.removeItem': '移出分组',
+          'launcher.backToConversation': '返回会话',
           'page.footer': 'Power-Up {version} · 设置在浏览器本地保存',
           'page.localOnly': '仅影响当前浏览器',
           'action.copy': '复制内容',
@@ -301,6 +302,7 @@
           'launcher.renameHint': 'Click to rename',
           'launcher.dissolve': 'Ungroup',
           'launcher.removeItem': 'Remove from group',
+          'launcher.backToConversation': 'Back to conversation',
           'page.footer': 'Power-Up {version} · Settings are stored in this browser',
           'page.localOnly': 'This browser only',
           'action.copy': 'Copy content',
@@ -544,6 +546,12 @@
       const LAUNCHER_GROUP_PREFIX = 'group:';
       /** Pixel distance before a press turns into a drag. */
       const LAUNCHER_DRAG_THRESHOLD = 6;
+      /** Tile key of the host's "more panels" launcher. */
+      const LAUNCHER_MORE_KEY = '__more';
+      /** Tile key of the Power-Up "back to conversation" tile. */
+      const LAUNCHER_CHAT_KEY = '__chat';
+      /** 16-grid chat glyph for the synthetic "back to conversation" tile. */
+      const LAUNCHER_CHAT_ICON = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M2.8 3.4h10.4v6.8H7.4L4.4 12.8v-2.6H2.8V3.4Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>';
 
       function launcherGroupEntry(groupId) {
         return LAUNCHER_GROUP_PREFIX + groupId;
@@ -580,6 +588,7 @@
           const list = Array.isArray(value.items) ? value.items : [];
           for (const key of list) {
             if (typeof key !== 'string' || !known.has(key) || assigned.has(key)) continue;
+            if (key.startsWith('__')) continue;
             assigned.add(key);
             items.push(key);
           }
@@ -645,6 +654,7 @@
         const readRaw = typeof options.read === 'function' ? options.read : () => null;
         const writeRaw = typeof options.write === 'function' ? options.write : () => {};
         const listPanels = typeof options.listPanels === 'function' ? options.listPanels : () => [];
+        const selectConversation = typeof options.selectConversation === 'function' ? options.selectConversation : () => {};
 
         let nav = null;
         let docObserver = null;
@@ -657,6 +667,7 @@
         let pendingLoad = true;
         let hostTiles = [];
         let folderButtons = new Map();
+        let chatButton = null;
         let dropLine = null;
         let drag = null;
         let popup = null;
@@ -763,20 +774,23 @@
           const tiles = [];
           const usedKeys = new Set();
           for (const child of [...container.children]) {
-            if (child.hasAttribute('data-powerup-folder')) continue;
+            if (child.hasAttribute('data-powerup-folder') || child.hasAttribute('data-powerup-chat')) continue;
             if (typeof child.classList === 'object' && child.classList !== null && child.classList.contains('dsh-powerup-drop-line')) continue;
             let gridEl = child;
             let buttonEl = null;
             if (child.tagName === 'BUTTON') buttonEl = child;
-            else if (child.tagName === 'DIV') {
-              buttonEl = typeof child.querySelector === 'function' ? child.querySelector(':scope > button') : null;
+            else if (typeof child.querySelector === 'function') {
+              /* The host's "more" launcher wraps its row in a Menu root <span>;
+                 other hosts may use a div. Either way the row is the direct
+                 button child of that wrapper. */
+              buttonEl = child.querySelector(':scope > button');
               if (buttonEl === null) continue;
             } else continue;
             const label = buttonEl.getAttribute('aria-label') ?? '';
             if (label === '') continue;
-            const isMore = child.tagName === 'DIV' || buttonEl.getAttribute('aria-haspopup') === 'menu';
-            let key = isMore ? '__more' : (byLabel.get(label) ?? 'label:' + label);
-            if (key !== '__more' && usedKeys.has(key)) {
+            const isMore = child.tagName !== 'BUTTON';
+            let key = isMore ? LAUNCHER_MORE_KEY : (byLabel.get(label) ?? 'label:' + label);
+            if (key !== LAUNCHER_MORE_KEY && usedKeys.has(key)) {
               let suffix = 2;
               while (usedKeys.has(key + '~' + suffix)) suffix += 1;
               key = key + '~' + suffix;
@@ -857,6 +871,30 @@
           return button;
         }
 
+        /** The synthetic "back to conversation" tile, created once and re-used. */
+        function ensureChatButton() {
+          if (chatButton !== null && chatButton.isConnected === true) return chatButton;
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'dsh-powerup-chat';
+          button.setAttribute('data-powerup-chat', '');
+          button.innerHTML = '<span class="dsh-powerup-chat-glyph" aria-hidden="true">' + LAUNCHER_CHAT_ICON + '</span><span class="dsh-powerup-chat-label"></span>';
+          button.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (drag !== null && drag.active) return;
+            closePopup();
+            try {
+              selectConversation();
+            } catch (error) {
+              warn('conversation could not be selected:', error);
+            }
+          });
+          nav.appendChild(button);
+          chatButton = button;
+          return button;
+        }
+
         function hideDropLine() {
           if (dropLine !== null) dropLine.style.display = 'none';
           if (nav !== null && typeof nav.querySelectorAll === 'function') {
@@ -870,6 +908,7 @@
           hideDropLine();
           folderButtons.forEach((button) => button.remove());
           folderButtons = new Map();
+          if (chatButton !== null) chatButton.style.display = 'none';
           if (dropLine !== null) {
             dropLine.remove();
             dropLine = null;
@@ -916,7 +955,7 @@
             hostTiles = collectHostTiles(nav);
             const wide = detectWide(hostTiles);
             nav.classList.toggle('dsh-powerup-launcher-wide', wide);
-            const panelKeys = hostTiles.filter((tile) => !tile.isMore).map((tile) => tile.key);
+            const panelKeys = [LAUNCHER_CHAT_KEY, ...hostTiles.map((tile) => tile.key)];
             if (pendingLoad) {
               pendingLoad = false;
               state = normalizeLauncherState(readPersisted(), panelKeys);
@@ -935,12 +974,19 @@
               /* Inline display (not a class): React rewrites className when the
                  active panel changes and would drop an added class. */
               tile.gridEl.style.display = hidden ? 'none' : '';
-              if (tile.isMore) tile.gridEl.style.order = String(state.order.length + 4);
-              else {
-                const position = orderIndex.get(tile.key);
-                tile.gridEl.style.order = position === undefined ? '' : String(position);
-              }
+              const position = orderIndex.get(tile.key);
+              tile.gridEl.style.order = position === undefined ? '' : String(position);
             }
+            const chat = ensureChatButton();
+            const chatLabel = t('launcher.backToConversation');
+            chat.setAttribute('aria-label', chatLabel);
+            chat.setAttribute('title', chatLabel);
+            const chatText = typeof chat.querySelector === 'function' ? chat.querySelector('.dsh-powerup-chat-label') : null;
+            if (chatText !== null) chatText.textContent = chatLabel;
+            chat.style.display = wide ? '' : 'none';
+            const chatPosition = orderIndex.get(LAUNCHER_CHAT_KEY);
+            chat.style.order = chatPosition === undefined ? '' : String(chatPosition);
+            chat.classList.toggle('is-active', hostTiles.every((tile) => tile.active !== true));
             const live = new Set();
             for (const [groupId, group] of Object.entries(state.groups)) {
               live.add(groupId);
@@ -1252,6 +1298,10 @@
           const candidates = [];
           for (const entry of state.order) {
             if (entry === excludeKey) continue;
+            if (entry === LAUNCHER_CHAT_KEY) {
+              if (chatButton !== null && chatButton.isConnected === true) candidates.push({ key: entry, el: chatButton, kind: 'chat' });
+              continue;
+            }
             const groupId = launcherEntryGroupId(entry);
             if (groupId !== null) {
               const button = folderButtons.get(groupId);
@@ -1270,6 +1320,9 @@
           if (target === null || target === undefined || typeof target.closest !== 'function') return null;
           const button = target.closest('button');
           if (button === null || nav === null || !nav.contains(button)) return null;
+          if (button.hasAttribute('data-powerup-chat')) {
+            return { kind: 'chat', key: LAUNCHER_CHAT_KEY, gridEl: button, label: t('launcher.backToConversation') };
+          }
           const folderId = button.getAttribute('data-powerup-folder');
           if (folderId !== null) {
             const group = state.groups[folderId];
@@ -1277,8 +1330,8 @@
             return { kind: 'folder', key: launcherGroupEntry(folderId), gridEl: button, label: group.name };
           }
           const tile = hostTiles.find((candidate) => candidate.buttonEl === button);
-          if (tile === undefined || tile.isMore) return null;
-          return { kind: 'panel', key: tile.key, gridEl: tile.gridEl, label: tile.label };
+          if (tile === undefined) return null;
+          return { kind: tile.isMore ? 'more' : 'panel', key: tile.key, gridEl: tile.gridEl, label: tile.label };
         }
 
         function onPointerDown(event) {
@@ -1371,7 +1424,9 @@
             const centerX = rect.left + rect.width / 2;
             const centerY = rect.top + rect.height / 2;
             const nearCenter = Math.abs(x - centerX) <= rect.width * 0.28 && Math.abs(y - centerY) <= rect.height * 0.32;
-            if (nearCenter) {
+            const special = candidate.key === LAUNCHER_CHAT_KEY || candidate.key === LAUNCHER_MORE_KEY
+              || drag.descriptor.key === LAUNCHER_CHAT_KEY || drag.descriptor.key === LAUNCHER_MORE_KEY;
+            if (nearCenter && !special) {
               drop = { kind: 'merge', target: candidate };
             } else {
               drop = { kind: 'insert', index: candidates.indexOf(candidate) + (x < centerX ? 0 : 1), anchor: rect, after: x >= centerX };
@@ -1499,6 +1554,8 @@
 
         function performMerge(sourceKey, targetKey) {
           if (sourceKey === targetKey) return;
+          if (sourceKey === LAUNCHER_CHAT_KEY || targetKey === LAUNCHER_CHAT_KEY
+            || sourceKey === LAUNCHER_MORE_KEY || targetKey === LAUNCHER_MORE_KEY) return;
           const sourceGroupId = launcherEntryGroupId(sourceKey);
           const targetGroupId = launcherEntryGroupId(targetKey);
           if (sourceGroupId !== null && sourceGroupId === targetGroupId) return;
@@ -1587,6 +1644,10 @@
             document.removeEventListener('pointerdown', onPointerDown, true);
           }
           clearVisuals();
+          if (chatButton !== null) {
+            chatButton.remove();
+            chatButton = null;
+          }
           state = { order: [], groups: {} };
           pendingLoad = true;
           nav = null;
@@ -1654,6 +1715,10 @@
             }
           },
           listPanels,
+          selectConversation: () => {
+            const layout = ctx.get('layout');
+            if (layout !== undefined && layout !== null && typeof layout.selectPanel === 'function') layout.selectPanel(null);
+          },
         });
         ctx.effect(() => {
           core.start();
@@ -1977,9 +2042,9 @@
        */
       const LAUNCHER_CSS = `
 nav.dsh-powerup-launcher.dsh-powerup-launcher-wide{position:relative;display:grid!important;grid-template-columns:repeat(auto-fill,minmax(58px,1fr));grid-auto-rows:min-content;gap:2px;align-content:start;align-items:stretch;margin:0 0 10px;padding:2px 0}
-nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button,nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]>button,.dsh-powerup-folder{box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:auto;min-width:0;height:auto;min-height:52px;margin:0;padding:6px 2px 5px;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:11px;line-height:14px;text-align:center;cursor:pointer;user-select:none;-webkit-user-select:none;transition:background .12s ease,color .12s ease,transform .12s ease}
-nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:hover,nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]>button:hover,.dsh-powerup-folder:hover{background:var(--dsw-alias-interactive-bg-hover)}
-nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:active,nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]>button:active,.dsh-powerup-folder:active{transform:scale(.96)}
+nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button,nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]>button,.dsh-powerup-folder,.dsh-powerup-chat{box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:auto;min-width:0;height:auto;min-height:52px;margin:0;padding:6px 2px 5px;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:11px;line-height:14px;text-align:center;cursor:pointer;user-select:none;-webkit-user-select:none;transition:background .12s ease,color .12s ease,transform .12s ease}
+nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:hover,nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]>button:hover,.dsh-powerup-folder:hover,.dsh-powerup-chat:hover{background:var(--dsw-alias-interactive-bg-hover)}
+nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:active,nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]>button:active,.dsh-powerup-folder:active,.dsh-powerup-chat:active{transform:scale(.96)}
 nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button[class*="panelActive"],nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]>button[aria-expanded=true]{background:var(--dsw-alias-interactive-bg-hover)}
 nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]{display:flex!important;flex-direction:column;min-width:0;margin:0}
 nav.dsh-powerup-launcher.dsh-powerup-launcher-wide [class*="panelGlyph"]{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;flex:none}
@@ -1995,10 +2060,17 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:hover [class*="panelTi
 .dsh-powerup-folder-name{display:block;width:100%;max-width:100%;color:var(--dsw-alias-label-secondary);font-size:11px;line-height:14px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dsh-powerup-folder.is-active .dsh-powerup-folder-name{color:var(--dsw-alias-label-primary)}
 .dsh-powerup-folder.is-active .dsh-powerup-folder-stack{background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 22%,transparent)}
+.dsh-powerup-chat-glyph{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;flex:none;color:var(--dsw-alias-label-secondary)}
+.dsh-powerup-chat-glyph svg{width:20px;height:20px}
+.dsh-powerup-chat-label{display:block;width:100%;max-width:100%;color:var(--dsw-alias-label-secondary);font-size:11px;line-height:14px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dsh-powerup-chat:hover .dsh-powerup-chat-label{color:var(--dsw-alias-label-primary)}
+.dsh-powerup-chat.is-active{background:var(--dsw-alias-interactive-bg-hover)}
+.dsh-powerup-chat.is-active .dsh-powerup-chat-label,.dsh-powerup-chat.is-active .dsh-powerup-chat-glyph{color:var(--dsw-alias-label-primary)}
 .dsh-powerup-dragging{opacity:.32}
 .dsh-powerup-merge-target{background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 17%,transparent)!important;box-shadow:inset 0 0 0 1px var(--dsw-alias-state-business-primary)}
 .dsh-powerup-drop-line{position:absolute;z-index:6;display:none;width:2px;border-radius:999px;background:var(--dsw-alias-state-business-primary);box-shadow:0 0 0 1px color-mix(in srgb,var(--dsw-alias-state-business-primary) 26%,transparent);pointer-events:none}
 .dsh-powerup-drag-ghost{position:fixed;z-index:1800;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px 2px 5px;border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);color:var(--dsw-alias-label-primary);font-size:11px;line-height:14px;pointer-events:none;opacity:.96;transform:scale(1.05);transition:opacity .1s ease}
+.dsh-powerup-drag-ghost>button{box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:100%;min-height:0;margin:0;padding:6px 2px 5px;border:0;background:transparent;color:inherit;font:inherit;font-size:11px;line-height:14px;text-align:center;cursor:pointer;user-select:none;-webkit-user-select:none}
 .dsh-powerup-drag-ghost [class*="panelGlyph"]{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;flex:none}
 .dsh-powerup-drag-ghost [class*="panelGlyph"] svg{width:20px;height:20px}
 .dsh-powerup-drag-ghost [class*="panelTitle"]{display:block;width:100%;max-width:100%;color:var(--dsw-alias-label-secondary);font-size:11px;line-height:14px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

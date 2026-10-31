@@ -463,6 +463,19 @@ assert.deepEqual(cleaned.order, ['a', 'group:kept'], 'dropped folders and unknow
 assert.deepEqual(cleaned.groups.kept.items, ['b'], 'unknown and duplicate group members are dropped');
 assert.deepEqual(launcher.normalizeLauncherState({ order: 'nope', groups: [] }, []), { order: [], groups: {} });
 
+// The synthetic tiles (__more / __chat) stay in the order but can never join a folder.
+const specials = launcher.normalizeLauncherState(
+  { order: ['__chat'], groups: { g: { id: 'g', name: '', items: ['__chat', '__more'] } } },
+  ['__chat', '__more', 'a'],
+);
+assert.deepEqual(specials.order, ['__chat', '__more', 'a'], 'special tiles are appended, folders dropped when only they would remain');
+assert.deepEqual(specials.groups, {}, 'special tiles never become folder members');
+const specialsMixed = launcher.normalizeLauncherState(
+  { order: ['a'], groups: { g: { id: 'g', name: '组', items: ['a', '__chat', '__more'] } } },
+  ['__chat', '__more', 'a'],
+);
+assert.deepEqual(specialsMixed.groups.g.items, ['a']);
+
 // The core starts and stops safely without a real host sidebar.
 const core = launcher.createLauncherCore({
   t: (key) => key,
@@ -1134,7 +1147,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.8.1');
+assert.equal(host.__test.SELF_VERSION, '0.8.2');
 
 const installFailSpecs = [];
 const installFailManager = {
@@ -1180,7 +1193,7 @@ assert.equal(typeof hostRoute.handler, 'function');
 // ---------------------------------------------------------------------------
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 assert.equal(pkg.name, '@restregular/dsh-powerup');
-assert.equal(pkg.version, '0.8.1');
+assert.equal(pkg.version, '0.8.2');
 assert.equal(pkg.icon, './icon.svg');
 assert.equal(pkg.exports['./client'], './client.js');
 assert.equal(pkg.dsh.bundle.patch, './cordis.patch.yml');

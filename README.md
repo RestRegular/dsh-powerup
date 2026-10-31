@@ -107,6 +107,15 @@ entries other plugins add) become an icon grid instead of a one-per-row list:
   anchored to the tile, scaling in from its edge. Inside the flyout: click an
   entry to open that panel, `×` removes it from the folder, click the title to
   rename the folder, and **Ungroup** returns every member to the grid.
+- **The host's "More" entry is a tile too.** The host wraps its extra-panels
+  menu in a `Menu` root `<span>` around the row button (not a div), so the
+  launcher resolves any non-button child that owns a direct button as that
+  entry; it gets the same stacked icon/label tile and can be dragged like any
+  other panel. It never folds into a folder.
+- **A synthetic "Back to conversation" tile.** Power-Up adds one extra tile of
+  its own (chat glyph + label) that calls `layout.selectPanel(null)` to return
+  to the Conversation; it highlights when no global panel is selected, can be
+  placed anywhere by dragging, and never joins a folder either.
 - **Collapsed sidebar stays native.** When the sidebar collapses to its 56px
   rail there are no labels to stack, so the launcher steps aside and the host's
   rail rendering takes over untouched.
@@ -200,7 +209,10 @@ fiber is unloaded. The panel closes; refresh the page when the install finishes.
   host's own panel rows: it marks the `<nav>`, applies grid/tile CSS, appends
   synthetic folder tiles, hides the rows that moved into a folder with an
   inline `display` (React rewrites `className` when the active panel changes and
-  would drop an added class), and sorts with the grid's `order` property. A
+  would drop an added class), and sorts with the grid's `order` property. Host
+  rows are resolved by shape — a direct `<button>`, or a wrapper (the More
+  launcher's `Menu` root `<span>`) whose direct child is that button — because
+  the wrapper element differs between the panel rows and the more menu. A
   `MutationObserver` re-applies that after every host render, and the module
   falls back to the native rail whenever the wide layout disappears.
 - **Launcher state is tiny and self-healing.** `dsh-powerup:launcher:v1` stores
