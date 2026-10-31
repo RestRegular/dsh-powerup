@@ -69,7 +69,7 @@
 
       const NS = 'dsh-powerup';
       const SETTINGS_KEY = 'dsh-powerup:settings:v1';
-      const VERSION = '0.8.5';
+      const VERSION = '0.8.6';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -558,8 +558,8 @@
       const LAUNCHER_RESTART_KEY = '__restart';
       /** 16-grid chat glyph for the synthetic "back to conversation" tile. */
       const LAUNCHER_CHAT_ICON = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M2.8 3.4h10.4v6.8H7.4L4.4 12.8v-2.6H2.8V3.4Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>';
-      /** 16-grid power glyph for the synthetic "restart DSH" tile. */
-      const LAUNCHER_RESTART_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M12 2.6v9.2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M18.36 6.64a9 9 0 1 1-12.73 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+      /** 16-grid restart glyph (Material restart_alt) for the "restart DSH" tile. */
+      const LAUNCHER_RESTART_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 5V2L7 7l5 5V9c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>';
       /**
        * Bridge to the Plugins overlay's React restart prompt. The launcher is
        * plain DOM and cannot render React, so the overlay publishes its opener
