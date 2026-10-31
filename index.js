@@ -6,6 +6,8 @@
  *
  *   GET  /dsh-powerup/api/restart       → { ok, supported, reason? }
  *   POST /dsh-powerup/api/restart       → schedules a whole-app restart
+ *   GET  /dsh-powerup/api/close         → { ok, supported, reason? }
+ *   POST /dsh-powerup/api/close         → closes the whole app (no relaunch)
  *   GET  /dsh-powerup/api/audit         → profile bundles newer than this Host
  *   POST /dsh-powerup/api/self-update   → removes and reinstalls this plugin
  *                                         in the background, surviving the
@@ -33,7 +35,7 @@ import { appendFileSync, mkdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 import { defineTool } from '@deepseek-ai/dsh-tools';
-import { describeRestart, requestRestart } from './lib/restart.js';
+import { describeClose, describeRestart, requestRestart, requestShutdown } from './lib/restart.js';
 import { createStepReadTool } from './lib/step-tool.js';
 
 /** Prefix owned by this plugin. */
@@ -354,7 +356,7 @@ async function handle(req, res, ctx) {
 
   const url = new URL(req.url ?? ROUTE, 'http://localhost');
   const op = url.pathname.slice(ROUTE.length).replace(/^\/+/u, '') || url.searchParams.get('op') || '';
-  if (op !== '' && op !== 'restart' && op !== 'self-update' && op !== 'audit' && op !== 'job-kill') {
+  if (op !== '' && op !== 'restart' && op !== 'close' && op !== 'self-update' && op !== 'audit' && op !== 'job-kill') {
     sendJson(res, { ok: false, error: 'not-found' }, 404);
     return;
   }
@@ -440,22 +442,26 @@ async function handle(req, res, ctx) {
     return;
   }
 
-  if (req.method === 'GET') {
-    sendJson(res, { ok: true, action: 'restart', ...describeRestart() });
-    return;
-  }
-
-  if (req.method === 'POST') {
-    try {
-      const scheduled = requestRestart();
-      sendJson(res, { ok: true, restarting: true, ...scheduled });
-    } catch (error) {
-      sendJson(res, { ok: false, code: error?.code, error: String(error?.message ?? error) }, 409);
+  if (op === '' || op === 'restart' || op === 'close') {
+    const action = op === 'close' ? 'close' : 'restart';
+    if (req.method === 'GET') {
+      sendJson(res, { ok: true, action, ...(action === 'close' ? describeClose() : describeRestart()) });
+      return;
     }
+    if (req.method === 'POST') {
+      try {
+        const scheduled = action === 'close' ? requestShutdown() : requestRestart();
+        sendJson(res, { ok: true, [action === 'close' ? 'closing' : 'restarting']: true, ...scheduled });
+      } catch (error) {
+        sendJson(res, { ok: false, code: error?.code, error: String(error?.message ?? error) }, 409);
+      }
+      return;
+    }
+    sendJson(res, { ok: false, error: 'method-not-allowed' }, 405);
     return;
   }
 
-  sendJson(res, { ok: false, error: 'method-not-allowed' }, 405);
+  sendJson(res, { ok: false, error: 'not-found' }, 404);
 }
 
 /**

@@ -6,7 +6,7 @@ The upgrades include a **right-click action menu in the Trajectory view**, a
 data, an optional **stop reason for background jobs**, an in-place
 **plugin installer**, and a **sidebar launcher** that turns the left sidebar's
 panel list into an adaptive icon grid with drag sorting, folders, a
-back-to-conversation tile and a restart-DSH tile.
+back-to-conversation tile, and restart/close tiles.
 
 ## Install
 
@@ -112,20 +112,28 @@ entries other plugins add) become an icon grid instead of a one-per-row list:
   menu in a `Menu` root `<span>` around the row button (not a div), so the
   launcher resolves any non-button child that owns a direct button as that
   entry; it gets the same stacked icon/label tile and can be dragged like any
-  other panel. It never folds into a folder.
+  other panel, including into a folder.
 - **A synthetic "Back to conversation" tile.** Power-Up adds one extra tile of
   its own (chat glyph + label) that calls `layout.selectPanel(null)` to return
-  to the Conversation; it highlights when no global panel is selected, can be
-  placed anywhere by dragging, and never joins a folder either.
+  to the Conversation; it highlights when no global panel is selected and can be
+  placed anywhere by dragging, including into a folder.
 - **A synthetic "Restart DSH" tile.** A second Power-Up tile (a ring with the
   arrowhead tangent to the top, i.e. the arrow lines up with the arc) plus
   `重启` / `Restart` opens the same restart confirmation the pending-restart
   bar uses: the tile only calls into that React prompt, so there is one dialog,
   one capability read (`GET /dsh-powerup/api/restart`) and one set of copy. The
   confirmation explains that running tasks are interrupted; only a runtime that
-  can relaunch itself (the desktop app) enables the confirm button. The tile
-  drags like any other, never joins a folder, and is hidden with the rest of
-  the grid in the collapsed rail.
+  can relaunch itself (the desktop app) enables the confirm button.
+- **A synthetic "Close DSH" tile.** A power-symbol tile plus `关闭` / `Close`
+  opens a close confirmation (same dialog and copy conventions as restart) and
+  posts to `GET/POST /dsh-powerup/api/close`, which ends the Electron app without
+  relaunching it. Like the other synthetic tiles it drags anywhere, including
+  into a folder.
+- **Folders take every tile.** Host panels, the host's "More" entry and
+  Power-Up's own tiles all merge the same way: drop one onto the middle of
+  another, or onto a folder, and it becomes a member; drag it out of the flyout
+  to put it back on the grid. The three synthetic tiles are hidden with the rest
+  of the grid in the collapsed rail.
 - **Ungroup expands in place.** Dissolving a folder puts its icons back on the
   grid exactly where the folder sat, in the folder's own order — nothing jumps
   to the end of the grid.
@@ -231,21 +239,22 @@ fiber is unloaded. The panel closes; refresh the page when the install finishes.
   rows are resolved by shape — a direct `<button>`, or a wrapper (the More
   launcher's `Menu` root `<span>`) whose direct child is that button — because
   the wrapper element differs between the panel rows and the more menu.
-- **The DOM launcher borrows the React restart prompt.** The launcher is plain
-  DOM and cannot render React, so the Plugins overlay publishes its
-  `openRestart` in a module-level bridge while it is mounted; the synthetic
-  restart tile calls that, and gets the exact confirmation, capability check and
-  localized copy the pending-restart bar uses — nothing is duplicated. If the
-  overlay is not mounted at all (a host without `remote.pluginManager`), the
-  tile falls back to a browser confirm over the same Host route.
+- **The DOM launcher borrows the React app-action prompts.** The launcher is
+  plain DOM and cannot render React, so the Plugins overlay publishes
+  `openRestart` and `openClose` in module-level bridges while it is mounted; the
+  synthetic restart/close tiles call them, and get the exact confirmations,
+  capability checks and localized copy the pending-restart bar uses — nothing is
+  duplicated. If the overlay is not mounted at all (a host without
+  `remote.pluginManager`), each tile falls back to a browser confirm over the
+  same Host route.
 - **Every sync write is idempotent.** The launcher observes its own `<nav>`
   with a `MutationObserver`, so a write that changes a watched subtree on every
   sync turns into an infinite loop — and a loop rebuilds the folder flyout
   continuously, which makes normal clicks miss (the node under the pointer is
   replaced between `pointerdown` and `click`). Setting `textContent` to the same
-  string still emits a `childList` mutation, so the synthetic chat/restart tiles
-  only write their labels when they actually changed, folder tiles rebuild only
-  when
+  string still emits a `childList` mutation, so the synthetic chat/restart/close
+  tiles only write their labels when they actually changed, folder tiles rebuild
+  only when
   their signature changed, and the flyout re-renders only when its roster or
   name changed. A
   `MutationObserver` re-applies that after every host render, and the module
@@ -260,9 +269,9 @@ fiber is unloaded. The panel closes; refresh the page when the install finishes.
   `[data-plugin-group="bundles"] [data-plugin-package]` card and re-asserts it
   after React renders. Version listing is a plain registry `GET`; removal and
   installation use the same `remote.pluginManager` calls as **Add plugin**. The
-  Host adds two loopback-only routes: `/dsh-powerup/api/restart` for the
-  process restart, and `/dsh-powerup/api/self-update` for the self-install
-  handoff.
+  Host adds three loopback-only routes: `/dsh-powerup/api/restart` for the
+  process restart, `/dsh-powerup/api/close` for closing the app without a
+  relaunch, and `/dsh-powerup/api/self-update` for the self-install handoff.
 - **Power-Up's own install outlives its unload.** The Host route sends its
   answer, then a timer starts `removeBundle` → `inspect` →
   `installBundle(enabled: true)` through the built-in manager service. Removing

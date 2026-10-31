@@ -69,7 +69,7 @@
 
       const NS = 'dsh-powerup';
       const SETTINGS_KEY = 'dsh-powerup:settings:v1';
-      const VERSION = '0.8.8';
+      const VERSION = '0.8.9';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -107,7 +107,7 @@
           'page.jobStopDesc': '在会话顶部的后台任务面板里点停止按钮时，可以顺手填写停止原因；原因会附加在任务结束后注入会话的提示里。',
           'page.jobStopHow': '打开任意会话，点顶部的「后台任务」面板，在运行中的任务右侧点停止，填写原因（可留空）后确认。',
           'page.launcherTitle': '侧边栏启动器',
-          'page.launcherDesc': '把左侧边栏的面板按钮变成自适应图标网格：列数跟着侧边栏宽度走，图标在上、文字在下；拖动图标可以排序，把一个图标拖到另一个图标的中间就会合成一个分组（像 Windows 开始菜单的文件夹），点分组会以浮层弹出里面的图标。网格里自带「返回会话」和「重启 DSH」两个按钮。',
+          'page.launcherDesc': '把左侧边栏的面板按钮变成自适应图标网格：列数跟着侧边栏宽度走，图标在上、文字在下；拖动图标可以排序，把一个图标拖到另一个图标的中间就会合成一个分组（像 Windows 开始菜单的文件夹），点分组会以浮层弹出里面的图标。网格里自带「返回会话」「重启 DSH」「关闭 DSH」三个按钮，它们和「更多」一样也能拖进分组。',
           'page.launcherToggle': '启用图标网格',
           'page.launcherToggleHint': '关闭后侧边栏恢复宿主原本的列表样式；排序与分组仍会保留。',
           'launcher.groupDefault': '分组',
@@ -118,6 +118,15 @@
           'launcher.backToConversation': '返回会话',
           'launcher.restart': '重启',
           'launcher.restartHint': '重启 DSH（正在运行的任务会中断）',
+          'launcher.close': '关闭',
+          'launcher.closeHint': '关闭 DSH（正在运行的任务会中断）',
+          'close.title': '关闭 DSH？',
+          'close.desc': '关闭会退出 DSH，正在运行的任务会中断。',
+          'close.cancel': '取消',
+          'close.confirm': '关闭 DSH',
+          'close.closing': 'DSH 正在关闭…',
+          'close.failed': '关闭请求失败：{message}',
+          'close.unsupported': '当前运行方式无法自动关闭：{reason}',
           'page.footer': 'Power-Up {version} · 设置在浏览器本地保存',
           'page.localOnly': '仅影响当前浏览器',
           'action.copy': '复制内容',
@@ -296,7 +305,7 @@
           'page.jobStopDesc': 'When you stop a running job from the background jobs panel in the session header, you can leave a reason; the reason is appended to the notice injected into the session when the job settles.',
           'page.jobStopHow': 'Open a session, expand the background jobs panel, press stop on a running job, type a reason (optional), then confirm.',
           'page.launcherTitle': 'Sidebar launcher',
-          'page.launcherDesc': 'Turns the left sidebar panel buttons into an adaptive icon grid: the column count follows the sidebar width, icons sit above their labels, icons can be dragged to reorder, dropping one icon onto the middle of another forms a folder (like a Windows Start menu folder), and clicking a folder opens its contents in a flyout. The grid also carries two built-in buttons: back to conversation and restart DSH.',
+          'page.launcherDesc': 'Turns the left sidebar panel buttons into an adaptive icon grid: the column count follows the sidebar width, icons sit above their labels, icons can be dragged to reorder, dropping one icon onto the middle of another forms a folder (like a Windows Start menu folder), and clicking a folder opens its contents in a flyout. The grid also carries three built-in buttons — back to conversation, restart DSH and close DSH — and they, like the host\'s "more" entry, can be dragged into a folder too.',
           'page.launcherToggle': 'Enable the icon grid',
           'page.launcherToggleHint': 'When off, the sidebar keeps the host list; order and folders are remembered.',
           'launcher.groupDefault': 'Group',
@@ -307,6 +316,15 @@
           'launcher.backToConversation': 'Back to conversation',
           'launcher.restart': 'Restart',
           'launcher.restartHint': 'Restart DSH (running tasks are interrupted)',
+          'launcher.close': 'Close',
+          'launcher.closeHint': 'Close DSH (running tasks are interrupted)',
+          'close.title': 'Close DSH?',
+          'close.desc': 'Closing quits DSH; running tasks are interrupted.',
+          'close.cancel': 'Cancel',
+          'close.confirm': 'Close DSH',
+          'close.closing': 'DSH is closing…',
+          'close.failed': 'Close request failed: {message}',
+          'close.unsupported': 'This runtime cannot close itself: {reason}',
           'page.footer': 'Power-Up {version} · Settings are stored in this browser',
           'page.localOnly': 'This browser only',
           'action.copy': 'Copy content',
@@ -556,6 +574,8 @@
       const LAUNCHER_CHAT_KEY = '__chat';
       /** Tile key of the Power-Up "restart DSH" tile. */
       const LAUNCHER_RESTART_KEY = '__restart';
+      /** Tile key of the Power-Up "close DSH" tile. */
+      const LAUNCHER_CLOSE_KEY = '__close';
       /** 16-grid chat glyph for the synthetic "back to conversation" tile. */
       const LAUNCHER_CHAT_ICON = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M2.8 3.4h10.4v6.8H7.4L4.4 12.8v-2.6H2.8V3.4Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>';
       /**
@@ -564,6 +584,8 @@
        * the opening (the previous Material glyph read as detached).
        */
       const LAUNCHER_RESTART_ICON = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M11.94 5.34A4.75 4.75 0 1 1 8 3.25" stroke="currentColor" stroke-width="1.55" stroke-linecap="round"/><path d="M7.85 1.45 11 3.25 7.85 5.05Z" fill="currentColor"/></svg>';
+      /** 16-grid power glyph for the synthetic "close DSH" tile. */
+      const LAUNCHER_CLOSE_ICON = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M8 2.9v5.2" stroke="currentColor" stroke-width="1.55" stroke-linecap="round"/><path d="M5.77 3.81A4.75 4.75 0 1 0 10.23 3.81" stroke="currentColor" stroke-width="1.55" stroke-linecap="round"/></svg>';
       /**
        * Bridge to the Plugins overlay's React restart prompt. The launcher is
        * plain DOM and cannot render React, so the overlay publishes its opener
@@ -571,33 +593,59 @@
        * the same confirmation, capability check and locale-aware copy.
        */
       const restartPromptBridge = { open: null };
+      /** Same bridge for the "close DSH" confirmation. */
+      const closePromptBridge = { open: null };
 
       /**
        * Last resort for a host where the Plugins overlay (and with it the
-       * React restart prompt) is not mounted: confirm with the browser and ask
-       * the Host restart route directly. Unreachable on a normal desktop/web
-       * host, where `remote.pluginManager` mounts the overlay.
+       * React app-action prompt) is not mounted: confirm with the browser and
+       * ask the Host route directly. Unreachable on a normal desktop/web host,
+       * where `remote.pluginManager` mounts the overlay.
+       *
+       * @param {{ api: string, action: 'restart' | 'close', titleKey: string, descKey: string, unsupportedKey: string, failedKey: string }} options
        */
-      async function restartWithoutPrompt() {
+      async function appActionWithoutPrompt(options) {
         const t = (key, params) => translateCurrent(key, params);
         try {
-          const capability = await fetch('/dsh-powerup/api/restart', { headers: { accept: 'application/json' } })
+          const capability = await fetch(options.api, { headers: { accept: 'application/json' } })
             .then((response) => response.json());
           if (capability?.supported !== true) {
-            window.alert(t('update.restartUnsupported', { reason: capability?.reason ?? '' }));
+            window.alert(t(options.unsupportedKey, { reason: capability?.reason ?? '' }));
             return;
           }
-          if (window.confirm(t('restart.title') + ' ' + t('restart.desc')) !== true) return;
-          const response = await fetch('/dsh-powerup/api/restart', {
+          if (window.confirm(t(options.titleKey) + ' ' + t(options.descKey)) !== true) return;
+          const response = await fetch(options.api, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ action: 'restart' }),
+            body: JSON.stringify({ action: options.action }),
           });
           const data = await response.json().catch(() => null);
           if (!response.ok || data?.ok !== true) throw new Error(data?.error ?? 'HTTP ' + response.status);
         } catch (error) {
-          window.alert(t('update.restartFailed', { message: error?.message ?? String(error) }));
+          window.alert(t(options.failedKey, { message: error?.message ?? String(error) }));
         }
+      }
+
+      function restartWithoutPrompt() {
+        return appActionWithoutPrompt({
+          api: UPDATE_API,
+          action: 'restart',
+          titleKey: 'restart.title',
+          descKey: 'restart.desc',
+          unsupportedKey: 'update.restartUnsupported',
+          failedKey: 'update.restartFailed',
+        });
+      }
+
+      function closeWithoutPrompt() {
+        return appActionWithoutPrompt({
+          api: CLOSE_API,
+          action: 'close',
+          titleKey: 'close.title',
+          descKey: 'close.desc',
+          unsupportedKey: 'close.unsupported',
+          failedKey: 'close.failed',
+        });
       }
 
       function launcherGroupEntry(groupId) {
@@ -612,16 +660,6 @@
 
       function makeLauncherGroupId() {
         return 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-      }
-
-      /**
-       * Synthetic tiles (back to conversation, restart DSH, the host's "more"
-       * launcher) always live directly on the grid and can never join a folder.
-       * @param {string} key tile key
-       * @returns {boolean}
-       */
-      function isLauncherSpecialKey(key) {
-        return key === LAUNCHER_CHAT_KEY || key === LAUNCHER_RESTART_KEY || key === LAUNCHER_MORE_KEY;
       }
 
       /**
@@ -645,7 +683,6 @@
           const list = Array.isArray(value.items) ? value.items : [];
           for (const key of list) {
             if (typeof key !== 'string' || !known.has(key) || assigned.has(key)) continue;
-            if (key.startsWith('__')) continue;
             assigned.add(key);
             items.push(key);
           }
@@ -702,7 +739,7 @@
         const index = source.indexOf(folderEntry);
         const members = [];
         for (const key of Array.isArray(items) ? items : []) {
-          if (typeof key !== 'string' || key === '' || key.startsWith('__')) continue;
+          if (typeof key !== 'string' || key === '') continue;
           if (list.includes(key) || members.includes(key)) continue;
           members.push(key);
         }
@@ -737,6 +774,7 @@
         const listPanels = typeof options.listPanels === 'function' ? options.listPanels : () => [];
         const selectConversation = typeof options.selectConversation === 'function' ? options.selectConversation : () => {};
         const openRestart = typeof options.openRestart === 'function' ? options.openRestart : () => false;
+        const openClose = typeof options.openClose === 'function' ? options.openClose : () => false;
 
         let nav = null;
         let docObserver = null;
@@ -751,6 +789,7 @@
         let folderButtons = new Map();
         let chatButton = null;
         let restartButton = null;
+        let closeButton = null;
         let dropLine = null;
         let drag = null;
         let popup = null;
@@ -860,7 +899,8 @@
           for (const child of [...container.children]) {
             if (child.hasAttribute('data-powerup-folder')
               || child.hasAttribute('data-powerup-chat')
-              || child.hasAttribute('data-powerup-restart')) continue;
+              || child.hasAttribute('data-powerup-restart')
+              || child.hasAttribute('data-powerup-close')) continue;
             if (typeof child.classList === 'object' && child.classList !== null && child.classList.contains('dsh-powerup-drop-line')) continue;
             let gridEl = child;
             let buttonEl = null;
@@ -1019,6 +1059,80 @@
           return button;
         }
 
+        /**
+         * The synthetic "close DSH" tile. Like the restart tile it opens the
+         * React confirmation owned by the Plugins overlay (same dialog, its own
+         * route), so closing asks before ending the app.
+         */
+        function ensureCloseButton() {
+          if (closeButton !== null && closeButton.isConnected === true) return closeButton;
+          const button = createSyntheticTile('dsh-powerup-close', 'data-powerup-close', LAUNCHER_CLOSE_ICON);
+          button.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (drag !== null && drag.active) return;
+            closePopup();
+            try {
+              if (openClose() === false) warn('the close prompt is not available in this host');
+            } catch (error) {
+              warn('close prompt could not be opened:', error);
+            }
+          });
+          nav.appendChild(button);
+          closeButton = button;
+          return button;
+        }
+
+        /** The synthetic tile buttons, for drag candidates and hit-testing. */
+        function syntheticTileButtons() {
+          return new Map([
+            [LAUNCHER_CHAT_KEY, chatButton],
+            [LAUNCHER_RESTART_KEY, restartButton],
+            [LAUNCHER_CLOSE_KEY, closeButton],
+          ]);
+        }
+
+        /**
+         * Full tile records for the synthetic tiles, so a folder can list,
+         * stack and open them exactly like a host panel row.
+         */
+        function syntheticTileRecords() {
+          const records = new Map();
+          const add = (key, button, label, glyph, active) => {
+            if (button === null || button.isConnected !== true) return;
+            records.set(key, {
+              key,
+              label,
+              glyphHtml: glyph,
+              buttonEl: button,
+              gridEl: button,
+              isMore: false,
+              active: active === true,
+            });
+          };
+          add(LAUNCHER_CHAT_KEY, chatButton, t('launcher.backToConversation'), LAUNCHER_CHAT_ICON,
+            hostTiles.every((tile) => tile.active !== true));
+          add(LAUNCHER_RESTART_KEY, restartButton, t('launcher.restart'), LAUNCHER_RESTART_ICON);
+          add(LAUNCHER_CLOSE_KEY, closeButton, t('launcher.close'), LAUNCHER_CLOSE_ICON);
+          return records;
+        }
+
+        /** Host rows plus synthetic tiles; folders can hold either kind. */
+        function tileMap() {
+          return new Map([...syntheticTileRecords(), ...tileByKeyMap()]);
+        }
+
+        /**
+         * Apply the shared state (label, visibility, grid position) to one
+         * synthetic tile. A tile that a folder hides disappears from the grid.
+         */
+        function syncSyntheticTile(button, key, label, hint, wide, memberOf, orderIndex) {
+          setSyntheticLabel(button, label, hint);
+          button.style.display = wide && !memberOf.has(key) ? '' : 'none';
+          const position = orderIndex.get(key);
+          button.style.order = position === undefined ? '' : String(position);
+        }
+
         function hideDropLine() {
           if (dropLine !== null) dropLine.style.display = 'none';
           if (nav !== null && typeof nav.querySelectorAll === 'function') {
@@ -1034,6 +1148,7 @@
           folderButtons = new Map();
           if (chatButton !== null) chatButton.style.display = 'none';
           if (restartButton !== null) restartButton.style.display = 'none';
+          if (closeButton !== null) closeButton.style.display = 'none';
           if (dropLine !== null) {
             dropLine.remove();
             dropLine = null;
@@ -1080,14 +1195,13 @@
             hostTiles = collectHostTiles(nav);
             const wide = detectWide(hostTiles);
             nav.classList.toggle('dsh-powerup-launcher-wide', wide);
-            const panelKeys = [LAUNCHER_CHAT_KEY, LAUNCHER_RESTART_KEY, ...hostTiles.map((tile) => tile.key)];
+            const panelKeys = [LAUNCHER_CHAT_KEY, LAUNCHER_RESTART_KEY, LAUNCHER_CLOSE_KEY, ...hostTiles.map((tile) => tile.key)];
             if (pendingLoad) {
               pendingLoad = false;
               state = normalizeLauncherState(readPersisted(), panelKeys);
             } else {
               state = normalizeLauncherState(state, panelKeys);
             }
-            const tiles = tileByKeyMap();
             const memberOf = new Map();
             for (const group of Object.values(state.groups)) {
               for (const key of group.items) memberOf.set(key, group.id);
@@ -1103,16 +1217,13 @@
               tile.gridEl.style.order = position === undefined ? '' : String(position);
             }
             const chat = ensureChatButton();
-            setSyntheticLabel(chat, t('launcher.backToConversation'));
-            chat.style.display = wide ? '' : 'none';
-            const chatPosition = orderIndex.get(LAUNCHER_CHAT_KEY);
-            chat.style.order = chatPosition === undefined ? '' : String(chatPosition);
+            syncSyntheticTile(chat, LAUNCHER_CHAT_KEY, t('launcher.backToConversation'), undefined, wide, memberOf, orderIndex);
             chat.classList.toggle('is-active', hostTiles.every((tile) => tile.active !== true));
             const restart = ensureRestartButton();
-            setSyntheticLabel(restart, t('launcher.restart'), t('launcher.restartHint'));
-            restart.style.display = wide ? '' : 'none';
-            const restartPosition = orderIndex.get(LAUNCHER_RESTART_KEY);
-            restart.style.order = restartPosition === undefined ? '' : String(restartPosition);
+            syncSyntheticTile(restart, LAUNCHER_RESTART_KEY, t('launcher.restart'), t('launcher.restartHint'), wide, memberOf, orderIndex);
+            const close = ensureCloseButton();
+            syncSyntheticTile(close, LAUNCHER_CLOSE_KEY, t('launcher.close'), t('launcher.closeHint'), wide, memberOf, orderIndex);
+            const tiles = tileMap();
             const live = new Set();
             for (const [groupId, group] of Object.entries(state.groups)) {
               live.add(groupId);
@@ -1288,8 +1399,7 @@
           const element = popup.element;
           element.textContent = '';
           const head = document.createElement('div');
-          head.className = 'dsh-powerup-folder-pop-head';
-          const title = document.createElement('button');
+          head.className = 'dsh-powerup-folder-pop-head';          const title = document.createElement('button');
           title.type = 'button';
           title.className = 'dsh-powerup-folder-pop-title';
           title.textContent = group.name === '' ? t('launcher.groupDefault') : group.name;
@@ -1306,7 +1416,7 @@
           head.append(title, count, dissolve);
           const grid = document.createElement('div');
           grid.className = 'dsh-powerup-folder-grid';
-          const tiles = tileByKeyMap();
+          const tiles = tileMap();
           for (const key of group.items) {
             const tile = tiles.get(key);
             if (tile === undefined) continue;
@@ -1534,9 +1644,36 @@
           }
         }
 
+        /**
+         * Activate one grid or folder flyout tile. The host's "more" row is
+         * wrapped in a Menu root; when a folder hides it, the menu would anchor
+         * to a zero-sized element, so briefly restore its box (transparent) and
+         * let the host open the menu near the grid, then hide it again.
+         */
         function selectPanel(tile) {
           try {
-            tile.buttonEl.click();
+            const hiddenMore = tile.isMore === true
+              && tile.gridEl !== undefined
+              && typeof tile.gridEl.style === 'object'
+              && tile.gridEl.style.display === 'none';
+            if (hiddenMore) {
+              const element = tile.gridEl;
+              const restore = { display: element.style.display, opacity: element.style.opacity, pointerEvents: element.style.pointerEvents };
+              element.style.display = '';
+              element.style.opacity = '0';
+              element.style.pointerEvents = 'none';
+              if (typeof element.getBoundingClientRect === 'function') void element.getBoundingClientRect();
+              tile.buttonEl.click();
+              const reset = () => {
+                element.style.display = restore.display;
+                element.style.opacity = restore.opacity;
+                element.style.pointerEvents = restore.pointerEvents;
+              };
+              if (typeof window !== 'undefined' && window !== null && typeof window.setTimeout === 'function') window.setTimeout(reset, 400);
+              else reset();
+            } else {
+              tile.buttonEl.click();
+            }
           } catch (error) {
             warn('panel could not be selected:', error);
           }
@@ -1595,12 +1732,13 @@
         // ----------------------------------------------------------------
         function topLevelCandidates(excludeKey) {
           const candidates = [];
+          const synthetic = syntheticTileButtons();
           for (const entry of state.order) {
             if (entry === excludeKey) continue;
-            if (entry === LAUNCHER_CHAT_KEY || entry === LAUNCHER_RESTART_KEY) {
-              const button = entry === LAUNCHER_CHAT_KEY ? chatButton : restartButton;
-              if (button !== null && button.isConnected === true) {
-                candidates.push({ key: entry, el: button, kind: entry === LAUNCHER_CHAT_KEY ? 'chat' : 'restart' });
+            const synth = synthetic.get(entry);
+            if (synth !== undefined) {
+              if (synth !== null && synth.isConnected === true && synth.style.display !== 'none') {
+                candidates.push({ key: entry, el: synth, kind: 'synthetic' });
               }
               continue;
             }
@@ -1627,6 +1765,9 @@
           }
           if (button.hasAttribute('data-powerup-restart')) {
             return { kind: 'restart', key: LAUNCHER_RESTART_KEY, gridEl: button, label: t('launcher.restart') };
+          }
+          if (button.hasAttribute('data-powerup-close')) {
+            return { kind: 'close', key: LAUNCHER_CLOSE_KEY, gridEl: button, label: t('launcher.close') };
           }
           const folderId = button.getAttribute('data-powerup-folder');
           if (folderId !== null) {
@@ -1729,8 +1870,7 @@
             const centerX = rect.left + rect.width / 2;
             const centerY = rect.top + rect.height / 2;
             const nearCenter = Math.abs(x - centerX) <= rect.width * 0.28 && Math.abs(y - centerY) <= rect.height * 0.32;
-            const special = isLauncherSpecialKey(candidate.key) || isLauncherSpecialKey(drag.descriptor.key);
-            if (nearCenter && !special) {
+            if (nearCenter) {
               drop = { kind: 'merge', target: candidate };
             } else {
               drop = { kind: 'insert', index: candidates.indexOf(candidate) + (x < centerX ? 0 : 1), anchor: rect, after: x >= centerX };
@@ -1858,7 +1998,6 @@
 
         function performMerge(sourceKey, targetKey) {
           if (sourceKey === targetKey) return;
-          if (isLauncherSpecialKey(sourceKey) || isLauncherSpecialKey(targetKey)) return;
           const sourceGroupId = launcherEntryGroupId(sourceKey);
           const targetGroupId = launcherEntryGroupId(targetKey);
           if (sourceGroupId !== null && sourceGroupId === targetGroupId) return;
@@ -1955,6 +2094,10 @@
             restartButton.remove();
             restartButton = null;
           }
+          if (closeButton !== null) {
+            closeButton.remove();
+            closeButton = null;
+          }
           state = { order: [], groups: {} };
           pendingLoad = true;
           nav = null;
@@ -2032,6 +2175,14 @@
               return true;
             }
             void restartWithoutPrompt();
+            return true;
+          },
+          openClose: () => {
+            if (closePromptBridge.open !== null) {
+              closePromptBridge.open();
+              return true;
+            }
+            void closeWithoutPrompt();
             return true;
           },
         });
@@ -3054,6 +3205,8 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:hover [class*="panelTi
       const POWERUP_REGISTRY_KEY = 'dsh-powerup:update-registry:v1';
       const PENDING_RESTART_KEY = 'dsh-powerup:pending-restart:v1';
       const UPDATE_API = '/dsh-powerup/api/restart';
+      /** Host route that closes the whole application. */
+      const CLOSE_API = '/dsh-powerup/api/close';
       const AUDIT_API = '/dsh-powerup/api/audit';
       const SELF_UPDATE_API = '/dsh-powerup/api/self-update';
       const JOB_KILL_API = '/dsh-powerup/api/job-kill';
@@ -4077,10 +4230,11 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:hover [class*="panelTi
         const [view, setView] = useState(null);
         const [localeTick, forceLocale] = useState(0);
         const [pending, setPending] = useState(() => readPendingRestarts());
-        const [restartAsk, setRestartAsk] = useState(false);
-        const [restartCapability, setRestartCapability] = useState(null);
-        const [restartBusy, setRestartBusy] = useState(false);
-        const [restartError, setRestartError] = useState(null);
+        /** Open app-level confirmation: null, 'restart' or 'close'. */
+        const [appAsk, setAppAsk] = useState(null);
+        const [appCapability, setAppCapability] = useState(null);
+        const [appBusy, setAppBusy] = useState(false);
+        const [appError, setAppError] = useState(null);
         const tokenRef = useRef(null);
         const abortRef = useRef(null);
         const buttonsRef = useRef(new Set());
@@ -4495,18 +4649,18 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:hover [class*="panelTi
           };
         }, [remote]);
 
-        // Escape dismisses the list-header restart confirmation unless a
-        // restart request is already in flight.
+        // Escape dismisses the app-level confirmation unless its request is
+        // already in flight.
         useEffect(() => {
-          if (!restartAsk) return undefined;
+          if (appAsk === null) return undefined;
           const onKeyDown = (event) => {
-            if (event.key !== 'Escape' || restartBusy) return;
+            if (event.key !== 'Escape' || appBusy) return;
             event.stopPropagation();
-            setRestartAsk(false);
+            setAppAsk(null);
           };
           document.addEventListener('keydown', onKeyDown, true);
           return () => document.removeEventListener('keydown', onKeyDown, true);
-        }, [restartAsk, restartBusy]);
+        }, [appAsk, appBusy]);
 
         // A one-click update that does not restart leaves a completion panel;
         // close it on its own so it never lingers over the Plugins page.
@@ -4747,10 +4901,10 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:hover [class*="panelTi
           }
         };
 
-        /** Ask the Host route whether this runtime can restart itself. */
-        const readRestartCapability = async () => {
+        /** Ask one Host app-control route whether this runtime supports it. */
+        const readAppCapability = async (api) => {
           try {
-            const response = await fetch(UPDATE_API, { headers: { accept: 'application/json' } });
+            const response = await fetch(api, { headers: { accept: 'application/json' } });
             const data = await response.json();
             return {
               supported: response.ok && data?.ok === true && data.supported === true,
@@ -4761,48 +4915,60 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:hover [class*="panelTi
           }
         };
 
-        /** POST the restart command; throws when the Host refuses. */
-        const requestAppRestart = async () => {
-          const response = await fetch(UPDATE_API, {
+        /** The restart capability, used by the install flow as well. */
+        const readRestartCapability = () => readAppCapability(UPDATE_API);
+
+        /** POST one app-control command; throws when the Host refuses. */
+        const requestAppAction = async (action) => {
+          const api = action === 'close' ? CLOSE_API : UPDATE_API;
+          const response = await fetch(api, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ action: 'restart' }),
+            body: JSON.stringify({ action }),
           });
           const data = await response.json().catch(() => null);
           if (!response.ok || data?.ok !== true) throw new Error(data?.error ?? `HTTP ${response.status}`);
         };
 
-        /** Open the list-header restart confirmation and read the capability. */
-        const openRestart = () => {
-          setRestartAsk(true);
-          setRestartCapability(null);
-          setRestartError(null);
-          setRestartBusy(false);
-          void readRestartCapability().then((capability) => setRestartCapability(capability));
+        /** The restart command, as the install flow spells it. */
+        const requestAppRestart = () => requestAppAction('restart');
+
+        /** Open the app-level confirmation for one action and read its capability. */
+        const openAppAction = (action) => {
+          setAppAsk(action);
+          setAppCapability(null);
+          setAppError(null);
+          setAppBusy(false);
+          void readAppCapability(action === 'close' ? CLOSE_API : UPDATE_API)
+            .then((capability) => setAppCapability(capability));
         };
-        openRestartRef.current = openRestart;
+        const openAppActionRef = useRef(() => {});
+        openAppActionRef.current = openAppAction;
+        openRestartRef.current = () => openAppActionRef.current('restart');
 
         // The sidebar launcher is plain DOM and cannot render React, so it
-        // calls this opener for its synthetic "restart DSH" tile. Keeping the
-        // opener here means the sidebar and the pending-restart bar share one
+        // calls these openers for its synthetic restart/close tiles. Keeping
+        // them here means the sidebar and the pending-restart bar share one
         // confirmation dialog, one capability read and one set of copy.
         useEffect(() => {
-          restartPromptBridge.open = () => openRestartRef.current();
+          restartPromptBridge.open = () => openAppActionRef.current('restart');
+          closePromptBridge.open = () => openAppActionRef.current('close');
           return () => {
             if (restartPromptBridge.open !== null) restartPromptBridge.open = null;
+            if (closePromptBridge.open !== null) closePromptBridge.open = null;
           };
         }, []);
 
-        /** Confirm the list-header restart. */
-        const confirmRestart = async () => {
-          if (restartBusy) return;
-          setRestartBusy(true);
-          setRestartError(null);
+        /** Confirm the app-level action (restart or close). */
+        const confirmAppAction = async () => {
+          if (appBusy) return;
+          setAppBusy(true);
+          setAppError(null);
           try {
-            await requestAppRestart();
+            await requestAppAction(appAsk === 'close' ? 'close' : 'restart');
           } catch (error) {
-            setRestartBusy(false);
-            setRestartError(errorText(error) || tRef.current('update.unknown'));
+            setAppBusy(false);
+            setAppError(errorText(error) || tRef.current('update.unknown'));
           }
         };
 
@@ -4867,10 +5033,11 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:hover [class*="panelTi
           ),
         );
 
-        const restartPrompt = restartAsk ? h('div', {
+        const appAction = appAsk === 'close' ? 'close' : 'restart';
+        const appPrompt = appAsk === null ? null : h('div', {
           className: 'dsh-powerup-update-mask',
           onMouseDown: (event) => {
-            if (event.target === event.currentTarget && !restartBusy) setRestartAsk(false);
+            if (event.target === event.currentTarget && !appBusy) setAppAsk(null);
           },
         },
         h('div', {
@@ -4878,43 +5045,43 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:hover [class*="panelTi
           style: { width: 'min(420px,100%)' },
           role: 'dialog',
           'aria-modal': 'true',
-          'aria-labelledby': 'dsh-powerup-restart-title',
+          'aria-labelledby': 'dsh-powerup-app-action-title',
         },
         h('div', { className: 'dsh-powerup-update-head' },
           h('div', { className: 'dsh-powerup-update-heading' },
-            h('h2', { id: 'dsh-powerup-restart-title' }, t('restart.title')),
+            h('h2', { id: 'dsh-powerup-app-action-title' }, t(appAction === 'close' ? 'close.title' : 'restart.title')),
             /* A sidebar-initiated restart usually has no pending plugins, so the
                subtitle only appears when there is something to report. */
-            pending.length === 0 ? null : h('p', null, t('restart.pending', { count: pending.length })),
+            appAction === 'restart' && pending.length > 0 ? h('p', null, t('restart.pending', { count: pending.length })) : null,
           ),
-          restartBusy ? null : h('button', { type: 'button', className: 'dsh-powerup-update-close', 'aria-label': t('update.close'), onClick: () => setRestartAsk(false) }, '×'),
+          appBusy ? null : h('button', { type: 'button', className: 'dsh-powerup-update-close', 'aria-label': t('update.close'), onClick: () => setAppAsk(null) }, '×'),
         ),
         h('div', { className: 'dsh-powerup-update-body' },
-          h('p', { className: 'dsh-powerup-update-note' }, t('restart.desc')),
-          restartCapability !== null && restartCapability.supported !== true
-            ? notice('warn', h(WarnIcon, { size: 14 }), null, t('update.restartUnsupported', { reason: restartCapability.reason ?? '' }))
+          h('p', { className: 'dsh-powerup-update-note' }, t(appAction === 'close' ? 'close.desc' : 'restart.desc')),
+          appCapability !== null && appCapability.supported !== true
+            ? notice('warn', h(WarnIcon, { size: 14 }), null, t(appAction === 'close' ? 'close.unsupported' : 'update.restartUnsupported', { reason: appCapability.reason ?? '' }))
             : null,
-          restartError === null ? null : notice('error', h(WarnIcon, { size: 14 }), null, restartError),
-          restartBusy
+          appError === null ? null : notice('error', h(WarnIcon, { size: 14 }), null, appError),
+          appBusy
             ? h('div', { className: 'dsh-powerup-update-status' },
               h('span', { className: 'dsh-powerup-update-spinner', 'aria-hidden': 'true' }),
-              t('update.restarting'),
+              t(appAction === 'close' ? 'close.closing' : 'update.restarting'),
             )
             : null,
         ),
         h('div', { className: 'dsh-powerup-update-foot' },
-          h('button', { type: 'button', className: 'dsh-powerup-update-ghost', disabled: restartBusy, onClick: () => setRestartAsk(false) }, t('restart.cancel')),
+          h('button', { type: 'button', className: 'dsh-powerup-update-ghost', disabled: appBusy, onClick: () => setAppAsk(null) }, t(appAction === 'close' ? 'close.cancel' : 'restart.cancel')),
           h('button', {
             type: 'button',
             className: 'dsh-powerup-update-primary',
-            disabled: restartBusy || restartCapability?.supported !== true,
-            onClick: confirmRestart,
-          }, restartBusy ? t('update.restarting') : t('restart.confirm')),
+            disabled: appBusy || appCapability?.supported !== true,
+            onClick: confirmAppAction,
+          }, appBusy ? t(appAction === 'close' ? 'close.closing' : 'update.restarting') : t(appAction === 'close' ? 'close.confirm' : 'restart.confirm')),
         ),
         ),
-        ) : null;
+        );
 
-        if (view === null) return restartPrompt;
+        if (view === null) return appPrompt;
         const busy = view.phase === 'working' || view.phase === 'self-updating' || view.phase === 'restarting' || view.enabling === true;
         const canClose = !busy;
         const title = view.title === undefined || view.title === '' ? view.name : view.title;
@@ -5782,6 +5949,8 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:hover [class*="panelTi
           LAUNCHER_CHAT_KEY,
           LAUNCHER_RESTART_KEY,
           LAUNCHER_RESTART_ICON,
+          LAUNCHER_CLOSE_KEY,
+          LAUNCHER_CLOSE_ICON,
           normalizeLauncherState,
           dissolveGroupOrder,
           createLauncherCore,

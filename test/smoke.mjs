@@ -463,22 +463,30 @@ assert.deepEqual(cleaned.order, ['a', 'group:kept'], 'dropped folders and unknow
 assert.deepEqual(cleaned.groups.kept.items, ['b'], 'unknown and duplicate group members are dropped');
 assert.deepEqual(launcher.normalizeLauncherState({ order: 'nope', groups: [] }, []), { order: [], groups: {} });
 
-// The synthetic tiles (__more / __chat / __restart) stay in the order but can
-// never join a folder.
+// The synthetic tiles (__more / __chat / __restart / __close) stay in the
+// order and, exactly like host panels, can join a folder.
 assert.equal(launcher.LAUNCHER_CHAT_KEY, '__chat');
 assert.equal(launcher.LAUNCHER_RESTART_KEY, '__restart');
+assert.equal(launcher.LAUNCHER_CLOSE_KEY, '__close');
 assert.ok(launcher.LAUNCHER_RESTART_ICON.includes('<svg'), 'the restart tile ships its own glyph');
-const specials = launcher.normalizeLauncherState(
-  { order: ['__chat'], groups: { g: { id: 'g', name: '', items: ['__chat', '__more', '__restart'] } } },
-  ['__chat', '__restart', '__more', 'a'],
+assert.ok(launcher.LAUNCHER_CLOSE_ICON.includes('<svg'), 'the close tile ships its own glyph');
+const syntheticGrouped = launcher.normalizeLauncherState(
+  { order: ['__chat'], groups: { g: { id: 'g', name: '操作', items: ['__more', '__restart', '__close'] } } },
+  ['__chat', '__restart', '__close', '__more', 'a'],
 );
-assert.deepEqual(specials.order, ['__chat', '__restart', '__more', 'a'], 'special tiles are appended, folders dropped when only they would remain');
-assert.deepEqual(specials.groups, {}, 'special tiles never become folder members');
-const specialsMixed = launcher.normalizeLauncherState(
-  { order: ['a'], groups: { g: { id: 'g', name: '组', items: ['a', '__chat', '__more', '__restart'] } } },
-  ['__chat', '__restart', '__more', 'a'],
+assert.deepEqual(syntheticGrouped.groups.g.items, ['__more', '__restart', '__close'], 'synthetic tiles can join a folder');
+assert.deepEqual(syntheticGrouped.order, ['__chat', 'a', 'group:g'], 'group members leave the grid order; the folder is kept');
+const syntheticMixed = launcher.normalizeLauncherState(
+  { order: ['a'], groups: { g: { id: 'g', name: '组', items: ['a', '__chat', '__more'] } } },
+  ['__chat', '__close', '__more', 'a'],
 );
-assert.deepEqual(specialsMixed.groups.g.items, ['a']);
+assert.deepEqual(syntheticMixed.groups.g.items, ['a', '__chat', '__more']);
+assert.deepEqual(syntheticMixed.order, ['__close', 'group:g'], 'unplaced tiles and a folder missing from the order are appended');
+const unknownSynthetic = launcher.normalizeLauncherState(
+  { order: ['a'], groups: { g: { id: 'g', name: '', items: ['a', '__ghost'] } } },
+  ['__chat', 'a'],
+);
+assert.deepEqual(unknownSynthetic.groups.g.items, ['a'], 'unknown synthetic keys never become members');
 
 // Ungroup expands the folder exactly where it sat, keeping member order.
 assert.deepEqual(
@@ -493,8 +501,8 @@ assert.deepEqual(
 );
 assert.deepEqual(
   launcher.dissolveGroupOrder(['a', 'group:g', 'b'], 'group:g', ['__chat', 'a', 'x', 'x', '']),
-  ['a', 'x', 'b'],
-  'special keys, already-listed keys, and duplicates are skipped',
+  ['a', '__chat', 'x', 'b'],
+  'synthetic members come back with their folder; duplicates and blank keys are skipped',
 );
 assert.deepEqual(launcher.dissolveGroupOrder(undefined, 'group:g', undefined), []);
 
@@ -518,7 +526,7 @@ assert.ok(launcher.LAUNCHER_CSS.includes('.dsh-powerup-folder-pop{position:fixed
 assert.ok(launcher.LAUNCHER_CSS.includes('.dsh-powerup-drag-ghost'), 'drag feedback keeps a ghost tile');
 assert.ok(launcher.LAUNCHER_CSS.includes('.dsh-powerup-synth{'), 'the synthetic chat/restart tiles share one grid style');
 assert.ok(launcher.LAUNCHER_CSS.includes('.dsh-powerup-synth-label'), 'synthetic tiles keep their stacked caption');
-for (const key of ['page.launcherTitle', 'page.launcherDesc', 'page.launcherToggle', 'page.launcherToggleHint', 'launcher.groupDefault', 'launcher.count', 'launcher.renameHint', 'launcher.dissolve', 'launcher.removeItem', 'launcher.backToConversation', 'launcher.restart', 'launcher.restartHint']) {
+for (const key of ['page.launcherTitle', 'page.launcherDesc', 'page.launcherToggle', 'page.launcherToggleHint', 'launcher.groupDefault', 'launcher.count', 'launcher.renameHint', 'launcher.dissolve', 'launcher.removeItem', 'launcher.backToConversation', 'launcher.restart', 'launcher.restartHint', 'launcher.close', 'launcher.closeHint', 'close.title', 'close.desc', 'close.cancel', 'close.confirm', 'close.closing', 'close.failed', 'close.unsupported']) {
   assert.ok(DICT.zh[key] !== undefined, `zh dictionary has ${key}`);
   assert.ok(DICT.en[key] !== undefined, `en dictionary has ${key}`);
 }
@@ -1171,7 +1179,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.8.8');
+assert.equal(host.__test.SELF_VERSION, '0.8.9');
 
 const installFailSpecs = [];
 const installFailManager = {
@@ -1212,12 +1220,39 @@ assert.equal(hostRoute.path, '/dsh-powerup/api');
 assert.equal(hostRoute.kind, 'prefix');
 assert.equal(typeof hostRoute.handler, 'function');
 
+// App-control routes: close mirrors restart, and both share the capability
+// probe. The offline test runtime has no Electron parent, so both actions are
+// refused with a 409 and an explanatory code.
+const callHost = async (method, pathname) => {
+  const req = { method, url: pathname, headers: {}, socket: { remoteAddress: '127.0.0.1' } };
+  let payload = '';
+  const res = {
+    headersSent: false,
+    writeHead(status) { this.status = status; },
+    end(text) { payload = text; },
+  };
+  await host.__test.handle(req, res, {});
+  return { status: res.status, body: JSON.parse(payload) };
+};
+const closeCapability = await callHost('GET', '/dsh-powerup/api/close');
+assert.equal(closeCapability.status, 200);
+assert.equal(closeCapability.body.ok, true);
+assert.equal(closeCapability.body.action, 'close');
+assert.equal(typeof closeCapability.body.supported, 'boolean');
+const restartCapability = await callHost('GET', '/dsh-powerup/api/restart');
+assert.equal(restartCapability.body.action, 'restart');
+const refusedClose = await callHost('POST', '/dsh-powerup/api/close');
+assert.equal(refusedClose.status, 409);
+assert.equal(refusedClose.body.ok, false);
+assert.match(String(refusedClose.body.code), /shutdown|close/u, 'close reports its own unsupported code');
+assert.equal((await callHost('GET', '/dsh-powerup/api/nope')).status, 404);
+
 // ---------------------------------------------------------------------------
 // Manifest and display metadata
 // ---------------------------------------------------------------------------
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 assert.equal(pkg.name, '@restregular/dsh-powerup');
-assert.equal(pkg.version, '0.8.8');
+assert.equal(pkg.version, '0.8.9');
 assert.equal(pkg.icon, './icon.svg');
 assert.equal(pkg.exports['./client'], './client.js');
 assert.equal(pkg.dsh.bundle.patch, './cordis.patch.yml');
