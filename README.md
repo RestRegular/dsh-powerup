@@ -116,6 +116,9 @@ entries other plugins add) become an icon grid instead of a one-per-row list:
   its own (chat glyph + label) that calls `layout.selectPanel(null)` to return
   to the Conversation; it highlights when no global panel is selected, can be
   placed anywhere by dragging, and never joins a folder either.
+- **Ungroup expands in place.** Dissolving a folder puts its icons back on the
+  grid exactly where the folder sat, in the folder's own order — nothing jumps
+  to the end of the grid.
 - **Drag inside a folder.** Tiles in the flyout are drag handles: drag one over
   another to reorder the folder's contents, or drag it out of the flyout and
   drop it anywhere else to put it back on the grid right after the folder

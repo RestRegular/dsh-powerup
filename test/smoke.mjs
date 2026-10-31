@@ -476,6 +476,24 @@ const specialsMixed = launcher.normalizeLauncherState(
 );
 assert.deepEqual(specialsMixed.groups.g.items, ['a']);
 
+// Ungroup expands the folder exactly where it sat, keeping member order.
+assert.deepEqual(
+  launcher.dissolveGroupOrder(['a', 'group:g', 'b'], 'group:g', ['x', 'y']),
+  ['a', 'x', 'y', 'b'],
+  'dissolving a folder inserts its members at the folder position, in folder order',
+);
+assert.deepEqual(
+  launcher.dissolveGroupOrder(['a', 'b'], 'group:gone', ['x']),
+  ['a', 'b', 'x'],
+  'a folder missing from the order still appends its members',
+);
+assert.deepEqual(
+  launcher.dissolveGroupOrder(['a', 'group:g', 'b'], 'group:g', ['__chat', 'a', 'x', 'x', '']),
+  ['a', 'x', 'b'],
+  'special keys, already-listed keys, and duplicates are skipped',
+);
+assert.deepEqual(launcher.dissolveGroupOrder(undefined, 'group:g', undefined), []);
+
 // The core starts and stops safely without a real host sidebar.
 const core = launcher.createLauncherCore({
   t: (key) => key,
@@ -1147,7 +1165,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.8.3');
+assert.equal(host.__test.SELF_VERSION, '0.8.4');
 
 const installFailSpecs = [];
 const installFailManager = {
@@ -1193,7 +1211,7 @@ assert.equal(typeof hostRoute.handler, 'function');
 // ---------------------------------------------------------------------------
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 assert.equal(pkg.name, '@restregular/dsh-powerup');
-assert.equal(pkg.version, '0.8.3');
+assert.equal(pkg.version, '0.8.4');
 assert.equal(pkg.icon, './icon.svg');
 assert.equal(pkg.exports['./client'], './client.js');
 assert.equal(pkg.dsh.bundle.patch, './cordis.patch.yml');

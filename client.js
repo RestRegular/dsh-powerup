@@ -69,7 +69,7 @@
 
       const NS = 'dsh-powerup';
       const SETTINGS_KEY = 'dsh-powerup:settings:v1';
-      const VERSION = '0.8.3';
+      const VERSION = '0.8.4';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -628,6 +628,30 @@
           seen.add(entry);
         }
         return { order, groups };
+      }
+
+      /**
+       * Replace a folder entry with its members, in the folder's own order, at
+       * the exact position the folder occupied. Used by "ungroup" so dissolving
+       * a folder is a pure expansion and never scatters the icons to the end.
+       * @param {string[]} order current top-level order
+       * @param {string} folderEntry the `group:<id>` entry being dissolved
+       * @param {string[]} items member keys in folder order
+       * @returns {string[]} the new top-level order
+       */
+      function dissolveGroupOrder(order, folderEntry, items) {
+        const source = Array.isArray(order) ? order : [];
+        const list = source.filter((entry) => entry !== folderEntry);
+        const index = source.indexOf(folderEntry);
+        const members = [];
+        for (const key of Array.isArray(items) ? items : []) {
+          if (typeof key !== 'string' || key === '' || key.startsWith('__')) continue;
+          if (list.includes(key) || members.includes(key)) continue;
+          members.push(key);
+        }
+        const insertAt = index < 0 ? list.length : Math.min(index, list.length);
+        list.splice(insertAt, 0, ...members);
+        return list;
       }
 
       /**
@@ -1458,9 +1482,7 @@
           if (group === undefined) return;
           const groups = { ...state.groups };
           delete groups[groupId];
-          const order = state.order
-            .filter((entry) => entry !== launcherGroupEntry(groupId))
-            .concat(group.items.filter((key) => !state.order.includes(key)));
+          const order = dissolveGroupOrder(state.order, launcherGroupEntry(groupId), group.items);
           state = { order, groups };
           save();
           closePopup();
@@ -5628,6 +5650,7 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:hover [class*="panelTi
           LAUNCHER_CSS,
           LAUNCHER_STORAGE_KEY,
           normalizeLauncherState,
+          dissolveGroupOrder,
           createLauncherCore,
           installLauncher,
           PowerUpLineIcon,
