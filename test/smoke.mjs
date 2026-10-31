@@ -463,16 +463,20 @@ assert.deepEqual(cleaned.order, ['a', 'group:kept'], 'dropped folders and unknow
 assert.deepEqual(cleaned.groups.kept.items, ['b'], 'unknown and duplicate group members are dropped');
 assert.deepEqual(launcher.normalizeLauncherState({ order: 'nope', groups: [] }, []), { order: [], groups: {} });
 
-// The synthetic tiles (__more / __chat) stay in the order but can never join a folder.
+// The synthetic tiles (__more / __chat / __restart) stay in the order but can
+// never join a folder.
+assert.equal(launcher.LAUNCHER_CHAT_KEY, '__chat');
+assert.equal(launcher.LAUNCHER_RESTART_KEY, '__restart');
+assert.ok(launcher.LAUNCHER_RESTART_ICON.includes('<svg'), 'the restart tile ships its own glyph');
 const specials = launcher.normalizeLauncherState(
-  { order: ['__chat'], groups: { g: { id: 'g', name: '', items: ['__chat', '__more'] } } },
-  ['__chat', '__more', 'a'],
+  { order: ['__chat'], groups: { g: { id: 'g', name: '', items: ['__chat', '__more', '__restart'] } } },
+  ['__chat', '__restart', '__more', 'a'],
 );
-assert.deepEqual(specials.order, ['__chat', '__more', 'a'], 'special tiles are appended, folders dropped when only they would remain');
+assert.deepEqual(specials.order, ['__chat', '__restart', '__more', 'a'], 'special tiles are appended, folders dropped when only they would remain');
 assert.deepEqual(specials.groups, {}, 'special tiles never become folder members');
 const specialsMixed = launcher.normalizeLauncherState(
-  { order: ['a'], groups: { g: { id: 'g', name: '组', items: ['a', '__chat', '__more'] } } },
-  ['__chat', '__more', 'a'],
+  { order: ['a'], groups: { g: { id: 'g', name: '组', items: ['a', '__chat', '__more', '__restart'] } } },
+  ['__chat', '__restart', '__more', 'a'],
 );
 assert.deepEqual(specialsMixed.groups.g.items, ['a']);
 
@@ -512,7 +516,9 @@ assert.ok(launcher.LAUNCHER_CSS.includes('repeat(auto-fill,minmax(58px,1fr))'), 
 assert.ok(launcher.LAUNCHER_CSS.includes('flex-direction:column'), 'tiles stack the icon above the label');
 assert.ok(launcher.LAUNCHER_CSS.includes('.dsh-powerup-folder-pop{position:fixed'), 'the folder flyout floats above the sidebar');
 assert.ok(launcher.LAUNCHER_CSS.includes('.dsh-powerup-drag-ghost'), 'drag feedback keeps a ghost tile');
-for (const key of ['page.launcherTitle', 'page.launcherDesc', 'page.launcherToggle', 'page.launcherToggleHint', 'launcher.groupDefault', 'launcher.count', 'launcher.renameHint', 'launcher.dissolve', 'launcher.removeItem']) {
+assert.ok(launcher.LAUNCHER_CSS.includes('.dsh-powerup-synth{'), 'the synthetic chat/restart tiles share one grid style');
+assert.ok(launcher.LAUNCHER_CSS.includes('.dsh-powerup-synth-label'), 'synthetic tiles keep their stacked caption');
+for (const key of ['page.launcherTitle', 'page.launcherDesc', 'page.launcherToggle', 'page.launcherToggleHint', 'launcher.groupDefault', 'launcher.count', 'launcher.renameHint', 'launcher.dissolve', 'launcher.removeItem', 'launcher.backToConversation', 'launcher.restart', 'launcher.restartHint']) {
   assert.ok(DICT.zh[key] !== undefined, `zh dictionary has ${key}`);
   assert.ok(DICT.en[key] !== undefined, `en dictionary has ${key}`);
 }
@@ -1165,7 +1171,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.8.4');
+assert.equal(host.__test.SELF_VERSION, '0.8.5');
 
 const installFailSpecs = [];
 const installFailManager = {
@@ -1211,7 +1217,7 @@ assert.equal(typeof hostRoute.handler, 'function');
 // ---------------------------------------------------------------------------
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 assert.equal(pkg.name, '@restregular/dsh-powerup');
-assert.equal(pkg.version, '0.8.4');
+assert.equal(pkg.version, '0.8.5');
 assert.equal(pkg.icon, './icon.svg');
 assert.equal(pkg.exports['./client'], './client.js');
 assert.equal(pkg.dsh.bundle.patch, './cordis.patch.yml');

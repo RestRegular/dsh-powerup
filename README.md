@@ -5,7 +5,8 @@ The upgrades include a **right-click action menu in the Trajectory view**, a
 **copyable step reference** that an agent can resolve back into the raw session
 data, an optional **stop reason for background jobs**, an in-place
 **plugin installer**, and a **sidebar launcher** that turns the left sidebar's
-panel list into an adaptive icon grid with drag sorting and folders.
+panel list into an adaptive icon grid with drag sorting, folders, a
+back-to-conversation tile and a restart-DSH tile.
 
 ## Install
 
@@ -116,6 +117,14 @@ entries other plugins add) become an icon grid instead of a one-per-row list:
   its own (chat glyph + label) that calls `layout.selectPanel(null)` to return
   to the Conversation; it highlights when no global panel is selected, can be
   placed anywhere by dragging, and never joins a folder either.
+- **A synthetic "Restart DSH" tile.** A second Power-Up tile (power glyph +
+  `重启` / `Restart`) opens the same restart confirmation the pending-restart
+  bar uses: the tile only calls into that React prompt, so there is one dialog,
+  one capability read (`GET /dsh-powerup/api/restart`) and one set of copy. The
+  confirmation explains that running tasks are interrupted; only a runtime that
+  can relaunch itself (the desktop app) enables the confirm button. The tile
+  drags like any other, never joins a folder, and is hidden with the rest of
+  the grid in the collapsed rail.
 - **Ungroup expands in place.** Dissolving a folder puts its icons back on the
   grid exactly where the folder sat, in the folder's own order — nothing jumps
   to the end of the grid.
@@ -221,13 +230,21 @@ fiber is unloaded. The panel closes; refresh the page when the install finishes.
   rows are resolved by shape — a direct `<button>`, or a wrapper (the More
   launcher's `Menu` root `<span>`) whose direct child is that button — because
   the wrapper element differs between the panel rows and the more menu.
+- **The DOM launcher borrows the React restart prompt.** The launcher is plain
+  DOM and cannot render React, so the Plugins overlay publishes its
+  `openRestart` in a module-level bridge while it is mounted; the synthetic
+  restart tile calls that, and gets the exact confirmation, capability check and
+  localized copy the pending-restart bar uses — nothing is duplicated. If the
+  overlay is not mounted at all (a host without `remote.pluginManager`), the
+  tile falls back to a browser confirm over the same Host route.
 - **Every sync write is idempotent.** The launcher observes its own `<nav>`
   with a `MutationObserver`, so a write that changes a watched subtree on every
   sync turns into an infinite loop — and a loop rebuilds the folder flyout
   continuously, which makes normal clicks miss (the node under the pointer is
   replaced between `pointerdown` and `click`). Setting `textContent` to the same
-  string still emits a `childList` mutation, so the synthetic chat tile only
-  writes its label when it actually changed, folder tiles rebuild only when
+  string still emits a `childList` mutation, so the synthetic chat/restart tiles
+  only write their labels when they actually changed, folder tiles rebuild only
+  when
   their signature changed, and the flyout re-renders only when its roster or
   name changed. A
   `MutationObserver` re-applies that after every host render, and the module

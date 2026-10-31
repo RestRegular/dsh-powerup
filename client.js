@@ -69,7 +69,7 @@
 
       const NS = 'dsh-powerup';
       const SETTINGS_KEY = 'dsh-powerup:settings:v1';
-      const VERSION = '0.8.4';
+      const VERSION = '0.8.5';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -107,7 +107,7 @@
           'page.jobStopDesc': '在会话顶部的后台任务面板里点停止按钮时，可以顺手填写停止原因；原因会附加在任务结束后注入会话的提示里。',
           'page.jobStopHow': '打开任意会话，点顶部的「后台任务」面板，在运行中的任务右侧点停止，填写原因（可留空）后确认。',
           'page.launcherTitle': '侧边栏启动器',
-          'page.launcherDesc': '把左侧边栏的面板按钮变成自适应图标网格：列数跟着侧边栏宽度走，图标在上、文字在下；拖动图标可以排序，把一个图标拖到另一个图标的中间就会合成一个分组（像 Windows 开始菜单的文件夹），点分组会以浮层弹出里面的图标。',
+          'page.launcherDesc': '把左侧边栏的面板按钮变成自适应图标网格：列数跟着侧边栏宽度走，图标在上、文字在下；拖动图标可以排序，把一个图标拖到另一个图标的中间就会合成一个分组（像 Windows 开始菜单的文件夹），点分组会以浮层弹出里面的图标。网格里自带「返回会话」和「重启 DSH」两个按钮。',
           'page.launcherToggle': '启用图标网格',
           'page.launcherToggleHint': '关闭后侧边栏恢复宿主原本的列表样式；排序与分组仍会保留。',
           'launcher.groupDefault': '分组',
@@ -116,6 +116,8 @@
           'launcher.dissolve': '解散分组',
           'launcher.removeItem': '移出分组',
           'launcher.backToConversation': '返回会话',
+          'launcher.restart': '重启',
+          'launcher.restartHint': '重启 DSH（正在运行的任务会中断）',
           'page.footer': 'Power-Up {version} · 设置在浏览器本地保存',
           'page.localOnly': '仅影响当前浏览器',
           'action.copy': '复制内容',
@@ -294,7 +296,7 @@
           'page.jobStopDesc': 'When you stop a running job from the background jobs panel in the session header, you can leave a reason; the reason is appended to the notice injected into the session when the job settles.',
           'page.jobStopHow': 'Open a session, expand the background jobs panel, press stop on a running job, type a reason (optional), then confirm.',
           'page.launcherTitle': 'Sidebar launcher',
-          'page.launcherDesc': 'Turns the left sidebar panel buttons into an adaptive icon grid: the column count follows the sidebar width, icons sit above their labels, icons can be dragged to reorder, dropping one icon onto the middle of another forms a folder (like a Windows Start menu folder), and clicking a folder opens its contents in a flyout.',
+          'page.launcherDesc': 'Turns the left sidebar panel buttons into an adaptive icon grid: the column count follows the sidebar width, icons sit above their labels, icons can be dragged to reorder, dropping one icon onto the middle of another forms a folder (like a Windows Start menu folder), and clicking a folder opens its contents in a flyout. The grid also carries two built-in buttons: back to conversation and restart DSH.',
           'page.launcherToggle': 'Enable the icon grid',
           'page.launcherToggleHint': 'When off, the sidebar keeps the host list; order and folders are remembered.',
           'launcher.groupDefault': 'Group',
@@ -303,6 +305,8 @@
           'launcher.dissolve': 'Ungroup',
           'launcher.removeItem': 'Remove from group',
           'launcher.backToConversation': 'Back to conversation',
+          'launcher.restart': 'Restart',
+          'launcher.restartHint': 'Restart DSH (running tasks are interrupted)',
           'page.footer': 'Power-Up {version} · Settings are stored in this browser',
           'page.localOnly': 'This browser only',
           'action.copy': 'Copy content',
@@ -550,8 +554,47 @@
       const LAUNCHER_MORE_KEY = '__more';
       /** Tile key of the Power-Up "back to conversation" tile. */
       const LAUNCHER_CHAT_KEY = '__chat';
+      /** Tile key of the Power-Up "restart DSH" tile. */
+      const LAUNCHER_RESTART_KEY = '__restart';
       /** 16-grid chat glyph for the synthetic "back to conversation" tile. */
       const LAUNCHER_CHAT_ICON = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M2.8 3.4h10.4v6.8H7.4L4.4 12.8v-2.6H2.8V3.4Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>';
+      /** 16-grid power glyph for the synthetic "restart DSH" tile. */
+      const LAUNCHER_RESTART_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M12 2.6v9.2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M18.36 6.64a9 9 0 1 1-12.73 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+      /**
+       * Bridge to the Plugins overlay's React restart prompt. The launcher is
+       * plain DOM and cannot render React, so the overlay publishes its opener
+       * here while it is mounted; the synthetic restart tile calls it and gets
+       * the same confirmation, capability check and locale-aware copy.
+       */
+      const restartPromptBridge = { open: null };
+
+      /**
+       * Last resort for a host where the Plugins overlay (and with it the
+       * React restart prompt) is not mounted: confirm with the browser and ask
+       * the Host restart route directly. Unreachable on a normal desktop/web
+       * host, where `remote.pluginManager` mounts the overlay.
+       */
+      async function restartWithoutPrompt() {
+        const t = (key, params) => translateCurrent(key, params);
+        try {
+          const capability = await fetch('/dsh-powerup/api/restart', { headers: { accept: 'application/json' } })
+            .then((response) => response.json());
+          if (capability?.supported !== true) {
+            window.alert(t('update.restartUnsupported', { reason: capability?.reason ?? '' }));
+            return;
+          }
+          if (window.confirm(t('restart.title') + ' ' + t('restart.desc')) !== true) return;
+          const response = await fetch('/dsh-powerup/api/restart', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ action: 'restart' }),
+          });
+          const data = await response.json().catch(() => null);
+          if (!response.ok || data?.ok !== true) throw new Error(data?.error ?? 'HTTP ' + response.status);
+        } catch (error) {
+          window.alert(t('update.restartFailed', { message: error?.message ?? String(error) }));
+        }
+      }
 
       function launcherGroupEntry(groupId) {
         return LAUNCHER_GROUP_PREFIX + groupId;
@@ -565,6 +608,16 @@
 
       function makeLauncherGroupId() {
         return 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      }
+
+      /**
+       * Synthetic tiles (back to conversation, restart DSH, the host's "more"
+       * launcher) always live directly on the grid and can never join a folder.
+       * @param {string} key tile key
+       * @returns {boolean}
+       */
+      function isLauncherSpecialKey(key) {
+        return key === LAUNCHER_CHAT_KEY || key === LAUNCHER_RESTART_KEY || key === LAUNCHER_MORE_KEY;
       }
 
       /**
@@ -679,6 +732,7 @@
         const writeRaw = typeof options.write === 'function' ? options.write : () => {};
         const listPanels = typeof options.listPanels === 'function' ? options.listPanels : () => [];
         const selectConversation = typeof options.selectConversation === 'function' ? options.selectConversation : () => {};
+        const openRestart = typeof options.openRestart === 'function' ? options.openRestart : () => false;
 
         let nav = null;
         let docObserver = null;
@@ -692,6 +746,7 @@
         let hostTiles = [];
         let folderButtons = new Map();
         let chatButton = null;
+        let restartButton = null;
         let dropLine = null;
         let drag = null;
         let popup = null;
@@ -799,7 +854,9 @@
           const tiles = [];
           const usedKeys = new Set();
           for (const child of [...container.children]) {
-            if (child.hasAttribute('data-powerup-folder') || child.hasAttribute('data-powerup-chat')) continue;
+            if (child.hasAttribute('data-powerup-folder')
+              || child.hasAttribute('data-powerup-chat')
+              || child.hasAttribute('data-powerup-restart')) continue;
             if (typeof child.classList === 'object' && child.classList !== null && child.classList.contains('dsh-powerup-drop-line')) continue;
             let gridEl = child;
             let buttonEl = null;
@@ -896,14 +953,28 @@
           return button;
         }
 
+        /** Refresh a synthetic tile's label and tooltip without churning text. */
+        function setSyntheticLabel(button, label, hint) {
+          button.setAttribute('aria-label', label);
+          button.setAttribute('title', hint === undefined ? label : hint);
+          const text = typeof button.querySelector === 'function' ? button.querySelector('.dsh-powerup-synth-label') : null;
+          if (text !== null && text.textContent !== label) text.textContent = label;
+        }
+
+        /** Build a synthetic tile: shared grid styling, one glyph, one label. */
+        function createSyntheticTile(className, attribute, icon) {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'dsh-powerup-synth ' + className;
+          button.setAttribute(attribute, '');
+          button.innerHTML = '<span class="dsh-powerup-synth-glyph" aria-hidden="true">' + icon + '</span><span class="dsh-powerup-synth-label"></span>';
+          return button;
+        }
+
         /** The synthetic "back to conversation" tile, created once and re-used. */
         function ensureChatButton() {
           if (chatButton !== null && chatButton.isConnected === true) return chatButton;
-          const button = document.createElement('button');
-          button.type = 'button';
-          button.className = 'dsh-powerup-chat';
-          button.setAttribute('data-powerup-chat', '');
-          button.innerHTML = '<span class="dsh-powerup-chat-glyph" aria-hidden="true">' + LAUNCHER_CHAT_ICON + '</span><span class="dsh-powerup-chat-label"></span>';
+          const button = createSyntheticTile('dsh-powerup-chat', 'data-powerup-chat', LAUNCHER_CHAT_ICON);
           button.addEventListener('click', (event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -917,6 +988,30 @@
           });
           nav.appendChild(button);
           chatButton = button;
+          return button;
+        }
+
+        /**
+         * The synthetic "restart DSH" tile, created once and re-used. It hands
+         * the click to the React restart prompt owned by the Plugins overlay,
+         * so the sidebar and the pending-restart bar share one confirmation.
+         */
+        function ensureRestartButton() {
+          if (restartButton !== null && restartButton.isConnected === true) return restartButton;
+          const button = createSyntheticTile('dsh-powerup-restart', 'data-powerup-restart', LAUNCHER_RESTART_ICON);
+          button.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (drag !== null && drag.active) return;
+            closePopup();
+            try {
+              if (openRestart() === false) warn('the restart prompt is not available in this host');
+            } catch (error) {
+              warn('restart prompt could not be opened:', error);
+            }
+          });
+          nav.appendChild(button);
+          restartButton = button;
           return button;
         }
 
@@ -934,6 +1029,7 @@
           folderButtons.forEach((button) => button.remove());
           folderButtons = new Map();
           if (chatButton !== null) chatButton.style.display = 'none';
+          if (restartButton !== null) restartButton.style.display = 'none';
           if (dropLine !== null) {
             dropLine.remove();
             dropLine = null;
@@ -980,7 +1076,7 @@
             hostTiles = collectHostTiles(nav);
             const wide = detectWide(hostTiles);
             nav.classList.toggle('dsh-powerup-launcher-wide', wide);
-            const panelKeys = [LAUNCHER_CHAT_KEY, ...hostTiles.map((tile) => tile.key)];
+            const panelKeys = [LAUNCHER_CHAT_KEY, LAUNCHER_RESTART_KEY, ...hostTiles.map((tile) => tile.key)];
             if (pendingLoad) {
               pendingLoad = false;
               state = normalizeLauncherState(readPersisted(), panelKeys);
@@ -1003,15 +1099,16 @@
               tile.gridEl.style.order = position === undefined ? '' : String(position);
             }
             const chat = ensureChatButton();
-            const chatLabel = t('launcher.backToConversation');
-            chat.setAttribute('aria-label', chatLabel);
-            chat.setAttribute('title', chatLabel);
-            const chatText = typeof chat.querySelector === 'function' ? chat.querySelector('.dsh-powerup-chat-label') : null;
-            if (chatText !== null && chatText.textContent !== chatLabel) chatText.textContent = chatLabel;
+            setSyntheticLabel(chat, t('launcher.backToConversation'));
             chat.style.display = wide ? '' : 'none';
             const chatPosition = orderIndex.get(LAUNCHER_CHAT_KEY);
             chat.style.order = chatPosition === undefined ? '' : String(chatPosition);
             chat.classList.toggle('is-active', hostTiles.every((tile) => tile.active !== true));
+            const restart = ensureRestartButton();
+            setSyntheticLabel(restart, t('launcher.restart'), t('launcher.restartHint'));
+            restart.style.display = wide ? '' : 'none';
+            const restartPosition = orderIndex.get(LAUNCHER_RESTART_KEY);
+            restart.style.order = restartPosition === undefined ? '' : String(restartPosition);
             const live = new Set();
             for (const [groupId, group] of Object.entries(state.groups)) {
               live.add(groupId);
@@ -1496,8 +1593,11 @@
           const candidates = [];
           for (const entry of state.order) {
             if (entry === excludeKey) continue;
-            if (entry === LAUNCHER_CHAT_KEY) {
-              if (chatButton !== null && chatButton.isConnected === true) candidates.push({ key: entry, el: chatButton, kind: 'chat' });
+            if (entry === LAUNCHER_CHAT_KEY || entry === LAUNCHER_RESTART_KEY) {
+              const button = entry === LAUNCHER_CHAT_KEY ? chatButton : restartButton;
+              if (button !== null && button.isConnected === true) {
+                candidates.push({ key: entry, el: button, kind: entry === LAUNCHER_CHAT_KEY ? 'chat' : 'restart' });
+              }
               continue;
             }
             const groupId = launcherEntryGroupId(entry);
@@ -1520,6 +1620,9 @@
           if (button === null || nav === null || !nav.contains(button)) return null;
           if (button.hasAttribute('data-powerup-chat')) {
             return { kind: 'chat', key: LAUNCHER_CHAT_KEY, gridEl: button, label: t('launcher.backToConversation') };
+          }
+          if (button.hasAttribute('data-powerup-restart')) {
+            return { kind: 'restart', key: LAUNCHER_RESTART_KEY, gridEl: button, label: t('launcher.restart') };
           }
           const folderId = button.getAttribute('data-powerup-folder');
           if (folderId !== null) {
@@ -1622,8 +1725,7 @@
             const centerX = rect.left + rect.width / 2;
             const centerY = rect.top + rect.height / 2;
             const nearCenter = Math.abs(x - centerX) <= rect.width * 0.28 && Math.abs(y - centerY) <= rect.height * 0.32;
-            const special = candidate.key === LAUNCHER_CHAT_KEY || candidate.key === LAUNCHER_MORE_KEY
-              || drag.descriptor.key === LAUNCHER_CHAT_KEY || drag.descriptor.key === LAUNCHER_MORE_KEY;
+            const special = isLauncherSpecialKey(candidate.key) || isLauncherSpecialKey(drag.descriptor.key);
             if (nearCenter && !special) {
               drop = { kind: 'merge', target: candidate };
             } else {
@@ -1752,8 +1854,7 @@
 
         function performMerge(sourceKey, targetKey) {
           if (sourceKey === targetKey) return;
-          if (sourceKey === LAUNCHER_CHAT_KEY || targetKey === LAUNCHER_CHAT_KEY
-            || sourceKey === LAUNCHER_MORE_KEY || targetKey === LAUNCHER_MORE_KEY) return;
+          if (isLauncherSpecialKey(sourceKey) || isLauncherSpecialKey(targetKey)) return;
           const sourceGroupId = launcherEntryGroupId(sourceKey);
           const targetGroupId = launcherEntryGroupId(targetKey);
           if (sourceGroupId !== null && sourceGroupId === targetGroupId) return;
@@ -1846,6 +1947,10 @@
             chatButton.remove();
             chatButton = null;
           }
+          if (restartButton !== null) {
+            restartButton.remove();
+            restartButton = null;
+          }
           state = { order: [], groups: {} };
           pendingLoad = true;
           nav = null;
@@ -1916,6 +2021,14 @@
           selectConversation: () => {
             const layout = ctx.get('layout');
             if (layout !== undefined && layout !== null && typeof layout.selectPanel === 'function') layout.selectPanel(null);
+          },
+          openRestart: () => {
+            if (restartPromptBridge.open !== null) {
+              restartPromptBridge.open();
+              return true;
+            }
+            void restartWithoutPrompt();
+            return true;
           },
         });
         ctx.effect(() => {
@@ -2240,9 +2353,9 @@
        */
       const LAUNCHER_CSS = `
 nav.dsh-powerup-launcher.dsh-powerup-launcher-wide{position:relative;display:grid!important;grid-template-columns:repeat(auto-fill,minmax(58px,1fr));grid-auto-rows:min-content;gap:2px;align-content:start;align-items:stretch;margin:0 0 10px;padding:2px 0}
-nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button,nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]>button,.dsh-powerup-folder,.dsh-powerup-chat{box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:auto;min-width:0;height:auto;min-height:52px;margin:0;padding:6px 2px 5px;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:11px;line-height:14px;text-align:center;cursor:pointer;user-select:none;-webkit-user-select:none;transition:background .12s ease,color .12s ease,transform .12s ease}
-nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:hover,nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]>button:hover,.dsh-powerup-folder:hover,.dsh-powerup-chat:hover{background:var(--dsw-alias-interactive-bg-hover)}
-nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:active,nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]>button:active,.dsh-powerup-folder:active,.dsh-powerup-chat:active{transform:scale(.96)}
+nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button,nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]>button,.dsh-powerup-folder,.dsh-powerup-synth{box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:auto;min-width:0;height:auto;min-height:52px;margin:0;padding:6px 2px 5px;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:11px;line-height:14px;text-align:center;cursor:pointer;user-select:none;-webkit-user-select:none;transition:background .12s ease,color .12s ease,transform .12s ease}
+nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:hover,nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]>button:hover,.dsh-powerup-folder:hover,.dsh-powerup-synth:hover{background:var(--dsw-alias-interactive-bg-hover)}
+nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:active,nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]>button:active,.dsh-powerup-folder:active,.dsh-powerup-synth:active{transform:scale(.96)}
 nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button[class*="panelActive"],nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]>button[aria-expanded=true]{background:var(--dsw-alias-interactive-bg-hover)}
 nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]{display:flex!important;flex-direction:column;min-width:0;margin:0}
 nav.dsh-powerup-launcher.dsh-powerup-launcher-wide [class*="panelGlyph"]{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;flex:none}
@@ -2258,12 +2371,12 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:hover [class*="panelTi
 .dsh-powerup-folder-name{display:block;width:100%;max-width:100%;color:var(--dsw-alias-label-secondary);font-size:11px;line-height:14px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dsh-powerup-folder.is-active .dsh-powerup-folder-name{color:var(--dsw-alias-label-primary)}
 .dsh-powerup-folder.is-active .dsh-powerup-folder-stack{background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 22%,transparent)}
-.dsh-powerup-chat-glyph{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;flex:none;color:var(--dsw-alias-label-secondary)}
-.dsh-powerup-chat-glyph svg{width:20px;height:20px}
-.dsh-powerup-chat-label{display:block;width:100%;max-width:100%;color:var(--dsw-alias-label-secondary);font-size:11px;line-height:14px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.dsh-powerup-chat:hover .dsh-powerup-chat-label{color:var(--dsw-alias-label-primary)}
+.dsh-powerup-synth-glyph{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;flex:none;color:var(--dsw-alias-label-secondary)}
+.dsh-powerup-synth-glyph svg{width:20px;height:20px}
+.dsh-powerup-synth-label{display:block;width:100%;max-width:100%;color:var(--dsw-alias-label-secondary);font-size:11px;line-height:14px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dsh-powerup-synth:hover .dsh-powerup-synth-label{color:var(--dsw-alias-label-primary)}
 .dsh-powerup-chat.is-active{background:var(--dsw-alias-interactive-bg-hover)}
-.dsh-powerup-chat.is-active .dsh-powerup-chat-label,.dsh-powerup-chat.is-active .dsh-powerup-chat-glyph{color:var(--dsw-alias-label-primary)}
+.dsh-powerup-chat.is-active .dsh-powerup-synth-label,.dsh-powerup-chat.is-active .dsh-powerup-synth-glyph{color:var(--dsw-alias-label-primary)}
 .dsh-powerup-dragging{opacity:.32}
 .dsh-powerup-merge-target{background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 17%,transparent)!important;box-shadow:inset 0 0 0 1px var(--dsw-alias-state-business-primary)}
 .dsh-powerup-drop-line{position:absolute;z-index:6;display:none;width:2px;border-radius:999px;background:var(--dsw-alias-state-business-primary);box-shadow:0 0 0 1px color-mix(in srgb,var(--dsw-alias-state-business-primary) 26%,transparent);pointer-events:none}
@@ -2302,7 +2415,7 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:hover [class*="panelTi
 .dsh-powerup-folder-item-ghost .dsh-powerup-folder-item-glyph svg{width:20px;height:20px}
 .dsh-powerup-folder-item-ghost .dsh-powerup-folder-item-label{display:block;width:100%;max-width:100%;color:var(--dsw-alias-label-secondary);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dsh-powerup-folder-item-ghost .dsh-powerup-folder-item-remove{display:none}
-@media (prefers-reduced-motion:reduce){nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button,nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]>button,.dsh-powerup-folder,.dsh-powerup-folder-pop,.dsh-powerup-drag-ghost,.dsh-powerup-drop-line{transition:none}}
+@media (prefers-reduced-motion:reduce){nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button,nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]>button,.dsh-powerup-folder,.dsh-powerup-synth,.dsh-powerup-folder-pop,.dsh-powerup-drag-ghost,.dsh-powerup-drop-line{transition:none}}
 `;
 
       const CSS = `
@@ -4665,6 +4778,17 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:hover [class*="panelTi
         };
         openRestartRef.current = openRestart;
 
+        // The sidebar launcher is plain DOM and cannot render React, so it
+        // calls this opener for its synthetic "restart DSH" tile. Keeping the
+        // opener here means the sidebar and the pending-restart bar share one
+        // confirmation dialog, one capability read and one set of copy.
+        useEffect(() => {
+          restartPromptBridge.open = () => openRestartRef.current();
+          return () => {
+            if (restartPromptBridge.open !== null) restartPromptBridge.open = null;
+          };
+        }, []);
+
         /** Confirm the list-header restart. */
         const confirmRestart = async () => {
           if (restartBusy) return;
@@ -4755,7 +4879,9 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:hover [class*="panelTi
         h('div', { className: 'dsh-powerup-update-head' },
           h('div', { className: 'dsh-powerup-update-heading' },
             h('h2', { id: 'dsh-powerup-restart-title' }, t('restart.title')),
-            h('p', null, t('restart.pending', { count: pending.length })),
+            /* A sidebar-initiated restart usually has no pending plugins, so the
+               subtitle only appears when there is something to report. */
+            pending.length === 0 ? null : h('p', null, t('restart.pending', { count: pending.length })),
           ),
           restartBusy ? null : h('button', { type: 'button', className: 'dsh-powerup-update-close', 'aria-label': t('update.close'), onClick: () => setRestartAsk(false) }, '×'),
         ),
@@ -5649,6 +5775,9 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:hover [class*="panelTi
           CSS,
           LAUNCHER_CSS,
           LAUNCHER_STORAGE_KEY,
+          LAUNCHER_CHAT_KEY,
+          LAUNCHER_RESTART_KEY,
+          LAUNCHER_RESTART_ICON,
           normalizeLauncherState,
           dissolveGroupOrder,
           createLauncherCore,
