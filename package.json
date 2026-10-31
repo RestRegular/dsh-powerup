@@ -1,6 +1,6 @@
 {
   "name": "@restregular/dsh-powerup",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "description": "Power-Up — small, opt-in upgrades for DeepSeek Harness. Adds a right-click action menu to the Trajectory ledger, an optional stop reason in the session header's background jobs panel (appended to the injected completion notice), and an install control for third-party plugins from the Plugins page: read versions from the configured registries, install the version in the input through the Add plugin path (removing the old copy first), mark restart-needed installs, hand Power-Up's own install to the background, and optionally restart DSH. One-click install skips the enable and restart questions and can apply those actions automatically with configurable defaults. The ledger menu also copies a step reference (session id + step id) that the read-only powerup_step_read tool resolves back into the raw session data. · 为 DeepSeek Harness 提供小型增强：在轨迹页面右键记录即可复制、引用、查看详情或从该记录 Fork；右键「复制步骤引用」得到「会话 ID + 步骤 ID」，Agent 用只读工具 powerup_step_read 即可取回该步骤的完整原始数据；在会话顶部的后台任务面板手动停止任务时可填写停止原因，原因会附加到任务结束后的会话提示；并在插件页为第三方已安装插件提供安装按钮，从安装源读取版本，按输入框中的版本沿用「添加插件」流程安装（先卸载旧版），支持待重启标记、Power-Up 自身后台安装与可选重启；安装面板提供「一键安装」，按输入框版本安装并跳过启用/重启询问，默认自动启用并重启，可在 Power-Up 页面调整默认行为。 · 侧边栏启动器：把左侧边栏的面板按钮变成随宽度自适应的图标网格（图标在上、文字在下），支持拖拽排序与分组（拖到另一个图标中间即合并为分组，点击分组弹出浮层展示内部图标），可随时整体关闭。",
   "icon": "./icon.svg",
   "type": "module",

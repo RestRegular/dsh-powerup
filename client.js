@@ -69,7 +69,7 @@
 
       const NS = 'dsh-powerup';
       const SETTINGS_KEY = 'dsh-powerup:settings:v1';
-      const VERSION = '0.8.2';
+      const VERSION = '0.8.3';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -671,6 +671,7 @@
         let dropLine = null;
         let drag = null;
         let popup = null;
+        let popupDrag = null;
 
         function warn(message, error) {
           try {
@@ -982,7 +983,7 @@
             chat.setAttribute('aria-label', chatLabel);
             chat.setAttribute('title', chatLabel);
             const chatText = typeof chat.querySelector === 'function' ? chat.querySelector('.dsh-powerup-chat-label') : null;
-            if (chatText !== null) chatText.textContent = chatLabel;
+            if (chatText !== null && chatText.textContent !== chatLabel) chatText.textContent = chatLabel;
             chat.style.display = wide ? '' : 'none';
             const chatPosition = orderIndex.get(LAUNCHER_CHAT_KEY);
             chat.style.order = chatPosition === undefined ? '' : String(chatPosition);
@@ -1002,9 +1003,9 @@
               button.remove();
               folderButtons.delete(groupId);
             }
-            if (popup !== null) {
+            if (popup !== null && popupDrag === null) {
               if (state.groups[popup.groupId] === undefined) closePopup();
-              else renderPopup();
+              else refreshPopup();
             }
           } catch (error) {
             warn('launcher sync failed:', error);
@@ -1059,6 +1060,7 @@
 
         function closePopup() {
           if (popup === null) return;
+          endPopupDrag();
           const element = popup.element;
           popup = null;
           document.removeEventListener('pointerdown', onPopupOutside, true);
@@ -1131,6 +1133,25 @@
           element.style.transformOrigin = originX + ' 22%';
         }
 
+        function popupSignature(group) {
+          return group.name + '\u0000' + group.items.join('\u0000');
+        }
+
+        /** Re-render the flyout only when its roster or name actually changed. */
+        function refreshPopup() {
+          if (popup === null) return;
+          const group = state.groups[popup.groupId];
+          if (group === undefined) {
+            closePopup();
+            return;
+          }
+          if (popup.signature === popupSignature(group)) {
+            positionPopup();
+            return;
+          }
+          renderPopup();
+        }
+
         function renderPopup() {
           if (popup === null) return;
           const group = state.groups[popup.groupId];
@@ -1138,6 +1159,7 @@
             closePopup();
             return;
           }
+          popup.signature = popupSignature(group);
           const element = popup.element;
           element.textContent = '';
           const head = document.createElement('div');
@@ -1168,6 +1190,7 @@
             item.setAttribute('role', 'button');
             item.setAttribute('tabindex', '0');
             item.setAttribute('aria-label', tile.label);
+            item.setAttribute('data-powerup-item', key);
             const glyph = document.createElement('span');
             glyph.className = 'dsh-powerup-folder-item-glyph';
             glyph.innerHTML = tile.glyphHtml;
@@ -1193,7 +1216,11 @@
               removeFromGroup(popup === null ? null : popup.groupId, key);
             });
             item.append(glyph, label, remove);
-            item.addEventListener('click', () => selectPanel(tile));
+            item.addEventListener('pointerdown', onPopupItemPointerDown);
+            item.addEventListener('click', () => {
+              if (popupDrag !== null && popupDrag.moved === true) return;
+              selectPanel(tile);
+            });
             item.addEventListener('keydown', (event) => {
               if (event.key !== 'Enter' && event.key !== ' ') return;
               event.preventDefault();
@@ -1203,6 +1230,140 @@
           }
           element.append(head, grid);
           positionPopup();
+        }
+
+        // ----------------------------------------------------------------
+        // Drag inside the flyout: reorder members, or drag one out to the grid
+        // ----------------------------------------------------------------
+        function popupItemElements() {
+          if (popup === null) return [];
+          return [...popup.element.querySelectorAll('.dsh-powerup-folder-item')];
+        }
+
+        function onPopupItemPointerDown(event) {
+          if (popup === null) return;
+          if (event.button !== undefined && event.button !== 0) return;
+          const target = event.target;
+          if (target === null || target === undefined || typeof target.closest !== 'function') return;
+          if (target.closest('.dsh-powerup-folder-item-remove') !== null) return;
+          const item = target.closest('.dsh-powerup-folder-item');
+          if (item === null) return;
+          const key = item.getAttribute('data-powerup-item');
+          if (key === null || key === '') return;
+          popupDrag = {
+            groupId: popup.groupId,
+            key,
+            item,
+            startX: event.clientX,
+            startY: event.clientY,
+            active: false,
+            moved: false,
+            outside: false,
+            ghost: null,
+            offsetX: 0,
+            offsetY: 0,
+          };
+          document.addEventListener('pointermove', onPopupItemMove, { capture: true, passive: false });
+          document.addEventListener('pointerup', onPopupItemUp, true);
+          document.addEventListener('pointercancel', onPopupItemUp, true);
+        }
+
+        function beginPopupDrag() {
+          if (popupDrag === null || popup === null) return;
+          popupDrag.active = true;
+          popupDrag.moved = true;
+          const rect = popupDrag.item.getBoundingClientRect();
+          const ghost = popupDrag.item.cloneNode(true);
+          ghost.className = 'dsh-powerup-folder-item-ghost';
+          ghost.removeAttribute('data-powerup-item');
+          ghost.style.width = rect.width + 'px';
+          ghost.style.height = rect.height + 'px';
+          ghost.style.left = rect.left + 'px';
+          ghost.style.top = rect.top + 'px';
+          document.body.appendChild(ghost);
+          popupDrag.ghost = ghost;
+          popupDrag.offsetX = popupDrag.startX - rect.left;
+          popupDrag.offsetY = popupDrag.startY - rect.top;
+          popupDrag.item.classList.add('is-dragging');
+          popup.element.classList.add('is-reordering');
+        }
+
+        function onPopupItemMove(event) {
+          if (popupDrag === null || popup === null) return;
+          if (!popupDrag.active) {
+            const dx = event.clientX - popupDrag.startX;
+            const dy = event.clientY - popupDrag.startY;
+            if (Math.sqrt(dx * dx + dy * dy) < 5) return;
+            beginPopupDrag();
+          }
+          if (typeof event.preventDefault === 'function') event.preventDefault();
+          if (popupDrag.ghost !== null) {
+            popupDrag.ghost.style.left = Math.round(event.clientX - popupDrag.offsetX) + 'px';
+            popupDrag.ghost.style.top = Math.round(event.clientY - popupDrag.offsetY) + 'px';
+          }
+          const rect = popup.element.getBoundingClientRect();
+          const outside = event.clientX < rect.left - 12 || event.clientX > rect.right + 12
+            || event.clientY < rect.top - 12 || event.clientY > rect.bottom + 12;
+          if (outside !== popupDrag.outside) {
+            popupDrag.outside = outside;
+            popup.element.classList.toggle('is-dragging-out', outside);
+          }
+          if (outside) return;
+          const hit = typeof document.elementFromPoint === 'function' ? document.elementFromPoint(event.clientX, event.clientY) : null;
+          const targetItem = hit !== null && hit !== undefined && typeof hit.closest === 'function' ? hit.closest('.dsh-powerup-folder-item') : null;
+          if (targetItem === null || targetItem === popupDrag.item || popup.element.contains(targetItem) !== true) return;
+          const targetRect = targetItem.getBoundingClientRect();
+          const centerX = targetRect.left + targetRect.width / 2;
+          const centerY = targetRect.top + targetRect.height / 2;
+          /* Same row → compare along the row; another row → compare vertically. */
+          const sameRow = Math.abs(event.clientY - centerY) <= targetRect.height / 2;
+          const before = sameRow ? event.clientX < centerX : event.clientY < centerY;
+          const grid = targetItem.parentNode;
+          if (grid === null) return;
+          if (before) grid.insertBefore(popupDrag.item, targetItem);
+          else grid.insertBefore(popupDrag.item, targetItem.nextSibling);
+        }
+
+        function endPopupDrag() {
+          document.removeEventListener('pointermove', onPopupItemMove, { capture: true, passive: false });
+          document.removeEventListener('pointerup', onPopupItemUp, true);
+          document.removeEventListener('pointercancel', onPopupItemUp, true);
+          if (popupDrag !== null) {
+            if (popupDrag.ghost !== null) popupDrag.ghost.remove();
+            if (popupDrag.item !== undefined) popupDrag.item.classList.remove('is-dragging');
+            if (popup !== null) popup.element.classList.remove('is-reordering', 'is-dragging-out');
+          }
+          popupDrag = null;
+        }
+
+        function onPopupItemUp() {
+          if (popupDrag === null) return;
+          const data = popupDrag;
+          const active = data.active;
+          const outside = data.outside;
+          endPopupDrag();
+          if (!active) return;
+          suppressNextClick();
+          if (popup === null) return;
+          if (outside) {
+            if (detachFromGroup(data.groupId, data.key)) {
+              closePopup();
+              sync();
+            }
+            return;
+          }
+          const group = state.groups[data.groupId];
+          if (group === undefined) return;
+          const items = popupItemElements()
+            .map((element) => element.getAttribute('data-powerup-item'))
+            .filter((key) => typeof key === 'string' && key !== '');
+          if (items.length !== group.items.length) {
+            renderPopup();
+            return;
+          }
+          state = { order: state.order, groups: { ...state.groups, [data.groupId]: { ...group, items } } };
+          save();
+          sync();
         }
 
         function beginRename() {
@@ -1257,22 +1418,37 @@
           closePopup();
         }
 
-        function removeFromGroup(groupId, key) {
-          if (groupId === null || typeof groupId !== 'string' || typeof key !== 'string') return;
+        /**
+         * Take one member out of a folder and put it back on the grid right
+         * after the folder (the folder dissolves when it becomes empty).
+         * @returns {boolean} whether the member was removed.
+         */
+        function detachFromGroup(groupId, key) {
+          if (groupId === null || typeof groupId !== 'string' || typeof key !== 'string') return false;
           const group = state.groups[groupId];
-          if (group === undefined) return;
+          if (group === undefined) return false;
           const items = group.items.filter((entry) => entry !== key);
-          const order = state.order.filter((entry) => entry !== key);
           const groups = { ...state.groups };
+          const folderEntry = launcherGroupEntry(groupId);
+          let order = state.order.filter((entry) => entry !== key);
+          const folderIndex = order.indexOf(folderEntry);
           if (items.length === 0) {
             delete groups[groupId];
-            state = { order: order.filter((entry) => entry !== launcherGroupEntry(groupId)), groups };
+            order = order.filter((entry) => entry !== folderEntry);
+            if (folderIndex >= 0) order.splice(folderIndex, 0, key);
+            else order.push(key);
           } else {
             groups[groupId] = { ...group, items };
-            order.push(key);
-            state = { order, groups };
+            const insertAt = folderIndex >= 0 ? folderIndex + 1 : order.length;
+            order.splice(insertAt, 0, key);
           }
+          state = { order: dedupeEntries(order), groups };
           save();
+          return true;
+        }
+
+        function removeFromGroup(groupId, key) {
+          if (!detachFromGroup(groupId, key)) return;
           sync();
         }
 
@@ -2095,6 +2271,15 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:hover [class*="panelTi
 .dsh-powerup-folder-item-remove{position:absolute;top:1px;right:2px;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;padding:0;border:0;border-radius:50%;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-tertiary);font:inherit;font-size:11px;line-height:15px;cursor:pointer;opacity:0;transition:opacity .12s ease}
 .dsh-powerup-folder-item:hover .dsh-powerup-folder-item-remove,.dsh-powerup-folder-item-remove:focus-visible{opacity:1}
 .dsh-powerup-folder-item-remove:hover{color:var(--dsw-alias-label-primary)}
+.dsh-powerup-folder-item[data-powerup-item]{cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.dsh-powerup-folder-item.is-dragging{opacity:.3}
+.dsh-powerup-folder-pop.is-reordering{overflow:visible}
+.dsh-powerup-folder-pop.is-dragging-out{opacity:.7;transform:scale(.97)}
+.dsh-powerup-folder-item-ghost{position:fixed;z-index:1900;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px 2px 5px;border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);color:var(--dsw-alias-label-primary);font-size:11px;line-height:14px;pointer-events:none;opacity:.96;transform:scale(1.05)}
+.dsh-powerup-folder-item-ghost .dsh-powerup-folder-item-glyph{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;flex:none;color:var(--dsw-alias-label-secondary)}
+.dsh-powerup-folder-item-ghost .dsh-powerup-folder-item-glyph svg{width:20px;height:20px}
+.dsh-powerup-folder-item-ghost .dsh-powerup-folder-item-label{display:block;width:100%;max-width:100%;color:var(--dsw-alias-label-secondary);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dsh-powerup-folder-item-ghost .dsh-powerup-folder-item-remove{display:none}
 @media (prefers-reduced-motion:reduce){nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button,nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]>button,.dsh-powerup-folder,.dsh-powerup-folder-pop,.dsh-powerup-drag-ghost,.dsh-powerup-drop-line{transition:none}}
 `;
 

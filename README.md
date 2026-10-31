@@ -116,6 +116,11 @@ entries other plugins add) become an icon grid instead of a one-per-row list:
   its own (chat glyph + label) that calls `layout.selectPanel(null)` to return
   to the Conversation; it highlights when no global panel is selected, can be
   placed anywhere by dragging, and never joins a folder either.
+- **Drag inside a folder.** Tiles in the flyout are drag handles: drag one over
+  another to reorder the folder's contents, or drag it out of the flyout and
+  drop it anywhere else to put it back on the grid right after the folder
+  (the folder dissolves once it is empty). The folder flyout never re-renders
+  while it is being dragged.
 - **Collapsed sidebar stays native.** When the sidebar collapses to its 56px
   rail there are no labels to stack, so the launcher steps aside and the host's
   rail rendering takes over untouched.
@@ -212,7 +217,16 @@ fiber is unloaded. The panel closes; refresh the page when the install finishes.
   would drop an added class), and sorts with the grid's `order` property. Host
   rows are resolved by shape — a direct `<button>`, or a wrapper (the More
   launcher's `Menu` root `<span>`) whose direct child is that button — because
-  the wrapper element differs between the panel rows and the more menu. A
+  the wrapper element differs between the panel rows and the more menu.
+- **Every sync write is idempotent.** The launcher observes its own `<nav>`
+  with a `MutationObserver`, so a write that changes a watched subtree on every
+  sync turns into an infinite loop — and a loop rebuilds the folder flyout
+  continuously, which makes normal clicks miss (the node under the pointer is
+  replaced between `pointerdown` and `click`). Setting `textContent` to the same
+  string still emits a `childList` mutation, so the synthetic chat tile only
+  writes its label when it actually changed, folder tiles rebuild only when
+  their signature changed, and the flyout re-renders only when its roster or
+  name changed. A
   `MutationObserver` re-applies that after every host render, and the module
   falls back to the native rail whenever the wide layout disappears.
 - **Launcher state is tiny and self-healing.** `dsh-powerup:launcher:v1` stores
