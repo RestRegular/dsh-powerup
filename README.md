@@ -3,8 +3,9 @@
 Small, opt-in upgrades for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness).
 The upgrades include a **right-click action menu in the Trajectory view**, a
 **copyable step reference** that an agent can resolve back into the raw session
-data, an optional **stop reason for background jobs**, and an in-place
-**plugin installer**.
+data, an optional **stop reason for background jobs**, an in-place
+**plugin installer**, and a **sidebar launcher** that turns the left sidebar's
+panel list into an adaptive icon grid with drag sorting and folders.
 
 ## Install
 
@@ -86,6 +87,31 @@ to 50 neighboring events on each side, and `requests: true` also includes the
 omitted by default because they are large. The tool is workspace-agnostic: it
 reads the session named in the reference through `ctx.sessionQuery`, so an agent
 can open a step in a session it never had to locate on disk.
+
+### Sidebar launcher
+
+The left sidebar's global panel buttons (Conversation, Files, Plugins, and the
+entries other plugins add) become an icon grid instead of a one-per-row list:
+
+- **Columns follow the width.** The list is an `auto-fill` grid of
+  `minmax(58px, 1fr)` cells, so widening the sidebar adds columns and narrowing
+  it removes them — there is no fixed column count to break.
+- **Icons above labels.** Each tile stacks a 20px icon over an 11px caption, one
+  line with an ellipsis when the label is long.
+- **Drag to sort.** Press and drag a tile; a ghost follows the pointer and a
+  thin accent line marks the insertion point. Order is stored per browser.
+- **Drop onto a tile's middle to build a folder.** Dropping on the middle of
+  another icon folds both into a folder tile (like a Windows Start menu folder);
+  dropping on a folder adds to it; dropping a folder onto an icon or another
+  folder merges them. Click a folder and the contained icons appear in a flyout
+  anchored to the tile, scaling in from its edge. Inside the flyout: click an
+  entry to open that panel, `×` removes it from the folder, click the title to
+  rename the folder, and **Ungroup** returns every member to the grid.
+- **Collapsed sidebar stays native.** When the sidebar collapses to its 56px
+  rail there are no labels to stack, so the launcher steps aside and the host's
+  rail rendering takes over untouched.
+- The grid can be switched off on the Power-Up page; order and folders survive
+  the switch and are kept in `localStorage`.
 
 ## Install a plugin
 
@@ -170,6 +196,18 @@ fiber is unloaded. The panel closes; refresh the page when the install finishes.
   The typed reason goes to `POST /dsh-powerup/api/job-kill`, which calls the
   registry's `kill(id, session, reason)` — the same admission the built-in
   Remote uses, with the reason settlement merges into the job's `detail` line.
+- **The launcher upgrades the host list in place.** It never re-renders the
+  host's own panel rows: it marks the `<nav>`, applies grid/tile CSS, appends
+  synthetic folder tiles, hides the rows that moved into a folder with an
+  inline `display` (React rewrites `className` when the active panel changes and
+  would drop an added class), and sorts with the grid's `order` property. A
+  `MutationObserver` re-applies that after every host render, and the module
+  falls back to the native rail whenever the wide layout disappears.
+- **Launcher state is tiny and self-healing.** `dsh-powerup:launcher:v1` stores
+  only an order array plus group records. `normalizeLauncherState` drops panels
+  that no longer exist (unregistered or unpinned), appends new ones in host
+  order, and dissolves empty folders, so plugin changes never wedge the layout
+  or lose the settings of the panels that remain.
 - **The install entry uses the built-in page's contracts.** The Plugins page has
   no per-card slot, so the overlay injects one button into every
   `[data-plugin-group="bundles"] [data-plugin-package]` card and re-asserts it

@@ -69,7 +69,7 @@
 
       const NS = 'dsh-powerup';
       const SETTINGS_KEY = 'dsh-powerup:settings:v1';
-      const VERSION = '0.7.0';
+      const VERSION = '0.8.0';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -106,6 +106,15 @@
           'page.jobStopTitle': '后台任务停止原因',
           'page.jobStopDesc': '在会话顶部的后台任务面板里点停止按钮时，可以顺手填写停止原因；原因会附加在任务结束后注入会话的提示里。',
           'page.jobStopHow': '打开任意会话，点顶部的「后台任务」面板，在运行中的任务右侧点停止，填写原因（可留空）后确认。',
+          'page.launcherTitle': '侧边栏启动器',
+          'page.launcherDesc': '把左侧边栏的面板按钮变成自适应图标网格：列数跟着侧边栏宽度走，图标在上、文字在下；拖动图标可以排序，把一个图标拖到另一个图标的中间就会合成一个分组（像 Windows 开始菜单的文件夹），点分组会以浮层弹出里面的图标。',
+          'page.launcherToggle': '启用图标网格',
+          'page.launcherToggleHint': '关闭后侧边栏恢复宿主原本的列表样式；排序与分组仍会保留。',
+          'launcher.groupDefault': '分组',
+          'launcher.count': '{count} 个面板',
+          'launcher.renameHint': '点击重命名',
+          'launcher.dissolve': '解散分组',
+          'launcher.removeItem': '移出分组',
           'page.footer': 'Power-Up {version} · 设置在浏览器本地保存',
           'page.localOnly': '仅影响当前浏览器',
           'action.copy': '复制内容',
@@ -283,6 +292,15 @@
           'page.jobStopTitle': 'Background job stop reason',
           'page.jobStopDesc': 'When you stop a running job from the background jobs panel in the session header, you can leave a reason; the reason is appended to the notice injected into the session when the job settles.',
           'page.jobStopHow': 'Open a session, expand the background jobs panel, press stop on a running job, type a reason (optional), then confirm.',
+          'page.launcherTitle': 'Sidebar launcher',
+          'page.launcherDesc': 'Turns the left sidebar panel buttons into an adaptive icon grid: the column count follows the sidebar width, icons sit above their labels, icons can be dragged to reorder, dropping one icon onto the middle of another forms a folder (like a Windows Start menu folder), and clicking a folder opens its contents in a flyout.',
+          'page.launcherToggle': 'Enable the icon grid',
+          'page.launcherToggleHint': 'When off, the sidebar keeps the host list; order and folders are remembered.',
+          'launcher.groupDefault': 'Group',
+          'launcher.count': '{count} panels',
+          'launcher.renameHint': 'Click to rename',
+          'launcher.dissolve': 'Ungroup',
+          'launcher.removeItem': 'Remove from group',
           'page.footer': 'Power-Up {version} · Settings are stored in this browser',
           'page.localOnly': 'This browser only',
           'action.copy': 'Copy content',
@@ -464,7 +482,7 @@
       // Settings store (localStorage, per browser)
       // ------------------------------------------------------------------
       /** One-click update defaults: enable and restart unless the user turned one off. */
-      const DEFAULT_SETTINGS = { enabled: true, oneClickEnable: true, oneClickRestart: true };
+      const DEFAULT_SETTINGS = { enabled: true, oneClickEnable: true, oneClickRestart: true, launcher: true };
 
       function readSettings() {
         try {
@@ -474,6 +492,7 @@
               enabled: parsed.enabled !== false,
               oneClickEnable: parsed.oneClickEnable !== false,
               oneClickRestart: parsed.oneClickRestart !== false,
+              launcher: parsed.launcher !== false,
             };
           }
         } catch {
@@ -514,6 +533,1130 @@
         const [value, setValue] = useState(getSettings);
         useEffect(() => subscribeSettings(() => setValue(getSettings())), []);
         return value;
+      }
+
+      // ------------------------------------------------------------------
+      // Sidebar launcher: the panel list as an adaptive icon grid
+      // ------------------------------------------------------------------
+      /** localStorage key holding the launcher's order and folders. */
+      const LAUNCHER_STORAGE_KEY = 'dsh-powerup:launcher:v1';
+      /** Prefix that marks a top-level entry as a folder instead of a panel. */
+      const LAUNCHER_GROUP_PREFIX = 'group:';
+      /** Pixel distance before a press turns into a drag. */
+      const LAUNCHER_DRAG_THRESHOLD = 6;
+
+      function launcherGroupEntry(groupId) {
+        return LAUNCHER_GROUP_PREFIX + groupId;
+      }
+
+      function launcherEntryGroupId(entry) {
+        return typeof entry === 'string' && entry.startsWith(LAUNCHER_GROUP_PREFIX)
+          ? entry.slice(LAUNCHER_GROUP_PREFIX.length)
+          : null;
+      }
+
+      function makeLauncherGroupId() {
+        return 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      }
+
+      /**
+       * Reconcile the saved launcher state with the panels that exist right now.
+       * Unknown panel keys (unregistered, unpinned) are dropped; panels without
+       * a saved position are appended in host order; folders left empty vanish.
+       * Pure so the smoke test can cover the merge rules without a DOM.
+       * @param {unknown} raw stored value (already parsed)
+       * @param {string[]} panelKeys panel keys in host registration order
+       * @returns {{order: string[], groups: Record<string, {id: string, name: string, items: string[]}>}}
+       */
+      function normalizeLauncherState(raw, panelKeys) {
+        const known = new Set(Array.isArray(panelKeys) ? panelKeys : []);
+        if (raw === null || typeof raw !== 'object') return { order: [...known], groups: {} };
+        const groups = {};
+        const assigned = new Set();
+        const rawGroups = raw.groups !== null && typeof raw.groups === 'object' ? raw.groups : {};
+        for (const [groupId, value] of Object.entries(rawGroups)) {
+          if (value === null || typeof value !== 'object' || typeof groupId !== 'string' || groupId === '') continue;
+          const items = [];
+          const list = Array.isArray(value.items) ? value.items : [];
+          for (const key of list) {
+            if (typeof key !== 'string' || !known.has(key) || assigned.has(key)) continue;
+            assigned.add(key);
+            items.push(key);
+          }
+          if (items.length === 0) continue;
+          groups[groupId] = {
+            id: groupId,
+            name: typeof value.name === 'string' ? value.name : '',
+            items,
+          };
+        }
+        const order = [];
+        const seen = new Set();
+        const rawOrder = Array.isArray(raw.order) ? raw.order : [];
+        for (const entry of rawOrder) {
+          if (typeof entry !== 'string' || seen.has(entry)) continue;
+          const groupId = launcherEntryGroupId(entry);
+          if (groupId !== null) {
+            if (Object.prototype.hasOwnProperty.call(groups, groupId)) {
+              order.push(entry);
+              seen.add(entry);
+            }
+            continue;
+          }
+          if (!known.has(entry) || assigned.has(entry)) continue;
+          order.push(entry);
+          seen.add(entry);
+        }
+        for (const key of known) {
+          if (assigned.has(key) || seen.has(key)) continue;
+          order.push(key);
+          seen.add(key);
+        }
+        for (const groupId of Object.keys(groups)) {
+          const entry = launcherGroupEntry(groupId);
+          if (seen.has(entry)) continue;
+          order.push(entry);
+          seen.add(entry);
+        }
+        return { order, groups };
+      }
+
+      /**
+       * DOM-driven controller for the sidebar launcher.
+       *
+       * It works on the host's own `<nav>` panel list: it adds a marker class,
+       * turns the list into an `auto-fill` grid, injects synthetic folder tiles,
+       * hides the host rows that moved into a folder, and drives drag sorting
+       * and the folder flyout with plain DOM (React owns the rows, so every
+       * change here is idempotent and re-applied after the host re-renders).
+       *
+       * Everything it needs from the plugin arrives through `deps`, which keeps
+       * this region self-contained and testable.
+       * @param {{t?: Function, format?: Function, isEnabled?: Function, read?: Function, write?: Function, listPanels?: Function}} deps
+       */
+      function createLauncherCore(deps) {
+        const options = deps ?? {};
+        const t = typeof options.t === 'function' ? options.t : (key) => key;
+        const formatText = typeof options.format === 'function'
+          ? options.format
+          : (template, params) => String(template).replace(/\{(\w+)\}/g, (match, key) =>
+            params !== undefined && params !== null && key in params ? String(params[key]) : match);
+        const isEnabled = typeof options.isEnabled === 'function' ? options.isEnabled : () => true;
+        const readRaw = typeof options.read === 'function' ? options.read : () => null;
+        const writeRaw = typeof options.write === 'function' ? options.write : () => {};
+        const listPanels = typeof options.listPanels === 'function' ? options.listPanels : () => [];
+
+        let nav = null;
+        let docObserver = null;
+        let navObserver = null;
+        let healthTimer = null;
+        let queued = 0;
+        let syncing = false;
+        let started = false;
+        let state = { order: [], groups: {} };
+        let pendingLoad = true;
+        let hostTiles = [];
+        let folderButtons = new Map();
+        let dropLine = null;
+        let drag = null;
+        let popup = null;
+
+        function warn(message, error) {
+          try {
+            console.warn('[dsh-powerup] ' + message, error?.message ?? error);
+          } catch {
+            /* Console output must never break the launcher. */
+          }
+        }
+
+        function hasDocument() {
+          return typeof document !== 'undefined'
+            && document !== null
+            && typeof document.querySelector === 'function'
+            && document.body !== null
+            && document.body !== undefined;
+        }
+
+        function scheduleSync() {
+          if (queued !== 0 || !started) return;
+          if (typeof requestAnimationFrame === 'function') {
+            queued = requestAnimationFrame(() => {
+              queued = 0;
+              sync();
+            });
+            return;
+          }
+          if (typeof window !== 'undefined' && window !== null && typeof window.setTimeout === 'function') {
+            queued = window.setTimeout(() => {
+              queued = 0;
+              sync();
+            }, 0);
+          }
+        }
+
+        function navLooksLikePanelList(candidate) {
+          if (candidate === null || candidate === undefined) return false;
+          if (typeof candidate.children !== 'object' || candidate.children === null) return false;
+          for (const child of [...candidate.children]) {
+            if (child.tagName === 'BUTTON') return true;
+            if (child.tagName === 'DIV' && typeof child.querySelector === 'function' && child.querySelector(':scope > button') !== null) return true;
+          }
+          return false;
+        }
+
+        function queryNav() {
+          if (!hasDocument()) return null;
+          const marked = document.querySelector('nav[class*="panelList"], nav.dsh-powerup-launcher');
+          if (marked !== null && marked !== undefined) return marked;
+          const candidates = typeof document.querySelectorAll === 'function' ? document.querySelectorAll('nav') : [];
+          for (const candidate of candidates) {
+            if (navLooksLikePanelList(candidate)) return candidate;
+          }
+          return null;
+        }
+
+        function observeDocument() {
+          if (docObserver !== null || typeof MutationObserver !== 'function' || !hasDocument()) return;
+          const root = document.body ?? document.documentElement;
+          if (root === null || root === undefined) return;
+          docObserver = new MutationObserver(() => {
+            const next = queryNav();
+            if (next === null) return;
+            if (docObserver !== null) {
+              docObserver.disconnect();
+              docObserver = null;
+            }
+            attachNav(next);
+          });
+          docObserver.observe(root, { childList: true, subtree: true });
+        }
+
+        function attachNav(element) {
+          nav = element;
+          element.classList.add('dsh-powerup-launcher');
+          if (navObserver !== null) navObserver.disconnect();
+          if (typeof MutationObserver === 'function') {
+            navObserver = new MutationObserver(() => {
+              if (!syncing) scheduleSync();
+            });
+            navObserver.observe(element, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-current'] });
+          }
+          sync();
+        }
+
+        /** Resolve the host panel rows (and the "more" launcher) into tile records. */
+        function collectHostTiles(container) {
+          const byLabel = new Map();
+          let panels = [];
+          try {
+            panels = listPanels() ?? [];
+          } catch {
+            panels = [];
+          }
+          if (Array.isArray(panels)) {
+            for (const panel of panels) {
+              if (panel === null || typeof panel !== 'object') continue;
+              if (typeof panel.id !== 'string' || typeof panel.label !== 'string') continue;
+              if (!byLabel.has(panel.label)) byLabel.set(panel.label, panel.id);
+            }
+          }
+          const tiles = [];
+          const usedKeys = new Set();
+          for (const child of [...container.children]) {
+            if (child.hasAttribute('data-powerup-folder')) continue;
+            if (typeof child.classList === 'object' && child.classList !== null && child.classList.contains('dsh-powerup-drop-line')) continue;
+            let gridEl = child;
+            let buttonEl = null;
+            if (child.tagName === 'BUTTON') buttonEl = child;
+            else if (child.tagName === 'DIV') {
+              buttonEl = typeof child.querySelector === 'function' ? child.querySelector(':scope > button') : null;
+              if (buttonEl === null) continue;
+            } else continue;
+            const label = buttonEl.getAttribute('aria-label') ?? '';
+            if (label === '') continue;
+            const isMore = child.tagName === 'DIV' || buttonEl.getAttribute('aria-haspopup') === 'menu';
+            let key = isMore ? '__more' : (byLabel.get(label) ?? 'label:' + label);
+            if (key !== '__more' && usedKeys.has(key)) {
+              let suffix = 2;
+              while (usedKeys.has(key + '~' + suffix)) suffix += 1;
+              key = key + '~' + suffix;
+            }
+            usedKeys.add(key);
+            gridEl.setAttribute('data-powerup-grid', key);
+            if (isMore) gridEl.setAttribute('data-powerup-more', '');
+            else gridEl.removeAttribute('data-powerup-more');
+            const glyph = typeof gridEl.querySelector === 'function'
+              ? gridEl.querySelector('[class*="panelGlyph"], span[aria-hidden="true"]')
+              : null;
+            tiles.push({
+              key,
+              label,
+              gridEl,
+              buttonEl,
+              isMore,
+              glyphHtml: glyph === null ? '' : glyph.innerHTML,
+              active: false,
+            });
+          }
+          return tiles;
+        }
+
+        function detectWide(tiles) {
+          for (const tile of tiles) {
+            if (tile.isMore) continue;
+            if (typeof tile.buttonEl.querySelector === 'function' && tile.buttonEl.querySelector('[class*="panelTitle"]') !== null) return true;
+            if (tile.buttonEl.children.length >= 2) return true;
+          }
+          return false;
+        }
+
+        function tileByKeyMap() {
+          const map = new Map();
+          for (const tile of hostTiles) map.set(tile.key, tile);
+          return map;
+        }
+
+        function buildFolderTile(groupId, group, tiles) {
+          let button = folderButtons.get(groupId);
+          if (button === undefined || button.isConnected !== true) {
+            button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'dsh-powerup-folder';
+            button.setAttribute('data-powerup-folder', groupId);
+            button.addEventListener('click', (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              if (drag !== null && drag.active) return;
+              toggleFolder(groupId, button);
+            });
+            nav.appendChild(button);
+            folderButtons.set(groupId, button);
+          }
+          button.setAttribute('data-powerup-folder', groupId);
+          button.setAttribute('aria-label', group.name === '' ? t('launcher.groupDefault') : group.name);
+          button.setAttribute('title', group.name === '' ? t('launcher.groupDefault') : group.name);
+          const signature = group.name + '\u0000' + group.items.join('\u0000');
+          if (button.getAttribute('data-powerup-signature') !== signature) {
+            button.setAttribute('data-powerup-signature', signature);
+            button.textContent = '';
+            const stack = document.createElement('span');
+            stack.className = 'dsh-powerup-folder-stack';
+            for (const key of group.items.slice(0, 4)) {
+              const tile = tiles.get(key);
+              const mini = document.createElement('span');
+              mini.className = 'dsh-powerup-folder-mini';
+              mini.innerHTML = tile === undefined ? '' : tile.glyphHtml;
+              stack.appendChild(mini);
+            }
+            if (group.items.length === 1) stack.classList.add('is-single');
+            const name = document.createElement('span');
+            name.className = 'dsh-powerup-folder-name';
+            name.textContent = group.name === '' ? t('launcher.groupDefault') : group.name;
+            button.append(stack, name);
+          }
+          return button;
+        }
+
+        function hideDropLine() {
+          if (dropLine !== null) dropLine.style.display = 'none';
+          if (nav !== null && typeof nav.querySelectorAll === 'function') {
+            for (const element of nav.querySelectorAll('.dsh-powerup-merge-target')) element.classList.remove('dsh-powerup-merge-target');
+          }
+        }
+
+        function clearVisuals() {
+          closePopup();
+          endDrag();
+          hideDropLine();
+          folderButtons.forEach((button) => button.remove());
+          folderButtons = new Map();
+          if (dropLine !== null) {
+            dropLine.remove();
+            dropLine = null;
+          }
+          if (nav !== null) {
+            nav.classList.remove('dsh-powerup-launcher', 'dsh-powerup-launcher-wide');
+            for (const tile of hostTiles) {
+              tile.gridEl.classList.remove('dsh-powerup-dragging', 'dsh-powerup-merge-target');
+              tile.gridEl.style.order = '';
+              tile.gridEl.style.display = '';
+            }
+          }
+          hostTiles = [];
+        }
+
+        function readPersisted() {
+          try {
+            const text = readRaw();
+            if (typeof text !== 'string' || text === '') return null;
+            return JSON.parse(text);
+          } catch {
+            return null;
+          }
+        }
+
+        function sync() {
+          if (!started || syncing || !hasDocument()) return;
+          if (nav === null || nav.isConnected !== true) {
+            const next = queryNav();
+            if (next === null) {
+              if (docObserver === null) observeDocument();
+              return;
+            }
+            attachNav(next);
+            return;
+          }
+          syncing = true;
+          try {
+            if (isEnabled() !== true) {
+              clearVisuals();
+              return;
+            }
+            nav.classList.add('dsh-powerup-launcher');
+            hostTiles = collectHostTiles(nav);
+            const wide = detectWide(hostTiles);
+            nav.classList.toggle('dsh-powerup-launcher-wide', wide);
+            const panelKeys = hostTiles.filter((tile) => !tile.isMore).map((tile) => tile.key);
+            if (pendingLoad) {
+              pendingLoad = false;
+              state = normalizeLauncherState(readPersisted(), panelKeys);
+            } else {
+              state = normalizeLauncherState(state, panelKeys);
+            }
+            const tiles = tileByKeyMap();
+            const memberOf = new Map();
+            for (const group of Object.values(state.groups)) {
+              for (const key of group.items) memberOf.set(key, group.id);
+            }
+            const orderIndex = new Map(state.order.map((entry, index) => [entry, index]));
+            for (const tile of hostTiles) {
+              tile.active = tile.buttonEl.getAttribute('aria-current') === 'page';
+              const hidden = wide && memberOf.has(tile.key);
+              /* Inline display (not a class): React rewrites className when the
+                 active panel changes and would drop an added class. */
+              tile.gridEl.style.display = hidden ? 'none' : '';
+              if (tile.isMore) tile.gridEl.style.order = String(state.order.length + 4);
+              else {
+                const position = orderIndex.get(tile.key);
+                tile.gridEl.style.order = position === undefined ? '' : String(position);
+              }
+            }
+            const live = new Set();
+            for (const [groupId, group] of Object.entries(state.groups)) {
+              live.add(groupId);
+              const button = buildFolderTile(groupId, group, tiles);
+              button.style.display = wide ? '' : 'none';
+              const position = orderIndex.get(launcherGroupEntry(groupId));
+              button.style.order = position === undefined ? String(state.order.length + 2) : String(position);
+              const active = group.items.some((key) => tiles.get(key)?.active === true);
+              button.classList.toggle('is-active', active);
+            }
+            for (const [groupId, button] of [...folderButtons]) {
+              if (live.has(groupId)) continue;
+              button.remove();
+              folderButtons.delete(groupId);
+            }
+            if (popup !== null) {
+              if (state.groups[popup.groupId] === undefined) closePopup();
+              else renderPopup();
+            }
+          } catch (error) {
+            warn('launcher sync failed:', error);
+          } finally {
+            syncing = false;
+          }
+        }
+
+        function save() {
+          try {
+            writeRaw(JSON.stringify(state));
+          } catch (error) {
+            warn('launcher state could not be saved:', error);
+          }
+        }
+
+        // ----------------------------------------------------------------
+        // Folder flyout
+        // ----------------------------------------------------------------
+        function toggleFolder(groupId, anchor) {
+          if (popup !== null && popup.groupId === groupId) {
+            closePopup();
+            return;
+          }
+          openFolder(groupId, anchor);
+        }
+
+        function openFolder(groupId, anchor) {
+          if (!hasDocument() || state.groups[groupId] === undefined) return;
+          closePopup();
+          const element = document.createElement('div');
+          element.className = 'dsh-powerup-folder-pop';
+          element.setAttribute('role', 'dialog');
+          element.setAttribute('aria-label', state.groups[groupId].name === '' ? t('launcher.groupDefault') : state.groups[groupId].name);
+          element.setAttribute('data-powerup-folder-pop', groupId);
+          document.body.appendChild(element);
+          popup = { element, groupId, anchor };
+          renderPopup();
+          positionPopup();
+          const reveal = () => {
+            if (popup !== null && popup.element === element) element.classList.add('is-open');
+          };
+          if (typeof requestAnimationFrame === 'function') requestAnimationFrame(reveal);
+          else reveal();
+          document.addEventListener('pointerdown', onPopupOutside, true);
+          document.addEventListener('keydown', onPopupKey, true);
+          if (typeof window !== 'undefined' && window !== null && typeof window.addEventListener === 'function') {
+            window.addEventListener('resize', closePopup, true);
+            window.addEventListener('scroll', onPopupScroll, true);
+          }
+        }
+
+        function closePopup() {
+          if (popup === null) return;
+          const element = popup.element;
+          popup = null;
+          document.removeEventListener('pointerdown', onPopupOutside, true);
+          document.removeEventListener('keydown', onPopupKey, true);
+          if (typeof window !== 'undefined' && window !== null && typeof window.removeEventListener === 'function') {
+            window.removeEventListener('resize', closePopup, true);
+            window.removeEventListener('scroll', onPopupScroll, true);
+          }
+          element.classList.remove('is-open');
+          const remove = () => {
+            if (element.parentNode !== null) element.remove();
+          };
+          if (typeof window !== 'undefined' && window !== null && typeof window.setTimeout === 'function') {
+            window.setTimeout(remove, 170);
+          } else {
+            remove();
+          }
+        }
+
+        function onPopupOutside(event) {
+          if (popup === null) return;
+          const target = event.target;
+          if (target === null || target === undefined) return;
+          if (typeof popup.element.contains === 'function' && popup.element.contains(target)) return;
+          if (popup.anchor !== null && popup.anchor !== undefined && typeof popup.anchor.contains === 'function' && popup.anchor.contains(target)) return;
+          closePopup();
+        }
+
+        function onPopupKey(event) {
+          if (popup === null || event.key !== 'Escape') return;
+          const target = event.target;
+          const tag = target !== null && target !== undefined && typeof target.tagName === 'string' ? target.tagName : '';
+          if (tag === 'INPUT' && typeof popup.element.contains === 'function' && popup.element.contains(target)) return;
+          closePopup();
+        }
+
+        function onPopupScroll(event) {
+          if (popup === null) return;
+          if (typeof popup.element.contains === 'function' && popup.element.contains(event.target)) return;
+          closePopup();
+        }
+
+        function positionPopup() {
+          if (popup === null) return;
+          const anchor = popup.anchor;
+          const element = popup.element;
+          if (anchor === null || anchor === undefined || typeof anchor.getBoundingClientRect !== 'function') return;
+          const rect = anchor.getBoundingClientRect();
+          if (rect.width === 0 && rect.height === 0) return;
+          const width = element.offsetWidth || 0;
+          const height = element.offsetHeight || 0;
+          const viewWidth = (typeof window !== 'undefined' && window !== null && window.innerWidth) || 1280;
+          const viewHeight = (typeof window !== 'undefined' && window !== null && window.innerHeight) || 900;
+          const gap = 8;
+          const margin = 10;
+          let left = rect.right + gap;
+          let originX = 'left';
+          if (left + width > viewWidth - margin) {
+            const alternate = rect.left - gap - width;
+            if (alternate >= margin) {
+              left = alternate;
+              originX = 'right';
+            } else {
+              left = Math.max(margin, viewWidth - width - margin);
+            }
+          }
+          const top = Math.max(margin, Math.min(rect.top - 6, viewHeight - height - margin));
+          element.style.left = Math.round(left) + 'px';
+          element.style.top = Math.round(top) + 'px';
+          element.style.transformOrigin = originX + ' 22%';
+        }
+
+        function renderPopup() {
+          if (popup === null) return;
+          const group = state.groups[popup.groupId];
+          if (group === undefined) {
+            closePopup();
+            return;
+          }
+          const element = popup.element;
+          element.textContent = '';
+          const head = document.createElement('div');
+          head.className = 'dsh-powerup-folder-pop-head';
+          const title = document.createElement('button');
+          title.type = 'button';
+          title.className = 'dsh-powerup-folder-pop-title';
+          title.textContent = group.name === '' ? t('launcher.groupDefault') : group.name;
+          title.setAttribute('title', t('launcher.renameHint'));
+          title.addEventListener('click', beginRename);
+          const count = document.createElement('span');
+          count.className = 'dsh-powerup-folder-pop-count';
+          count.textContent = formatText(t('launcher.count'), { count: group.items.length });
+          const dissolve = document.createElement('button');
+          dissolve.type = 'button';
+          dissolve.className = 'dsh-powerup-folder-pop-action';
+          dissolve.textContent = t('launcher.dissolve');
+          dissolve.addEventListener('click', () => dissolveGroup(popup === null ? null : popup.groupId));
+          head.append(title, count, dissolve);
+          const grid = document.createElement('div');
+          grid.className = 'dsh-powerup-folder-grid';
+          const tiles = tileByKeyMap();
+          for (const key of group.items) {
+            const tile = tiles.get(key);
+            if (tile === undefined) continue;
+            const item = document.createElement('div');
+            item.className = 'dsh-powerup-folder-item';
+            item.setAttribute('role', 'button');
+            item.setAttribute('tabindex', '0');
+            item.setAttribute('aria-label', tile.label);
+            const glyph = document.createElement('span');
+            glyph.className = 'dsh-powerup-folder-item-glyph';
+            glyph.innerHTML = tile.glyphHtml;
+            const label = document.createElement('span');
+            label.className = 'dsh-powerup-folder-item-label';
+            label.textContent = tile.label;
+            const remove = document.createElement('span');
+            remove.className = 'dsh-powerup-folder-item-remove';
+            remove.setAttribute('role', 'button');
+            remove.setAttribute('tabindex', '0');
+            remove.setAttribute('aria-label', t('launcher.removeItem'));
+            remove.setAttribute('title', t('launcher.removeItem'));
+            remove.textContent = '\u00d7';
+            remove.addEventListener('click', (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              removeFromGroup(popup === null ? null : popup.groupId, key);
+            });
+            remove.addEventListener('keydown', (event) => {
+              if (event.key !== 'Enter' && event.key !== ' ') return;
+              event.preventDefault();
+              event.stopPropagation();
+              removeFromGroup(popup === null ? null : popup.groupId, key);
+            });
+            item.append(glyph, label, remove);
+            item.addEventListener('click', () => selectPanel(tile));
+            item.addEventListener('keydown', (event) => {
+              if (event.key !== 'Enter' && event.key !== ' ') return;
+              event.preventDefault();
+              selectPanel(tile);
+            });
+            grid.appendChild(item);
+          }
+          element.append(head, grid);
+          positionPopup();
+        }
+
+        function beginRename() {
+          if (popup === null) return;
+          const group = state.groups[popup.groupId];
+          if (group === undefined) return;
+          const current = popup.element.querySelector('.dsh-powerup-folder-pop-title');
+          if (current === null) return;
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.className = 'dsh-powerup-folder-pop-input';
+          input.value = group.name;
+          input.placeholder = t('launcher.groupDefault');
+          input.setAttribute('maxlength', '24');
+          const commit = () => {
+            if (popup === null) return;
+            const target = state.groups[popup.groupId];
+            if (target === undefined) return;
+            const name = input.value.trim().slice(0, 24);
+            if (name === target.name) {
+              renderPopup();
+              return;
+            }
+            state = { order: state.order, groups: { ...state.groups, [popup.groupId]: { ...target, name } } };
+            save();
+            sync();
+          };
+          input.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              commit();
+            } else if (event.key === 'Escape') {
+              event.preventDefault();
+              event.stopPropagation();
+              renderPopup();
+            }
+          });
+          input.addEventListener('blur', commit);
+          current.replaceWith(input);
+          if (typeof input.focus === 'function') {
+            input.focus();
+            if (typeof input.select === 'function') input.select();
+          }
+        }
+
+        function selectPanel(tile) {
+          try {
+            tile.buttonEl.click();
+          } catch (error) {
+            warn('panel could not be selected:', error);
+          }
+          closePopup();
+        }
+
+        function removeFromGroup(groupId, key) {
+          if (groupId === null || typeof groupId !== 'string' || typeof key !== 'string') return;
+          const group = state.groups[groupId];
+          if (group === undefined) return;
+          const items = group.items.filter((entry) => entry !== key);
+          const order = state.order.filter((entry) => entry !== key);
+          const groups = { ...state.groups };
+          if (items.length === 0) {
+            delete groups[groupId];
+            state = { order: order.filter((entry) => entry !== launcherGroupEntry(groupId)), groups };
+          } else {
+            groups[groupId] = { ...group, items };
+            order.push(key);
+            state = { order, groups };
+          }
+          save();
+          sync();
+        }
+
+        function dissolveGroup(groupId) {
+          if (groupId === null || typeof groupId !== 'string') return;
+          const group = state.groups[groupId];
+          if (group === undefined) return;
+          const groups = { ...state.groups };
+          delete groups[groupId];
+          const order = state.order
+            .filter((entry) => entry !== launcherGroupEntry(groupId))
+            .concat(group.items.filter((key) => !state.order.includes(key)));
+          state = { order, groups };
+          save();
+          closePopup();
+          sync();
+        }
+
+        // ----------------------------------------------------------------
+        // Drag sorting and folder merging
+        // ----------------------------------------------------------------
+        function topLevelCandidates(excludeKey) {
+          const candidates = [];
+          for (const entry of state.order) {
+            if (entry === excludeKey) continue;
+            const groupId = launcherEntryGroupId(entry);
+            if (groupId !== null) {
+              const button = folderButtons.get(groupId);
+              if (button !== undefined && button.isConnected === true) candidates.push({ key: entry, el: button, kind: 'folder' });
+              continue;
+            }
+            const tile = hostTiles.find((candidate) => candidate.key === entry);
+            if (tile === undefined) continue;
+            if (tile.gridEl.style.display === 'none') continue;
+            candidates.push({ key: entry, el: tile.gridEl, kind: 'panel' });
+          }
+          return candidates;
+        }
+
+        function describeTile(target) {
+          if (target === null || target === undefined || typeof target.closest !== 'function') return null;
+          const button = target.closest('button');
+          if (button === null || nav === null || !nav.contains(button)) return null;
+          const folderId = button.getAttribute('data-powerup-folder');
+          if (folderId !== null) {
+            const group = state.groups[folderId];
+            if (group === undefined) return null;
+            return { kind: 'folder', key: launcherGroupEntry(folderId), gridEl: button, label: group.name };
+          }
+          const tile = hostTiles.find((candidate) => candidate.buttonEl === button);
+          if (tile === undefined || tile.isMore) return null;
+          return { kind: 'panel', key: tile.key, gridEl: tile.gridEl, label: tile.label };
+        }
+
+        function onPointerDown(event) {
+          if (!started || event.button !== undefined && event.button !== 0) return;
+          if (nav === null || !nav.classList.contains('dsh-powerup-launcher-wide')) return;
+          if (popup !== null && typeof popup.element.contains === 'function' && popup.element.contains(event.target)) return;
+          const descriptor = describeTile(event.target);
+          if (descriptor === null) return;
+          drag = {
+            descriptor,
+            startX: event.clientX,
+            startY: event.clientY,
+            active: false,
+            ghost: null,
+            offsetX: 0,
+            offsetY: 0,
+            drop: null,
+          };
+          document.addEventListener('pointermove', onPointerMove, { capture: true, passive: false });
+          document.addEventListener('pointerup', onPointerUp, true);
+          document.addEventListener('pointercancel', onPointerUp, true);
+          document.addEventListener('keydown', onDragKey, true);
+        }
+
+        function onDragKey(event) {
+          if (event.key !== 'Escape') return;
+          endDrag();
+        }
+
+        function beginDrag() {
+          if (drag === null) return;
+          drag.active = true;
+          closePopup();
+          const gridEl = drag.descriptor.gridEl;
+          const rect = gridEl.getBoundingClientRect();
+          const ghost = gridEl.cloneNode(true);
+          ghost.className = 'dsh-powerup-drag-ghost';
+          ghost.removeAttribute('data-powerup-grid');
+          ghost.removeAttribute('data-powerup-more');
+          ghost.removeAttribute('data-powerup-host');
+          ghost.removeAttribute('aria-label');
+          ghost.style.width = rect.width + 'px';
+          ghost.style.height = rect.height + 'px';
+          ghost.style.left = rect.left + 'px';
+          ghost.style.top = rect.top + 'px';
+          ghost.style.order = '';
+          document.body.appendChild(ghost);
+          drag.ghost = ghost;
+          drag.offsetX = drag.startX - rect.left;
+          drag.offsetY = drag.startY - rect.top;
+          gridEl.classList.add('dsh-powerup-dragging');
+          hideDropLine();
+        }
+
+        function moveGhost(x, y) {
+          if (drag === null || drag.ghost === null) return;
+          drag.ghost.style.left = Math.round(x - drag.offsetX) + 'px';
+          drag.ghost.style.top = Math.round(y - drag.offsetY) + 'px';
+        }
+
+        function onPointerMove(event) {
+          if (drag === null) return;
+          if (!drag.active) {
+            const dx = event.clientX - drag.startX;
+            const dy = event.clientY - drag.startY;
+            if (Math.sqrt(dx * dx + dy * dy) < LAUNCHER_DRAG_THRESHOLD) return;
+            beginDrag();
+          }
+          if (typeof event.preventDefault === 'function') event.preventDefault();
+          moveGhost(event.clientX, event.clientY);
+          updateDrop(event.clientX, event.clientY);
+        }
+
+        function updateDrop(x, y) {
+          if (drag === null || !drag.active) return;
+          const candidates = topLevelCandidates(drag.descriptor.key);
+          let drop = null;
+          for (const candidate of candidates) {
+            if (candidate.el === undefined || typeof candidate.el.getBoundingClientRect !== 'function') continue;
+            const rect = candidate.el.getBoundingClientRect();
+            if (rect.width === 0 && rect.height === 0) continue;
+            if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) continue;
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            const nearCenter = Math.abs(x - centerX) <= rect.width * 0.28 && Math.abs(y - centerY) <= rect.height * 0.32;
+            if (nearCenter) {
+              drop = { kind: 'merge', target: candidate };
+            } else {
+              drop = { kind: 'insert', index: candidates.indexOf(candidate) + (x < centerX ? 0 : 1), anchor: rect, after: x >= centerX };
+            }
+            break;
+          }
+          if (drop === null) {
+            let index = candidates.length;
+            for (let cursor = 0; cursor < candidates.length; cursor += 1) {
+              const rect = candidates[cursor].el.getBoundingClientRect();
+              if (y < rect.top) {
+                index = cursor;
+                break;
+              }
+              if (y <= rect.bottom && x < rect.left + rect.width / 2) {
+                index = cursor;
+                break;
+              }
+            }
+            const anchor = index < candidates.length && candidates[index] !== undefined
+              ? candidates[index].el.getBoundingClientRect()
+              : (candidates.length > 0 ? candidates[candidates.length - 1].el.getBoundingClientRect() : null);
+            drop = { kind: 'insert', index, anchor, after: index >= candidates.length };
+          }
+          drag.drop = drop;
+          paintDrop(drop, candidates);
+        }
+
+        function paintDrop(drop, candidates) {
+          if (nav === null) return;
+          for (const candidate of candidates) candidate.el.classList.remove('dsh-powerup-merge-target');
+          if (drop.kind === 'merge') {
+            hideDropLine();
+            if (drop.target !== undefined && drop.target.el !== undefined) drop.target.el.classList.add('dsh-powerup-merge-target');
+            return;
+          }
+          let rect = drop.anchor;
+          let after = drop.after === true;
+          if (rect === null || rect === undefined) {
+            if (drop.index < candidates.length && candidates[drop.index] !== undefined) rect = candidates[drop.index].el.getBoundingClientRect();
+            else if (candidates.length > 0) {
+              rect = candidates[candidates.length - 1].el.getBoundingClientRect();
+              after = true;
+            }
+          }
+          if (rect === null || rect === undefined) {
+            hideDropLine();
+            return;
+          }
+          if (dropLine === null) {
+            dropLine = document.createElement('div');
+            dropLine.className = 'dsh-powerup-drop-line';
+            dropLine.setAttribute('aria-hidden', 'true');
+            nav.appendChild(dropLine);
+          }
+          const navRect = nav.getBoundingClientRect();
+          dropLine.style.left = Math.round((after ? rect.right + 1 : rect.left - 1) - navRect.left) + 'px';
+          dropLine.style.top = Math.round(rect.top - navRect.top) + 'px';
+          dropLine.style.height = Math.round(rect.height) + 'px';
+          dropLine.style.display = 'block';
+        }
+
+        function endDrag() {
+          document.removeEventListener('pointermove', onPointerMove, { capture: true, passive: false });
+          document.removeEventListener('pointerup', onPointerUp, true);
+          document.removeEventListener('pointercancel', onPointerUp, true);
+          document.removeEventListener('keydown', onDragKey, true);
+          if (drag !== null) {
+            if (drag.ghost !== null) drag.ghost.remove();
+            if (drag.descriptor !== undefined && drag.descriptor.gridEl !== undefined) drag.descriptor.gridEl.classList.remove('dsh-powerup-dragging');
+          }
+          hideDropLine();
+          drag = null;
+        }
+
+        function suppressNextClick() {
+          const swallow = (event) => {
+            if (typeof event.preventDefault === 'function') event.preventDefault();
+            if (typeof event.stopPropagation === 'function') event.stopPropagation();
+          };
+          document.addEventListener('click', swallow, true);
+          if (typeof window !== 'undefined' && window !== null && typeof window.setTimeout === 'function') {
+            window.setTimeout(() => document.removeEventListener('click', swallow, true), 80);
+          } else {
+            document.removeEventListener('click', swallow, true);
+          }
+        }
+
+        function onPointerUp() {
+          if (drag === null) return;
+          const active = drag.active;
+          const descriptor = drag.descriptor;
+          const drop = drag.drop;
+          endDrag();
+          if (!active) return;
+          suppressNextClick();
+          if (drop !== null && drop.kind === 'merge' && drop.target !== undefined) {
+            performMerge(descriptor.key, drop.target.key);
+          } else if (drop !== null && drop.kind === 'insert') {
+            performReorder(descriptor.key, drop.index);
+          } else {
+            sync();
+          }
+        }
+
+        function performReorder(key, index) {
+          const order = state.order.filter((entry) => entry !== key);
+          const clamped = Math.max(0, Math.min(index, order.length));
+          order.splice(clamped, 0, key);
+          state = { order: dedupeEntries(order), groups: state.groups };
+          save();
+          sync();
+        }
+
+        function dedupeEntries(entries) {
+          const seen = new Set();
+          const result = [];
+          for (const entry of entries) {
+            if (typeof entry !== 'string' || seen.has(entry)) continue;
+            seen.add(entry);
+            result.push(entry);
+          }
+          return result;
+        }
+
+        function performMerge(sourceKey, targetKey) {
+          if (sourceKey === targetKey) return;
+          const sourceGroupId = launcherEntryGroupId(sourceKey);
+          const targetGroupId = launcherEntryGroupId(targetKey);
+          if (sourceGroupId !== null && sourceGroupId === targetGroupId) return;
+          const groups = { ...state.groups };
+          let order = [...state.order];
+          let sourceItems = [];
+          let sourceName = '';
+          if (sourceGroupId !== null) {
+            const source = groups[sourceGroupId];
+            if (source === undefined) return;
+            sourceItems = [...source.items];
+            sourceName = source.name;
+            delete groups[sourceGroupId];
+          } else {
+            sourceItems = [sourceKey];
+          }
+          order = order.filter((entry) => entry !== sourceKey);
+          if (targetGroupId !== null) {
+            const target = groups[targetGroupId];
+            if (target === undefined) return;
+            const items = [...target.items];
+            for (const key of sourceItems) if (!items.includes(key)) items.push(key);
+            groups[targetGroupId] = { ...target, items, name: target.name !== '' ? target.name : sourceName };
+          } else {
+            const groupId = sourceGroupId !== null ? sourceGroupId : makeLauncherGroupId();
+            const items = [];
+            for (const key of sourceItems) if (!items.includes(key)) items.push(key);
+            if (!items.includes(targetKey)) items.push(targetKey);
+            groups[groupId] = { id: groupId, name: sourceName, items };
+            const position = order.indexOf(targetKey);
+            if (position >= 0) order[position] = launcherGroupEntry(groupId);
+            else order.push(launcherGroupEntry(groupId));
+          }
+          state = { order: dedupeEntries(order), groups };
+          save();
+          sync();
+        }
+
+        function start() {
+          if (started || !hasDocument()) return;
+          started = true;
+          document.addEventListener('pointerdown', onPointerDown, true);
+          const element = queryNav();
+          if (element !== null) attachNav(element);
+          else observeDocument();
+          if (typeof window !== 'undefined' && window !== null && typeof window.setInterval === 'function') {
+            healthTimer = window.setInterval(() => {
+              if (!started) return;
+              if (nav !== null && nav.isConnected === true) return;
+              const next = queryNav();
+              if (next !== null) attachNav(next);
+              else if (docObserver === null) observeDocument();
+            }, 2000);
+          }
+          sync();
+        }
+
+        function stop() {
+          started = false;
+          if (queued !== 0) {
+            try {
+              if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(queued);
+              else if (typeof window !== 'undefined' && window !== null && typeof window.clearTimeout === 'function') window.clearTimeout(queued);
+            } catch {
+              /* A cancelled frame is already gone. */
+            }
+            queued = 0;
+          }
+          if (healthTimer !== null) {
+            try {
+              if (typeof window.clearInterval === 'function') window.clearInterval(healthTimer);
+            } catch {
+              /* Nothing else to clear. */
+            }
+            healthTimer = null;
+          }
+          if (navObserver !== null) {
+            navObserver.disconnect();
+            navObserver = null;
+          }
+          if (docObserver !== null) {
+            docObserver.disconnect();
+            docObserver = null;
+          }
+          if (typeof document !== 'undefined' && document !== null && typeof document.removeEventListener === 'function') {
+            document.removeEventListener('pointerdown', onPointerDown, true);
+          }
+          clearVisuals();
+          state = { order: [], groups: {} };
+          pendingLoad = true;
+          nav = null;
+        }
+
+        return {
+          start,
+          stop,
+          sync,
+          // Exposed for the smoke test only; the plugin never calls these.
+          __debug: {
+            getState: () => state,
+            setState: (next) => {
+              state = normalizeLauncherState(next, hostTiles.filter((tile) => !tile.isMore).map((tile) => tile.key));
+            },
+            getNav: () => nav,
+          },
+        };
+      }
+
+      /**
+       * Start the sidebar launcher upgrade. The core owns all DOM work; this
+       * adapter supplies translations, the settings flag, storage, and the
+       * registered panel ids that key the saved order and folders.
+       * @param {object} ctx client plugin context
+       * @returns {object | null} the core, or null when the host has no DOM
+       */
+      function installLauncher(ctx) {
+        const listPanels = () => {
+          try {
+            const slots = ctx.get('slots');
+            if (slots === undefined || slots === null || typeof slots.entriesOfSlot !== 'function') return [];
+            const entries = slots.entriesOfSlot('sidebar.panellist');
+            if (!Array.isArray(entries)) return [];
+            return entries.map((entry) => {
+              const options = entry?.options ?? {};
+              let label;
+              try {
+                label = typeof options.label === 'function' ? options.label() : options.label;
+              } catch {
+                label = undefined;
+              }
+              return { id: options.id, label };
+            });
+          } catch {
+            return [];
+          }
+        };
+        const core = createLauncherCore({
+          t: (key, params) => translateCurrent(key, params),
+          format,
+          isEnabled: () => getSettings().launcher !== false,
+          read: () => {
+            try {
+              return localStorage.getItem(LAUNCHER_STORAGE_KEY);
+            } catch {
+              return null;
+            }
+          },
+          write: (value) => {
+            try {
+              localStorage.setItem(LAUNCHER_STORAGE_KEY, value);
+            } catch {
+              /* The in-memory order still works for this page. */
+            }
+          },
+          listPanels,
+        });
+        ctx.effect(() => {
+          core.start();
+          const off = subscribeSettings(() => core.sync());
+          return () => {
+            off();
+            core.stop();
+          };
+        }, 'dsh-powerup: sidebar launcher');
+        return core;
       }
 
       // ------------------------------------------------------------------
@@ -565,6 +1708,27 @@
           'aria-hidden': 'true',
           focusable: 'false',
         }, children);
+      }
+
+      function LauncherIcon({ size = 16 }) {
+        return h(Icon, { size },
+          h('rect', {
+            x: '2.6', y: '2.6', width: '4.6', height: '4.6', rx: '1.3',
+            stroke: 'currentColor', strokeWidth: '1.2',
+          }),
+          h('rect', {
+            x: '8.8', y: '2.6', width: '4.6', height: '4.6', rx: '1.3',
+            stroke: 'currentColor', strokeWidth: '1.2',
+          }),
+          h('rect', {
+            x: '2.6', y: '8.8', width: '4.6', height: '4.6', rx: '1.3',
+            stroke: 'currentColor', strokeWidth: '1.2',
+          }),
+          h('path', {
+            d: 'M9.4 11.1h3.4M11.1 9.4v3.4',
+            stroke: 'currentColor', strokeWidth: '1.2', strokeLinecap: 'round',
+          }),
+        );
       }
 
       function PowerUpLineIcon({ size = 16 }) {
@@ -797,6 +1961,64 @@
       // ------------------------------------------------------------------
       // CSS — host tokens only (except the brand SVG artwork)
       // ------------------------------------------------------------------
+      /**
+       * Sidebar launcher styles. Every rule is scoped under the marker class we
+       * add to the host panel list, so the untouched host rules still describe
+       * the collapsed 56px rail (we remove `.dsh-powerup-launcher-wide` there).
+       * The grid uses `auto-fill` + `minmax`, so the column count follows the
+       * sidebar width instead of a fixed number.
+       */
+      const LAUNCHER_CSS = `
+nav.dsh-powerup-launcher.dsh-powerup-launcher-wide{position:relative;display:grid!important;grid-template-columns:repeat(auto-fill,minmax(58px,1fr));grid-auto-rows:min-content;gap:2px;align-content:start;align-items:stretch;margin:0 0 10px;padding:2px 0}
+nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button,nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]>button,.dsh-powerup-folder{box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:auto;min-width:0;height:auto;min-height:52px;margin:0;padding:6px 2px 5px;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:11px;line-height:14px;text-align:center;cursor:pointer;user-select:none;-webkit-user-select:none;transition:background .12s ease,color .12s ease,transform .12s ease}
+nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:hover,nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]>button:hover,.dsh-powerup-folder:hover{background:var(--dsw-alias-interactive-bg-hover)}
+nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:active,nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]>button:active,.dsh-powerup-folder:active{transform:scale(.96)}
+nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button[class*="panelActive"],nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]>button[aria-expanded=true]{background:var(--dsw-alias-interactive-bg-hover)}
+nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]{display:flex!important;flex-direction:column;min-width:0;margin:0}
+nav.dsh-powerup-launcher.dsh-powerup-launcher-wide [class*="panelGlyph"]{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;flex:none}
+nav.dsh-powerup-launcher.dsh-powerup-launcher-wide [class*="panelGlyph"] svg{width:20px;height:20px}
+nav.dsh-powerup-launcher.dsh-powerup-launcher-wide [class*="panelTitle"]{display:block;width:100%;max-width:100%;color:var(--dsw-alias-label-secondary);font-size:11px;line-height:14px;font-weight:400;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:hover [class*="panelTitle"]{color:var(--dsw-alias-label-primary)}
+.dsh-powerup-folder{position:relative;list-style:none;flex:none}
+.dsh-powerup-folder-stack{display:grid;grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(2,1fr);gap:1px;width:24px;height:24px;padding:2px;box-sizing:border-box;border-radius:6px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 9%,transparent);flex:none}
+.dsh-powerup-folder-mini{display:inline-flex;align-items:center;justify-content:center;min-width:0;min-height:0;overflow:hidden;color:var(--dsw-alias-label-primary);opacity:.85}
+.dsh-powerup-folder-mini svg{width:9px;height:9px}
+.dsh-powerup-folder-stack.is-single{grid-template-columns:1fr;grid-template-rows:1fr}
+.dsh-powerup-folder-stack.is-single .dsh-powerup-folder-mini svg{width:14px;height:14px}
+.dsh-powerup-folder-name{display:block;width:100%;max-width:100%;color:var(--dsw-alias-label-secondary);font-size:11px;line-height:14px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dsh-powerup-folder.is-active .dsh-powerup-folder-name{color:var(--dsw-alias-label-primary)}
+.dsh-powerup-folder.is-active .dsh-powerup-folder-stack{background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 22%,transparent)}
+.dsh-powerup-dragging{opacity:.32}
+.dsh-powerup-merge-target{background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 17%,transparent)!important;box-shadow:inset 0 0 0 1px var(--dsw-alias-state-business-primary)}
+.dsh-powerup-drop-line{position:absolute;z-index:6;display:none;width:2px;border-radius:999px;background:var(--dsw-alias-state-business-primary);box-shadow:0 0 0 1px color-mix(in srgb,var(--dsw-alias-state-business-primary) 26%,transparent);pointer-events:none}
+.dsh-powerup-drag-ghost{position:fixed;z-index:1800;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px 2px 5px;border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);color:var(--dsw-alias-label-primary);font-size:11px;line-height:14px;pointer-events:none;opacity:.96;transform:scale(1.05);transition:opacity .1s ease}
+.dsh-powerup-drag-ghost [class*="panelGlyph"]{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;flex:none}
+.dsh-powerup-drag-ghost [class*="panelGlyph"] svg{width:20px;height:20px}
+.dsh-powerup-drag-ghost [class*="panelTitle"]{display:block;width:100%;max-width:100%;color:var(--dsw-alias-label-secondary);font-size:11px;line-height:14px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dsh-powerup-folder-pop{position:fixed;z-index:1800;box-sizing:border-box;display:flex;flex-direction:column;gap:6px;width:max-content;min-width:196px;max-width:min(440px,calc(100vw - 24px));max-height:min(72vh,440px);padding:8px;border:.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-lg,10px);background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);color:var(--dsw-alias-label-primary);font-size:12px;line-height:16px;opacity:0;transform:scale(.92);transition:opacity .13s ease,transform .17s cubic-bezier(.22,.9,.3,1.06)}
+.dsh-powerup-folder-pop.is-open{opacity:1;transform:scale(1)}
+.dsh-powerup-folder-pop-head{display:flex;align-items:center;gap:6px;min-width:0;padding:0 2px}
+.dsh-powerup-folder-pop-title{flex:1 1 auto;min-width:0;padding:2px 5px;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:12px;line-height:16px;font-weight:500;text-align:left;cursor:text;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dsh-powerup-folder-pop-title:hover{background:var(--dsw-alias-interactive-bg-hover)}
+.dsh-powerup-folder-pop-input{flex:1 1 auto;min-width:0;height:22px;padding:0 5px;border:.5px solid var(--dsw-alias-state-business-primary);border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);font:inherit;font-size:12px;line-height:20px;outline:none}
+.dsh-powerup-folder-pop-count{flex:none;color:var(--dsw-alias-label-tertiary);font-size:11px;white-space:nowrap}
+.dsh-powerup-folder-pop-action{flex:none;padding:2px 6px;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;font-size:11px;line-height:16px;cursor:pointer;white-space:nowrap}
+.dsh-powerup-folder-pop-action:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
+.dsh-powerup-folder-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:2px;align-content:start;max-height:min(60vh,340px);overflow:auto;padding:2px}
+.dsh-powerup-folder-item{position:relative;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0;min-height:54px;padding:6px 2px 5px;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:11px;line-height:14px;cursor:pointer;transition:background .12s ease}
+.dsh-powerup-folder-item:hover{background:var(--dsw-alias-interactive-bg-hover)}
+.dsh-powerup-folder-item:focus{outline:none}
+.dsh-powerup-folder-item:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:-1px}
+.dsh-powerup-folder-item-glyph{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;flex:none;color:var(--dsw-alias-label-secondary)}
+.dsh-powerup-folder-item-glyph svg{width:20px;height:20px}
+.dsh-powerup-folder-item-label{display:block;width:100%;max-width:100%;color:var(--dsw-alias-label-secondary);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dsh-powerup-folder-item:hover .dsh-powerup-folder-item-label{color:var(--dsw-alias-label-primary)}
+.dsh-powerup-folder-item-remove{position:absolute;top:1px;right:2px;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;padding:0;border:0;border-radius:50%;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-tertiary);font:inherit;font-size:11px;line-height:15px;cursor:pointer;opacity:0;transition:opacity .12s ease}
+.dsh-powerup-folder-item:hover .dsh-powerup-folder-item-remove,.dsh-powerup-folder-item-remove:focus-visible{opacity:1}
+.dsh-powerup-folder-item-remove:hover{color:var(--dsw-alias-label-primary)}
+@media (prefers-reduced-motion:reduce){nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button,nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]>button,.dsh-powerup-folder,.dsh-powerup-folder-pop,.dsh-powerup-drag-ghost,.dsh-powerup-drop-line{transition:none}}
+`;
+
       const CSS = `
 .dsh-powerup-page{box-sizing:border-box;height:100%;overflow-y:auto;padding:28px 24px 52px;color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.55;--pu-accent:var(--dsw-alias-brand-primary)}
 .dsh-powerup-page *{box-sizing:border-box}
@@ -998,7 +2220,7 @@
         try {
           const style = document.createElement('style');
           style.setAttribute('data-dsh-powerup', '');
-          style.textContent = CSS;
+          style.textContent = CSS + '\n' + LAUNCHER_CSS;
           document.head.appendChild(style);
           ctx.effect(() => () => style.remove(), 'dsh-powerup: styles');
         } catch (error) {
@@ -3948,6 +5170,18 @@
             ),
             h('section', { className: 'dsh-powerup-card' },
               h('div', { className: 'dsh-powerup-card-head' },
+                h('div', { className: 'dsh-powerup-card-icon' }, h(LauncherIcon, { size: 18 })),
+                h('div', { className: 'dsh-powerup-card-copy' },
+                  h('h2', null, t('page.launcherTitle')),
+                  h('p', null, t('page.launcherDesc')),
+                ),
+              ),
+              h('div', { className: 'dsh-powerup-settings' },
+                settingRow('launcher', settings.launcher !== false, t('page.launcherToggle'), t('page.launcherToggleHint')),
+              ),
+            ),
+            h('section', { className: 'dsh-powerup-card' },
+              h('div', { className: 'dsh-powerup-card-head' },
                 h('div', { className: 'dsh-powerup-card-icon' }, h(QuickIcon, { size: 18 })),
                 h('div', { className: 'dsh-powerup-card-copy' },
                   h('h2', null, t('page.oneClickTitle')),
@@ -4035,6 +5269,7 @@
       function apply(ctx) {
         bindLocale(ctx);
         installStyles(ctx);
+        installLauncher(ctx);
 
         const slots = ctx.get('slots');
         if (slots === undefined || typeof slots.inject !== 'function' || typeof slots.register !== 'function') {
@@ -4126,7 +5361,13 @@
         __test: {
           DICT,
           CSS,
+          LAUNCHER_CSS,
+          LAUNCHER_STORAGE_KEY,
+          normalizeLauncherState,
+          createLauncherCore,
+          installLauncher,
           PowerUpLineIcon,
+          LauncherIcon,
           UpdateIcon,
           QuickIcon,
           PowerUpBridge,

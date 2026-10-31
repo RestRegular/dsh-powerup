@@ -435,6 +435,58 @@ assert.ok(
 );
 
 // ---------------------------------------------------------------------------
+// Sidebar launcher
+// ---------------------------------------------------------------------------
+const launcher = moduleExports.__test;
+
+// The saved order/folders reconcile with the panels that exist right now.
+assert.deepEqual(launcher.normalizeLauncherState(null, ['a', 'b', 'c']), { order: ['a', 'b', 'c'], groups: {} });
+assert.deepEqual(
+  launcher.normalizeLauncherState({ order: ['c'], groups: {} }, ['a', 'b', 'c']),
+  { order: ['c', 'a', 'b'], groups: {} },
+  'panels without a saved position are appended in host order',
+);
+const grouped = launcher.normalizeLauncherState(
+  { order: ['b', 'group:g1'], groups: { g1: { id: 'g1', name: '工具', items: ['a', 'c'] } } },
+  ['a', 'b', 'c'],
+);
+assert.deepEqual(grouped.order, ['b', 'group:g1']);
+assert.deepEqual(grouped.groups.g1, { id: 'g1', name: '工具', items: ['a', 'c'] });
+const cleaned = launcher.normalizeLauncherState(
+  {
+    order: ['missing', 'group:gone', 'a', 'a'],
+    groups: { gone: { id: 'gone', name: '', items: [] }, kept: { id: 'kept', name: '', items: ['b', 'unknown', 'b'] } },
+  },
+  ['a', 'b'],
+);
+assert.deepEqual(cleaned.order, ['a', 'group:kept'], 'dropped folders and unknown panels leave the order, and a folder missing from it is restored');
+assert.deepEqual(cleaned.groups.kept.items, ['b'], 'unknown and duplicate group members are dropped');
+assert.deepEqual(launcher.normalizeLauncherState({ order: 'nope', groups: [] }, []), { order: [], groups: {} });
+
+// The core starts and stops safely without a real host sidebar.
+const core = launcher.createLauncherCore({
+  t: (key) => key,
+  isEnabled: () => true,
+  read: () => null,
+  write: () => {},
+  listPanels: () => [],
+});
+assert.equal(typeof core.start, 'function');
+core.start();
+core.sync();
+core.stop();
+
+// The launcher stylesheet keeps the adaptive column rule and the flyout layer.
+assert.ok(launcher.LAUNCHER_CSS.includes('repeat(auto-fill,minmax(58px,1fr))'), 'the grid derives columns from the sidebar width');
+assert.ok(launcher.LAUNCHER_CSS.includes('flex-direction:column'), 'tiles stack the icon above the label');
+assert.ok(launcher.LAUNCHER_CSS.includes('.dsh-powerup-folder-pop{position:fixed'), 'the folder flyout floats above the sidebar');
+assert.ok(launcher.LAUNCHER_CSS.includes('.dsh-powerup-drag-ghost'), 'drag feedback keeps a ghost tile');
+for (const key of ['page.launcherTitle', 'page.launcherDesc', 'page.launcherToggle', 'page.launcherToggleHint', 'launcher.groupDefault', 'launcher.count', 'launcher.renameHint', 'launcher.dissolve', 'launcher.removeItem']) {
+  assert.ok(DICT.zh[key] !== undefined, `zh dictionary has ${key}`);
+  assert.ok(DICT.en[key] !== undefined, `en dictionary has ${key}`);
+}
+
+// ---------------------------------------------------------------------------
 // Plugin update helpers
 // ---------------------------------------------------------------------------
 const update = moduleExports.__test;
@@ -443,11 +495,11 @@ const update = moduleExports.__test;
 // stored false (from an older settings object or the page switches) wins.
 const savedGetItem = globalThis.localStorage.getItem;
 globalThis.localStorage.getItem = () => null;
-assert.deepEqual(update.readSettings(), { enabled: true, oneClickEnable: true, oneClickRestart: true });
+assert.deepEqual(update.readSettings(), { enabled: true, oneClickEnable: true, oneClickRestart: true, launcher: true });
 globalThis.localStorage.getItem = () => '{"enabled":false}';
-assert.deepEqual(update.readSettings(), { enabled: false, oneClickEnable: true, oneClickRestart: true }, 'older settings gain the one-click defaults');
-globalThis.localStorage.getItem = () => JSON.stringify({ enabled: true, oneClickEnable: false, oneClickRestart: false });
-assert.deepEqual(update.readSettings(), { enabled: true, oneClickEnable: false, oneClickRestart: false });
+assert.deepEqual(update.readSettings(), { enabled: false, oneClickEnable: true, oneClickRestart: true, launcher: true }, 'older settings gain the one-click and launcher defaults');
+globalThis.localStorage.getItem = () => JSON.stringify({ enabled: true, oneClickEnable: false, oneClickRestart: false, launcher: false });
+assert.deepEqual(update.readSettings(), { enabled: true, oneClickEnable: false, oneClickRestart: false, launcher: false });
 globalThis.localStorage.getItem = savedGetItem;
 
 // Both install paths use the version in the dialog input, so reinstall and
@@ -1082,7 +1134,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.7.0');
+assert.equal(host.__test.SELF_VERSION, '0.8.0');
 
 const installFailSpecs = [];
 const installFailManager = {
@@ -1128,7 +1180,7 @@ assert.equal(typeof hostRoute.handler, 'function');
 // ---------------------------------------------------------------------------
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 assert.equal(pkg.name, '@restregular/dsh-powerup');
-assert.equal(pkg.version, '0.7.0');
+assert.equal(pkg.version, '0.8.0');
 assert.equal(pkg.icon, './icon.svg');
 assert.equal(pkg.exports['./client'], './client.js');
 assert.equal(pkg.dsh.bundle.patch, './cordis.patch.yml');
