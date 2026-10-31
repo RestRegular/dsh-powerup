@@ -117,8 +117,9 @@ entries other plugins add) become an icon grid instead of a one-per-row list:
   its own (chat glyph + label) that calls `layout.selectPanel(null)` to return
   to the Conversation; it highlights when no global panel is selected, can be
   placed anywhere by dragging, and never joins a folder either.
-- **A synthetic "Restart DSH" tile.** A second Power-Up tile (circular-arrow
-  restart glyph + `重启` / `Restart`) opens the same restart confirmation the pending-restart
+- **A synthetic "Restart DSH" tile.** A second Power-Up tile (a ring with the
+  arrowhead tangent to the top, i.e. the arrow lines up with the arc) plus
+  `重启` / `Restart` opens the same restart confirmation the pending-restart
   bar uses: the tile only calls into that React prompt, so there is one dialog,
   one capability read (`GET /dsh-powerup/api/restart`) and one set of copy. The
   confirmation explains that running tasks are interrupted; only a runtime that
