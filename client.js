@@ -69,7 +69,7 @@
 
       const NS = 'dsh-powerup';
       const SETTINGS_KEY = 'dsh-powerup:settings:v1';
-      const VERSION = '0.8.0';
+      const VERSION = '0.8.1';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -1353,7 +1353,14 @@
         }
 
         function updateDrop(x, y) {
-          if (drag === null || !drag.active) return;
+          if (drag === null || !drag.active || nav === null) return;
+          const navRect = nav.getBoundingClientRect();
+          if (x < navRect.left - 24 || x > navRect.right + 24 || y < navRect.top - 24) {
+            /* Released far outside the launcher: drop is a no-op, not an append. */
+            drag.drop = null;
+            hideDropLine();
+            return;
+          }
           const candidates = topLevelCandidates(drag.descriptor.key);
           let drop = null;
           for (const candidate of candidates) {
