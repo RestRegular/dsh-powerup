@@ -833,7 +833,9 @@
           if (typeof candidate.children !== 'object' || candidate.children === null) return false;
           for (const child of [...candidate.children]) {
             if (child.tagName === 'BUTTON') return true;
-            if (child.tagName === 'DIV' && typeof child.querySelector === 'function' && child.querySelector(':scope > button') !== null) return true;
+            /* 0.2.2+ wraps each row in a cell element (div.panelEntry /
+               span.moreAnchor) that holds the row button as its first child. */
+            if (typeof child.querySelector === 'function' && child.querySelector(':scope > button') !== null) return true;
           }
           return false;
         }
@@ -878,6 +880,15 @@
           sync();
         }
 
+        /** True when a row button is the host's "More" launcher (it opens a menu). */
+        function rowOpensMenu(buttonEl, wrapper) {
+          if (buttonEl === null || typeof buttonEl.getAttribute !== 'function') return false;
+          if (buttonEl.hasAttribute('aria-haspopup') || buttonEl.hasAttribute('aria-expanded')) return true;
+          if (wrapper !== undefined && wrapper !== null && typeof wrapper.className === 'string'
+            && wrapper.className.includes('moreAnchor')) return true;
+          return false;
+        }
+
         /** Resolve the host panel rows (and the "more" launcher) into tile records. */
         function collectHostTiles(container) {
           const byLabel = new Map();
@@ -902,19 +913,22 @@
               || child.hasAttribute('data-powerup-restart')
               || child.hasAttribute('data-powerup-close')) continue;
             if (typeof child.classList === 'object' && child.classList !== null && child.classList.contains('dsh-powerup-drop-line')) continue;
+            /* A host row is either the button itself (older sidebars) or a
+               wrapper that carries the row plus its unpin overlay (0.2.2+:
+               `div.panelEntry` per panel, `span.moreAnchor` for More). The
+               wrapper is the grid cell; its row button is the click target. */
             let gridEl = child;
             let buttonEl = null;
             if (child.tagName === 'BUTTON') buttonEl = child;
             else if (typeof child.querySelector === 'function') {
-              /* The host's "more" launcher wraps its row in a Menu root <span>;
-                 other hosts may use a div. Either way the row is the direct
-                 button child of that wrapper. */
-              buttonEl = child.querySelector(':scope > button');
+              buttonEl = child.querySelector(':scope > button[class*="panelRow"]');
+              if (buttonEl === null) buttonEl = child.querySelector(':scope > button:not([class*="panelUnpin"])');
+              if (buttonEl === null) buttonEl = child.querySelector(':scope > button');
               if (buttonEl === null) continue;
             } else continue;
             const label = buttonEl.getAttribute('aria-label') ?? '';
             if (label === '') continue;
-            const isMore = child.tagName !== 'BUTTON';
+            const isMore = rowOpensMenu(buttonEl, child);
             let key = isMore ? LAUNCHER_MORE_KEY : (byLabel.get(label) ?? 'label:' + label);
             if (key !== LAUNCHER_MORE_KEY && usedKeys.has(key)) {
               let suffix = 2;
@@ -1215,6 +1229,8 @@
               tile.gridEl.style.display = hidden ? 'none' : '';
               const position = orderIndex.get(tile.key);
               tile.gridEl.style.order = position === undefined ? '' : String(position);
+              if (tile.active) tile.gridEl.setAttribute('data-powerup-active', '');
+              else tile.gridEl.removeAttribute('data-powerup-active');
             }
             const chat = ensureChatButton();
             syncSyntheticTile(chat, LAUNCHER_CHAT_KEY, t('launcher.backToConversation'), undefined, wide, memberOf, orderIndex);
@@ -1759,7 +1775,27 @@
         function describeTile(target) {
           if (target === null || target === undefined || typeof target.closest !== 'function') return null;
           const button = target.closest('button');
-          if (button === null || nav === null || !nav.contains(button)) return null;
+          if (button !== null && nav !== null && nav.contains(button)) {
+            const described = describeButton(button);
+            if (described !== null) return described;
+          }
+          /* A press on the cell padding (or the unpin overlay) still belongs to
+             the tile that owns the cell. */
+          const cell = target.closest('[data-powerup-grid]');
+          if (cell === null || nav === null || !nav.contains(cell)) return null;
+          const key = cell.getAttribute('data-powerup-grid');
+          const folderId = cell.getAttribute('data-powerup-folder');
+          if (folderId !== null) {
+            const group = state.groups[folderId];
+            if (group === undefined) return null;
+            return { kind: 'folder', key: launcherGroupEntry(folderId), gridEl: cell, label: group.name };
+          }
+          const tile = hostTiles.find((candidate) => candidate.key === key);
+          if (tile === undefined) return null;
+          return { kind: tile.isMore ? 'more' : 'panel', key: tile.key, gridEl: tile.gridEl, label: tile.label };
+        }
+
+        function describeButton(button) {
           if (button.hasAttribute('data-powerup-chat')) {
             return { kind: 'chat', key: LAUNCHER_CHAT_KEY, gridEl: button, label: t('launcher.backToConversation') };
           }
@@ -2114,6 +2150,9 @@
               state = normalizeLauncherState(next, hostTiles.filter((tile) => !tile.isMore).map((tile) => tile.key));
             },
             getNav: () => nav,
+            collectHostTiles,
+            detectWide,
+            rowOpensMenu,
           },
         };
       }
@@ -2508,15 +2547,20 @@
        */
       const LAUNCHER_CSS = `
 nav.dsh-powerup-launcher.dsh-powerup-launcher-wide{position:relative;display:grid!important;grid-template-columns:repeat(auto-fill,minmax(58px,1fr));grid-auto-rows:min-content;gap:2px;align-content:start;align-items:stretch;margin:0 0 10px;padding:2px 0}
-nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button,nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]>button,.dsh-powerup-folder,.dsh-powerup-synth{box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:auto;min-width:0;height:auto;min-height:52px;margin:0;padding:6px 2px 5px;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:11px;line-height:14px;text-align:center;cursor:pointer;user-select:none;-webkit-user-select:none;transition:background .12s ease,color .12s ease,transform .12s ease}
-nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:hover,nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]>button:hover,.dsh-powerup-folder:hover,.dsh-powerup-synth:hover{background:var(--dsw-alias-interactive-bg-hover)}
-nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:active,nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]>button:active,.dsh-powerup-folder:active,.dsh-powerup-synth:active{transform:scale(.96)}
-nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button[class*="panelActive"],nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]>button[aria-expanded=true]{background:var(--dsw-alias-interactive-bg-hover)}
-nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]{display:flex!important;flex-direction:column;min-width:0;margin:0}
+/* One grid cell per tile. A host row arrives either as a bare button or as a
+   wrapper that also holds the unpin overlay (0.2.2+: div.panelEntry, and
+   span.moreAnchor for More), so the cell box and the tile face are styled
+   separately: the wrapper is the cell, its row button is the face. */
+nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid],.dsh-powerup-folder,.dsh-powerup-synth{position:relative;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:auto;min-width:0;height:auto;min-height:52px;margin:0;padding:0;border:0;border-inline:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:11px;line-height:14px;text-align:center}
+nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]>button:not([class*="panelUnpin"]),nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button[data-powerup-grid],.dsh-powerup-folder,.dsh-powerup-synth{box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;flex:1 1 auto;width:100%;min-width:0;height:auto;min-height:52px;margin:0;padding:6px 2px 5px;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:inherit;font:inherit;font-size:11px;line-height:14px;text-align:center;cursor:pointer;user-select:none;-webkit-user-select:none;transition:background .12s ease,color .12s ease,transform .12s ease}
+nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover,.dsh-powerup-folder:hover,.dsh-powerup-synth:hover{background:var(--dsw-alias-interactive-bg-hover)}
+nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:active,.dsh-powerup-folder:active,.dsh-powerup-synth:active{transform:scale(.96)}
+nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid][data-powerup-active],nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid][class*="panelEntryActive"],nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:has(>button[aria-expanded=true]){background:var(--dsw-alias-interactive-bg-hover)}
+nav.dsh-powerup-launcher.dsh-powerup-launcher-wide [class*="panelUnpin"]{display:none!important}
 nav.dsh-powerup-launcher.dsh-powerup-launcher-wide [class*="panelGlyph"]{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;flex:none}
 nav.dsh-powerup-launcher.dsh-powerup-launcher-wide [class*="panelGlyph"] svg{width:20px;height:20px}
 nav.dsh-powerup-launcher.dsh-powerup-launcher-wide [class*="panelTitle"]{display:block;width:100%;max-width:100%;color:var(--dsw-alias-label-secondary);font-size:11px;line-height:14px;font-weight:400;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:hover [class*="panelTitle"]{color:var(--dsw-alias-label-primary)}
+nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [class*="panelTitle"]{color:var(--dsw-alias-label-primary)}
 .dsh-powerup-folder{position:relative;list-style:none;flex:none}
 .dsh-powerup-folder-stack{display:grid;grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(2,1fr);gap:1px;width:24px;height:24px;padding:2px;box-sizing:border-box;border-radius:6px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 9%,transparent);flex:none}
 .dsh-powerup-folder-mini{display:inline-flex;align-items:center;justify-content:center;min-width:0;min-height:0;overflow:hidden;color:var(--dsw-alias-label-primary);opacity:.85}
@@ -2536,8 +2580,9 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:hover [class*="panelTi
 .dsh-powerup-merge-target{background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 17%,transparent)!important;box-shadow:inset 0 0 0 1px var(--dsw-alias-state-business-primary)}
 .dsh-powerup-drop-line{position:absolute;z-index:6;display:none;width:2px;border-radius:999px;background:var(--dsw-alias-state-business-primary);box-shadow:0 0 0 1px color-mix(in srgb,var(--dsw-alias-state-business-primary) 26%,transparent);pointer-events:none}
 .dsh-powerup-drag-ghost{position:fixed;z-index:1800;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px 2px 5px;border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);color:var(--dsw-alias-label-primary);font-size:11px;line-height:14px;pointer-events:none;opacity:.96;transform:scale(1.05);transition:opacity .1s ease}
-.dsh-powerup-drag-ghost>button{box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:100%;min-height:0;margin:0;padding:6px 2px 5px;border:0;background:transparent;color:inherit;font:inherit;font-size:11px;line-height:14px;text-align:center;cursor:pointer;user-select:none;-webkit-user-select:none}
+.dsh-powerup-drag-ghost>button:not([class*="panelUnpin"]){box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:100%;min-height:0;margin:0;padding:6px 2px 5px;border:0;background:transparent;color:inherit;font:inherit;font-size:11px;line-height:14px;text-align:center;cursor:pointer;user-select:none;-webkit-user-select:none}
 .dsh-powerup-drag-ghost [class*="panelGlyph"]{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;flex:none}
+.dsh-powerup-drag-ghost [class*="panelUnpin"]{display:none!important}
 .dsh-powerup-drag-ghost [class*="panelGlyph"] svg{width:20px;height:20px}
 .dsh-powerup-drag-ghost [class*="panelTitle"]{display:block;width:100%;max-width:100%;color:var(--dsw-alias-label-secondary);font-size:11px;line-height:14px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dsh-powerup-folder-pop{position:fixed;z-index:1800;box-sizing:border-box;display:flex;flex-direction:column;gap:6px;width:max-content;min-width:196px;max-width:min(440px,calc(100vw - 24px));max-height:min(72vh,440px);padding:8px;border:.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-lg,10px);background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);color:var(--dsw-alias-label-primary);font-size:12px;line-height:16px;opacity:0;transform:scale(.92);transition:opacity .13s ease,transform .17s cubic-bezier(.22,.9,.3,1.06)}
@@ -2570,7 +2615,7 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:hover [class*="panelTi
 .dsh-powerup-folder-item-ghost .dsh-powerup-folder-item-glyph svg{width:20px;height:20px}
 .dsh-powerup-folder-item-ghost .dsh-powerup-folder-item-label{display:block;width:100%;max-width:100%;color:var(--dsw-alias-label-secondary);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dsh-powerup-folder-item-ghost .dsh-powerup-folder-item-remove{display:none}
-@media (prefers-reduced-motion:reduce){nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button,nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-more]>button,.dsh-powerup-folder,.dsh-powerup-synth,.dsh-powerup-folder-pop,.dsh-powerup-drag-ghost,.dsh-powerup-drop-line{transition:none}}
+@media (prefers-reduced-motion:reduce){nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid],.dsh-powerup-folder,.dsh-powerup-synth,.dsh-powerup-folder-pop,.dsh-powerup-drag-ghost,.dsh-powerup-drop-line{transition:none}}
 `;
 
       const CSS = `
@@ -5950,6 +5995,7 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>button:hover [class*="panelTi
           LAUNCHER_RESTART_KEY,
           LAUNCHER_RESTART_ICON,
           LAUNCHER_CLOSE_KEY,
+          LAUNCHER_MORE_KEY,
           LAUNCHER_CLOSE_ICON,
           normalizeLauncherState,
           dissolveGroupOrder,

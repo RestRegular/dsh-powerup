@@ -98,7 +98,8 @@ entries other plugins add) become an icon grid instead of a one-per-row list:
   `minmax(58px, 1fr)` cells, so widening the sidebar adds columns and narrowing
   it removes them — there is no fixed column count to break.
 - **Icons above labels.** Each tile stacks a 20px icon over an 11px caption, one
-  line with an ellipsis when the label is long.
+  line with an ellipsis when the label is long. The host's per-row unpin button
+  is hidden inside the grid, so a tile is one click target.
 - **Drag to sort.** Press and drag a tile; a ghost follows the pointer and a
   thin accent line marks the insertion point. Order is stored per browser.
 - **Drop onto a tile's middle to build a folder.** Dropping on the middle of
@@ -108,11 +109,17 @@ entries other plugins add) become an icon grid instead of a one-per-row list:
   anchored to the tile, scaling in from its edge. Inside the flyout: click an
   entry to open that panel, `×` removes it from the folder, click the title to
   rename the folder, and **Ungroup** returns every member to the grid.
-- **The host's "More" entry is a tile too.** The host wraps its extra-panels
-  menu in a `Menu` root `<span>` around the row button (not a div), so the
-  launcher resolves any non-button child that owns a direct button as that
-  entry; it gets the same stacked icon/label tile and can be dragged like any
-  other panel, including into a folder.
+- **A host row may be a wrapper, not a bare button.** DSH 0.2.2 wraps each
+  panel row in a cell element (`div.panelEntry` holding `button.panelRow` plus
+  its `panelUnpin` overlay) and the extra-panels menu in a `span.moreAnchor`.
+  The launcher treats any direct child that owns a direct button as one tile:
+  the wrapper becomes the grid cell and its row button the click target, so the
+  unpin overlay can be hidden without losing the row. The host's "More" entry is
+  recognised by `aria-haspopup` / `aria-expanded` (or the `moreAnchor` wrapper),
+  never by "not a button", so every panel row keeps its own slot id.
+- **The host's "More" entry is a tile too.** It gets the same stacked
+  icon/label tile and can be dragged like any other panel, including into a
+  folder.
 - **A synthetic "Back to conversation" tile.** Power-Up adds one extra tile of
   its own (chat glyph + label) that calls `layout.selectPanel(null)` to return
   to the Conversation; it highlights when no global panel is selected and can be
@@ -236,9 +243,11 @@ fiber is unloaded. The panel closes; refresh the page when the install finishes.
   synthetic folder tiles, hides the rows that moved into a folder with an
   inline `display` (React rewrites `className` when the active panel changes and
   would drop an added class), and sorts with the grid's `order` property. Host
-  rows are resolved by shape — a direct `<button>`, or a wrapper (the More
-  launcher's `Menu` root `<span>`) whose direct child is that button — because
-  the wrapper element differs between the panel rows and the more menu.
+  rows are resolved by shape — a direct `<button>`, or a cell wrapper
+  (`div.panelEntry` since 0.2.2, the More `Menu` root `<span>`) whose direct
+  child is that button — so one code path covers both the panel rows and the
+  more menu, and only `aria-haspopup` / `aria-expanded` / `moreAnchor` marks a
+  row as More.
 - **The DOM launcher borrows the React app-action prompts.** The launcher is
   plain DOM and cannot render React, so the Plugins overlay publishes
   `openRestart` and `openClose` in module-level bridges while it is mounted; the

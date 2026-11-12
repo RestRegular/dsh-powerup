@@ -519,6 +519,177 @@ core.start();
 core.sync();
 core.stop();
 
+// ---------------------------------------------------------------------------
+// Host row shapes. 0.2.2 wraps every panel row in a cell element
+// (div.panelEntry, plus its unpin overlay) and the More row in span.moreAnchor,
+// so a row is no longer a direct button child of the panel list.
+// ---------------------------------------------------------------------------
+const COMPOUND_ATTR = /\[([a-zA-Z-]+)(?:(\*?=)"([^"]*)")?\]/gu;
+const COMPOUND_NOT = /:not\(([^)]*)\)/gu;
+
+function classListOf(node) {
+  return {
+    contains: (name) => node.className.split(/\s+/u).includes(name),
+    add: (name) => { node.className = `${node.className} ${name}`.trim(); },
+    remove: (name) => { node.className = node.className.split(/\s+/u).filter((part) => part !== name).join(' '); },
+  };
+}
+
+function attributeValue(node, name) {
+  if (name === 'class') return node.className;
+  return node.attrs[name];
+}
+
+/** Parse one compound selector (`tag[a][b*="c"]:not([d])`) into a matcher. */
+function parseCompound(text) {
+  const notParts = [];
+  for (const match of text.matchAll(COMPOUND_NOT)) notParts.push(parseCompound(match[1]));
+  const bare = text.replace(COMPOUND_NOT, '');
+  const tagMatch = /^[a-zA-Z][\w-]*/u.exec(bare);
+  const tag = tagMatch === null ? null : tagMatch[0].toUpperCase();
+  const tests = [];
+  for (const match of bare.matchAll(COMPOUND_ATTR)) {
+    const [, name, operator, value] = match;
+    if (operator === undefined) tests.push((node) => attributeValue(node, name) !== undefined);
+    else if (operator === '*=') tests.push((node) => (attributeValue(node, name) ?? '').includes(value));
+    else tests.push((node) => attributeValue(node, name) === value);
+  }
+  return { tag, tests, notParts };
+}
+
+function nodeMatches(node, compound) {
+  if (compound.tag !== null && node.tag !== compound.tag) return false;
+  if (!compound.tests.every((test) => test(node))) return false;
+  return !compound.notParts.some((part) => nodeMatches(node, part));
+}
+
+function descendantsOf(node) {
+  const found = [];
+  for (const child of node.children) found.push(child, ...descendantsOf(child));
+  return found;
+}
+
+class FakeNode {
+  constructor(tag, className = '') {
+    this.tag = tag.toUpperCase();
+    this.tagName = this.tag;
+    this.className = className;
+    this.attrs = {};
+    this.children = [];
+    this.innerHTML = '';
+    this.textContent = '';
+    this.style = {};
+    this.classList = classListOf(this);
+  }
+
+  appendChild(child) {
+    this.children.push(child);
+    return child;
+  }
+
+  setAttribute(name, value) {
+    if (name === 'class') this.className = String(value);
+    else this.attrs[name] = String(value);
+  }
+
+  getAttribute(name) {
+    return name === 'class' ? this.className : this.attrs[name] ?? null;
+  }
+
+  hasAttribute(name) {
+    return this.getAttribute(name) !== null;
+  }
+
+  removeAttribute(name) {
+    if (name === 'class') this.className = '';
+    else delete this.attrs[name];
+  }
+
+  querySelector(selector) {
+    for (const part of selector.split(',')) {
+      const trimmed = part.trim();
+      const scoped = trimmed.startsWith(':scope >');
+      const compound = parseCompound(scoped ? trimmed.slice(8).trim() : trimmed);
+      const pool = scoped ? this.children : descendantsOf(this);
+      for (const node of pool) {
+        if (nodeMatches(node, compound)) return node;
+      }
+    }
+    return null;
+  }
+}
+
+/** Build the 0.2.2+ sidebar shape: cell wrappers around row buttons. */
+function buildHostNav(labels, { moreLabel = '更多' } = {}) {
+  const nav = new FakeNode('nav', 'wtg9ga_panelList');
+  const rows = [];
+  labels.forEach((label, index) => {
+    const cell = new FakeNode('div', index === 0 ? 'wtg9ga_panelEntry wtg9ga_panelEntryWide' : 'wtg9ga_panelEntry wtg9ga_panelEntryWide');
+    const row = new FakeNode('button', 'wtg9ga_panelRow');
+    row.setAttribute('aria-label', label);
+    row.appendChild(new FakeNode('span', 'wtg9ga_panelGlyph'));
+    row.appendChild(new FakeNode('span', 'wtg9ga_panelTitle wtg9ga_wide'));
+    cell.appendChild(row);
+    if (index > 0) {
+      const unpin = new FakeNode('button', 'wtg9ga_panelUnpin');
+      unpin.setAttribute('aria-label', `取消固定 ${label}`);
+      cell.appendChild(unpin);
+    }
+    nav.appendChild(cell);
+    rows.push({ cell, row });
+  });
+  const anchor = new FakeNode('span', '_root_70kcw_1 wtg9ga_moreAnchor');
+  const moreRow = new FakeNode('button', 'wtg9ga_panelRow');
+  moreRow.setAttribute('aria-label', moreLabel);
+  moreRow.setAttribute('aria-haspopup', 'menu');
+  moreRow.setAttribute('aria-expanded', 'false');
+  moreRow.appendChild(new FakeNode('span', 'wtg9ga_panelGlyph'));
+  moreRow.appendChild(new FakeNode('span', 'wtg9ga_panelTitle'));
+  anchor.appendChild(moreRow);
+  nav.appendChild(anchor);
+  return { nav, rows, anchor, moreRow };
+}
+
+const hostLabels = ['插件', '技能中心', '插件市场', '随身访问', '自动化任务', '记忆系统', 'Power-Up'];
+const hostIds = ['plugins', 'skill-center', 'dsh-market', 'pocket', 'schedules', 'memory', 'powerup'];
+const shaped = buildHostNav(hostLabels);
+const shapedCore = launcher.createLauncherCore({
+  t: (key) => key,
+  isEnabled: () => true,
+  read: () => null,
+  write: () => {},
+  listPanels: () => hostLabels.map((label, index) => ({ id: hostIds[index], label })),
+});
+const shapedTiles = shapedCore.__debug.collectHostTiles(shaped.nav);
+assert.equal(shapedTiles.length, hostLabels.length + 1, 'every host row becomes a tile, including More');
+assert.deepEqual(
+  shapedTiles.map((tile) => tile.key),
+  [...hostIds, launcher.LAUNCHER_MORE_KEY],
+  'panel rows keep their slot ids and only the menu row is More',
+);
+assert.equal(shapedTiles.filter((tile) => tile.isMore).length, 1, 'exactly one row is the More launcher');
+assert.equal(shapedTiles.at(-1).isMore, true);
+assert.equal(shapedTiles.at(-1).gridEl, shaped.anchor, 'the More cell is the wrapper, not the row button');
+assert.equal(shapedTiles[0].gridEl, shaped.rows[0].cell, 'a panel cell is the wrapper that holds the unpin overlay');
+assert.equal(shapedTiles[0].buttonEl, shaped.rows[0].row, 'the row button stays the click target');
+assert.equal(shaped.rows[0].cell.getAttribute('data-powerup-grid'), 'plugins', 'the cell carries the grid key');
+assert.equal(shaped.rows[0].cell.hasAttribute('data-powerup-more'), false, 'panel cells are not marked as More');
+assert.equal(shaped.anchor.hasAttribute('data-powerup-more'), true, 'the menu cell is marked as More');
+assert.equal(shapedCore.__debug.detectWide(shapedTiles), true, 'a labelled cell row is the wide sidebar');
+assert.equal(shapedCore.__debug.rowOpensMenu(shaped.rows[0].row, shaped.rows[0].cell), false, 'a plain row is not a menu');
+assert.equal(shapedCore.__debug.rowOpensMenu(shaped.moreRow, shaped.anchor), true, 'aria-haspopup marks the menu row');
+
+// A row button without the wrapper class still resolves through the menu attrs.
+const bareMore = new FakeNode('button', 'panelRow');
+bareMore.setAttribute('aria-label', 'More');
+bareMore.setAttribute('aria-haspopup', 'menu');
+const bareNav = new FakeNode('nav', 'wtg9ga_panelList');
+bareNav.appendChild(bareMore);
+const bareTiles = shapedCore.__debug.collectHostTiles(bareNav);
+assert.equal(bareTiles.length, 1);
+assert.equal(bareTiles[0].key, launcher.LAUNCHER_MORE_KEY, 'a bare menu button is still More');
+assert.equal(bareTiles[0].gridEl, bareMore, 'a bare row is its own grid cell');
+
 // The launcher stylesheet keeps the adaptive column rule and the flyout layer.
 assert.ok(launcher.LAUNCHER_CSS.includes('repeat(auto-fill,minmax(58px,1fr))'), 'the grid derives columns from the sidebar width');
 assert.ok(launcher.LAUNCHER_CSS.includes('flex-direction:column'), 'tiles stack the icon above the label');
@@ -526,6 +697,12 @@ assert.ok(launcher.LAUNCHER_CSS.includes('.dsh-powerup-folder-pop{position:fixed
 assert.ok(launcher.LAUNCHER_CSS.includes('.dsh-powerup-drag-ghost'), 'drag feedback keeps a ghost tile');
 assert.ok(launcher.LAUNCHER_CSS.includes('.dsh-powerup-synth{'), 'the synthetic chat/restart tiles share one grid style');
 assert.ok(launcher.LAUNCHER_CSS.includes('.dsh-powerup-synth-label'), 'synthetic tiles keep their stacked caption');
+// The grid styles the cell (the wrapper that also holds the unpin overlay) and
+// the row button inside it, because 0.2.2 rows are no longer direct children.
+assert.ok(launcher.LAUNCHER_CSS.includes('>[data-powerup-grid]'), 'grid cells are keyed on the wrapper marker, not on a bare row');
+assert.ok(launcher.LAUNCHER_CSS.includes('[class*="panelUnpin"]{display:none!important}'), 'the unpin overlay is hidden inside the grid');
+assert.ok(launcher.LAUNCHER_CSS.includes('>[data-powerup-grid]>button:not([class*="panelUnpin"])'), 'the row button inside a cell becomes the tile face');
+assert.ok(!launcher.LAUNCHER_CSS.includes('>[data-powerup-more]>button'), 'no rule still assumes a bare button row');
 for (const key of ['page.launcherTitle', 'page.launcherDesc', 'page.launcherToggle', 'page.launcherToggleHint', 'launcher.groupDefault', 'launcher.count', 'launcher.renameHint', 'launcher.dissolve', 'launcher.removeItem', 'launcher.backToConversation', 'launcher.restart', 'launcher.restartHint', 'launcher.close', 'launcher.closeHint', 'close.title', 'close.desc', 'close.cancel', 'close.confirm', 'close.closing', 'close.failed', 'close.unsupported']) {
   assert.ok(DICT.zh[key] !== undefined, `zh dictionary has ${key}`);
   assert.ok(DICT.en[key] !== undefined, `en dictionary has ${key}`);
@@ -1179,7 +1356,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.8.9');
+assert.equal(host.__test.SELF_VERSION, '0.8.10');
 
 const installFailSpecs = [];
 const installFailManager = {
@@ -1252,7 +1429,7 @@ assert.equal((await callHost('GET', '/dsh-powerup/api/nope')).status, 404);
 // ---------------------------------------------------------------------------
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 assert.equal(pkg.name, '@restregular/dsh-powerup');
-assert.equal(pkg.version, '0.8.9');
+assert.equal(pkg.version, host.__test.SELF_VERSION, 'the Host half reports the manifest version');
 assert.equal(pkg.icon, './icon.svg');
 assert.equal(pkg.exports['./client'], './client.js');
 assert.equal(pkg.dsh.bundle.patch, './cordis.patch.yml');
