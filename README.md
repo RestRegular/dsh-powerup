@@ -40,6 +40,24 @@ actions. The setting is stored in the browser. It also holds the defaults for
 **one-click install** (auto-enable and auto-restart), which the plugin installer
 uses.
 
+### Switch sessions from the title
+
+Clicking the current conversation title opens a dropdown of the sessions that
+are running, each prefixed with its workspace name; picking one switches the
+conversation. The title is only marked with a `data-*` attribute — React keeps
+owning the crumb — and the dropdown is a body-level fixed panel, so the header's
+drag area and clipping cannot swallow it. The title row is also a window-drag
+region, so a press that moves more than a few pixels is treated as a drag and
+never opens the panel.
+
+The panel behaves like the host's own background-jobs popover: it stays open
+while the page keeps changing. Streaming output, new records, a refreshed job
+list or a session starting/stopping only re-render the rows in place. If the
+host replaces the crumb node the panel re-anchors onto the new one instead of
+closing; if the current session changes, the header disappears, or the panel's
+title is clicked again, it closes. `Esc` and a click anywhere outside also
+close it. It is on by default and can be turned off in the Power-Up page.
+
 ### Stop a background job with a reason
 
 The session header's background jobs panel keeps the host's list, live output,

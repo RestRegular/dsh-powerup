@@ -69,7 +69,7 @@
 
       const NS = 'dsh-powerup';
       const SETTINGS_KEY = 'dsh-powerup:settings:v1';
-      const VERSION = '0.8.12';
+      const VERSION = '0.8.14';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -2987,17 +2987,24 @@ marker is only present while our button is mounted, and the host's
         const t = typeof options.t === 'function' ? options.t : (key) => key;
         const listRows = typeof options.listRows === 'function' ? options.listRows : () => [];
         const openSession = typeof options.openSession === 'function' ? options.openSession : () => false;
+        const currentSessionId = typeof options.currentSessionId === 'function' ? options.currentSessionId : () => undefined;
 
         const MIN_WIDTH = 220;
         const PREFERRED_HEIGHT = 320;
         const GAP = 6;
         const DRAG_THRESHOLD = 6;
+        /** Re-anchor retries before a missing title counts as a view switch. */
+        const REANCHOR_RETRY = 3;
+        const REANCHOR_DELAY = 120;
+        /** How often an open popup re-reads the session list while the host mutates. */
+        const ROWS_REFRESH_MS = 400;
 
         let observer = null;
         let marked = [];
         let popup = null;
         let press = null;
         let started = false;
+        let positionQueued = false;
 
         function warn(message, error) {
           try {
@@ -3038,7 +3045,13 @@ marker is only present while our button is mounted, and the host's
           return out;
         }
 
-        /** Re-apply the marker after React re-renders the crumb. */
+        /**
+         * Re-apply the marker after React re-renders the crumb. An open popup
+         * must survive unrelated re-renders: React may replace the crumb node
+         * the popup was anchored to (streaming tokens, a new background job, a
+         * status line), which used to look like a view switch. Instead of
+         * closing, re-anchor to the live title and re-place the panel.
+         */
         function sync() {
           if (!started || !hasDocument()) return;
           const found = findTitles();
@@ -3047,6 +3060,100 @@ marker is only present while our button is mounted, and the host's
           for (const el of found) {
             if (!el.hasAttribute('data-powerup-session-title')) el.setAttribute('data-powerup-session-title', '');
             if (el.getAttribute('title') !== hint) el.setAttribute('title', hint);
+          }
+          if (popup === null) return;
+          // A mounted title belonging to another session means the view really
+          // switched. An empty list is only a re-render in progress, so it is
+          // left to the retry path below.
+          const owners = found
+            .map((el) => ownerSessionId(el))
+            .filter((id) => typeof id === 'string' && id !== '');
+          if (typeof popup.sessionId === 'string' && popup.sessionId !== ''
+            && owners.length > 0 && !owners.includes(popup.sessionId)) {
+            closePopup();
+            return;
+          }
+          if (isUsableAnchor(popup.anchor)) {
+            popup.retries = 0;
+            refreshPopupRows();
+            schedulePosition();
+            return;
+          }
+          reanchor(found);
+        }
+
+        /** A title crumb the panel can actually be placed against. */
+        function isUsableAnchor(el) {
+          return el !== null && el !== undefined
+            && el.isConnected === true
+            && typeof el.getBoundingClientRect === 'function';
+        }
+
+        /** The conversation header that owns a title crumb. */
+        function ownerHeader(el) {
+          try {
+            return typeof el.closest === 'function' ? el.closest('header[data-window-drag]') : null;
+          } catch {
+            return null;
+          }
+        }
+
+        /** The session id of the conversation subtree that owns a node. */
+        function ownerSessionId(el) {
+          try {
+            const host = typeof el.closest === 'function' ? el.closest('[data-conversation-session]') : null;
+            const id = host === null ? null : host.getAttribute('data-conversation-session');
+            return typeof id === 'string' && id !== '' ? id : undefined;
+          } catch {
+            return undefined;
+          }
+        }
+
+        /**
+         * Move the open popup onto a live title after its anchor was replaced.
+         * A view switch removes every title, so a missing anchor only counts
+         * as a switch once the retries are exhausted; until then the popup
+         * stays open at its last position.
+         */
+        function reanchor(found) {
+          if (popup === null) return;
+          const target = pickAnchor(found);
+          if (target !== null && target !== popup.anchor) {
+            popup.anchor = target;
+            popup.retries = 0;
+            schedulePosition();
+            return;
+          }
+          if (popup.retries >= REANCHOR_RETRY) {
+            closePopup();
+            return;
+          }
+          popup.retries += 1;
+          scheduleRetry();
+        }
+
+        /** The title to anchor on: the same header's crumb, else the session's. */
+        function pickAnchor(found) {
+          if (!Array.isArray(found) || found.length === 0) return null;
+          const usable = found.filter((el) => isUsableAnchor(el));
+          if (usable.length === 0) return null;
+          if (usable.length === 1) return usable[0];
+          if (popup !== null && popup.header !== null) {
+            const same = usable.filter((el) => ownerHeader(el) === popup.header);
+            if (same.length > 0) return same[0];
+          }
+          if (popup !== null && typeof popup.sessionId === 'string' && popup.sessionId !== '') {
+            for (const el of usable) {
+              if (ownerSessionId(el) === popup.sessionId) return el;
+            }
+          }
+          return usable[0];
+        }
+
+        function scheduleRetry() {
+          if (!started) return;
+          if (typeof window !== 'undefined' && window !== null && typeof window.setTimeout === 'function') {
+            window.setTimeout(() => { if (started && popup !== null) sync(); }, REANCHOR_DELAY);
           }
         }
 
@@ -3059,6 +3166,45 @@ marker is only present while our button is mounted, and the host's
           }
         }
 
+        /** Coalesce position updates coming from host re-renders. */
+        function schedulePosition() {
+          if (popup === null || positionQueued) return;
+          positionQueued = true;
+          const run = () => {
+            positionQueued = false;
+            if (popup !== null) positionPopup();
+          };
+          if (typeof requestAnimationFrame === 'function') requestAnimationFrame(run);
+          else run();
+        }
+
+        /** Rows as a stable signature, so unchanged lists cost no DOM work. */
+        function rowsSignature(rows) {
+          return rows.map((row) => `${row.id}\u0000${row.current ? '1' : '0'}\u0000${row.title}`).join('\u0001');
+        }
+
+        /**
+         * Keep the open list current while the host keeps mutating the page:
+         * a session that starts or stops changes the rows, and the popup must
+         * reflect that without being torn down and reopened. Reading the
+         * session snapshot is cheap but not free, so it is throttled.
+         */
+        function refreshPopupRows() {
+          if (popup === null) return;
+          const now = Date.now();
+          if (popup.rowsAt !== undefined && now - popup.rowsAt < ROWS_REFRESH_MS) return;
+          popup.rowsAt = now;
+          let rows;
+          try {
+            rows = listRows();
+          } catch {
+            return;
+          }
+          if (!Array.isArray(rows)) return;
+          if (popup.signature === rowsSignature(rows)) return;
+          renderPopup();
+        }
+
         function onMouseDown(event) {
           if (event.button !== 0 || typeof event.target?.closest !== 'function') return;
           const anchor = event.target.closest('[data-powerup-session-title]');
@@ -3068,7 +3214,13 @@ marker is only present while our button is mounted, and the host's
         function onOutside(event) {
           if (popup === null || event.target === null || event.target === undefined) return;
           if (typeof popup.element.contains === 'function' && popup.element.contains(event.target)) return;
-          if (typeof popup.anchor.contains === 'function' && popup.anchor.contains(event.target)) return;
+          // A re-rendered title is still our anchor: let the click handler
+          // decide between closing and switching, never treat it as outside.
+          if (typeof event.target.closest === 'function') {
+            const title = event.target.closest('[data-powerup-session-title]');
+            if (title !== null) return;
+          }
+          if (popup.anchor !== null && typeof popup.anchor.contains === 'function' && popup.anchor.contains(event.target)) return;
           closePopup();
         }
 
@@ -3079,10 +3231,19 @@ marker is only present while our button is mounted, and the host's
           closePopup();
         }
 
+        /**
+         * Scrolling is not a dismissal: the host scrolls its own content while
+         * a response streams. Keep the panel open and follow the anchor.
+         */
         function onScroll(event) {
           if (popup === null || event.target === null || event.target === undefined) return;
           if (typeof popup.element.contains === 'function' && popup.element.contains(event.target)) return;
-          closePopup();
+          schedulePosition();
+        }
+
+        function onResize() {
+          if (popup === null) return;
+          schedulePosition();
         }
 
         function onClick(event) {
@@ -3098,7 +3259,8 @@ marker is only present while our button is mounted, and the host's
             && Math.abs(event.clientX - press.x) + Math.abs(event.clientY - press.y) > DRAG_THRESHOLD) return;
           event.preventDefault();
           event.stopPropagation();
-          if (popup !== null && popup.anchor === anchor) {
+          // The title is the toggle: a second click closes, never reopens.
+          if (popup !== null) {
             closePopup();
             return;
           }
@@ -3109,7 +3271,9 @@ marker is only present while our button is mounted, and the host's
           if (popup === null || typeof window === 'undefined' || window === null) return;
           const anchor = popup.anchor;
           if (anchor === null || anchor.isConnected !== true || typeof anchor.getBoundingClientRect !== 'function') {
-            closePopup();
+            // Leave the panel where it is and let sync() re-anchor it; that
+            // path also owns the "the view really switched" close decision.
+            scheduleSync();
             return;
           }
           const rect = anchor.getBoundingClientRect();
@@ -3135,6 +3299,7 @@ marker is only present while our button is mounted, and the host's
           if (popup === null) return;
           const rows = listRows();
           popup.rows = rows;
+          popup.signature = rowsSignature(rows);
           const element = popup.element;
           element.textContent = '';
           const head = document.createElement('div');
@@ -3190,7 +3355,13 @@ marker is only present while our button is mounted, and the host's
           element.setAttribute('role', 'dialog');
           element.setAttribute('data-powerup-session-pop', '');
           document.body.appendChild(element);
-          popup = { element, anchor, rows: [] };
+          let openedSessionId;
+          try {
+            openedSessionId = currentSessionId();
+          } catch {
+            openedSessionId = undefined;
+          }
+          popup = { element, anchor, rows: [], retries: 0, sessionId: openedSessionId, header: ownerHeader(anchor) };
           renderPopup();
           const reveal = () => {
             if (popup !== null && popup.element === element) element.classList.add('is-open');
@@ -3200,7 +3371,7 @@ marker is only present while our button is mounted, and the host's
           document.addEventListener('pointerdown', onOutside, true);
           document.addEventListener('keydown', onKey, true);
           if (typeof window !== 'undefined' && window !== null) {
-            window.addEventListener('resize', closePopup, true);
+            window.addEventListener('resize', onResize, true);
             window.addEventListener('scroll', onScroll, true);
           }
         }
@@ -3209,10 +3380,11 @@ marker is only present while our button is mounted, and the host's
           if (popup === null) return;
           const element = popup.element;
           popup = null;
+          positionQueued = false;
           document.removeEventListener('pointerdown', onOutside, true);
           document.removeEventListener('keydown', onKey, true);
           if (typeof window !== 'undefined' && window !== null) {
-            window.removeEventListener('resize', closePopup, true);
+            window.removeEventListener('resize', onResize, true);
             window.removeEventListener('scroll', onScroll, true);
           }
           element.classList.remove('is-open');
@@ -3226,7 +3398,8 @@ marker is only present while our button is mounted, and the host's
           document.addEventListener('click', onClick, true);
           if (typeof MutationObserver === 'function') {
             observer = new MutationObserver(() => {
-              if (popup !== null && (popup.anchor === null || popup.anchor.isConnected !== true)) closePopup();
+              // Host re-renders are not view switches: keep an open popup and
+              // let sync() re-anchor it onto the live title.
               scheduleSync();
             });
             observer.observe(document.body, { childList: true, subtree: true });
@@ -3315,6 +3488,7 @@ marker is only present while our button is mounted, and the host's
         };
         const core = createSessionSwitcherCore({
           t: (key, params) => translateCurrent(key, params),
+          currentSessionId,
           listRows: () => {
             try {
               const sessions = ctx.get('sessions');

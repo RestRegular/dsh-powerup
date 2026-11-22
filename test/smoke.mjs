@@ -802,6 +802,210 @@ switchCore = switcher.createSessionSwitcherCore({
 assert.equal(typeof switchCore.start, 'function');
 assert.equal(typeof switchCore._runningSessionRows, 'function');
 
+// An open dropdown survives host re-renders: it re-anchors onto the replaced
+// title instead of closing, and only a real view switch (no title left) or an
+// outside click dismisses it. This mirrors the host's own background-jobs
+// popover, which streams content without closing.
+{
+  const handlers = { document: new Map(), window: new Map() };
+  const listen = (map) => (type, fn) => {
+    const list = map.get(type) ?? [];
+    list.push(fn);
+    map.set(type, list);
+  };
+  const unlisten = (map) => (type, fn) => {
+    map.set(type, (map.get(type) ?? []).filter((entry) => entry !== fn));
+  };
+  const fire = (map, type, event) => {
+    for (const fn of [...(map.get(type) ?? [])]) fn(event);
+  };
+  const header = { tag: 'HEADER', attrs: { 'data-window-drag': '' } };
+  const makeTitle = (sessionId) => {
+    const title = {
+      isConnected: true,
+      header,
+      className: 'host_crumbCurrent',
+      attrs: { 'data-powerup-session-title': '' },
+      style: {},
+      classList: { add() {}, remove() {} },
+      setAttribute(name, value) { this.attrs[name] = String(value); },
+      getAttribute(name) { return this.attrs[name] ?? null; },
+      hasAttribute(name) { return name in this.attrs; },
+      getBoundingClientRect: () => ({ left: 320, top: 12, right: 520, bottom: 36, width: 200, height: 24 }),
+      contains: () => false,
+      closest(selector) {
+        if (selector === '[data-powerup-session-title]') return this;
+        if (selector === 'nav[class*="crumbs"]') return { tag: 'nav' };
+        if (selector === 'header[data-window-drag]') return this.header;
+        if (selector === '[data-conversation-session]') return { getAttribute: () => sessionId };
+        return null;
+      },
+    };
+    return title;
+  };
+  let titles = [];
+  let currentId = 'session-1';
+  let headerNodes = [header];
+  let rows = [{ id: 'session-2', title: 'Two', current: false }];
+  const savedDocument = globalThis.document;
+  const savedWindow = globalThis.window;
+  const savedRaf = globalThis.requestAnimationFrame;
+  const savedObserver = globalThis.MutationObserver;
+  globalThis.requestAnimationFrame = (fn) => { fn(); return 0; };
+  globalThis.MutationObserver = undefined;
+  globalThis.window = {
+    ...savedWindow,
+    innerWidth: 1280,
+    innerHeight: 900,
+    addEventListener: listen(handlers.window),
+    removeEventListener: unlisten(handlers.window),
+    setTimeout: (fn) => { fn(); return 0; },
+  };
+  globalThis.document = {
+    ...savedDocument,
+    body: {
+      appendChild(node) { node.isConnected = true; },
+    },
+    createElement: () => ({
+      className: '',
+      style: {},
+      children: [],
+      isConnected: false,
+      classList: { add() {}, remove() {} },
+      setAttribute() {},
+      getAttribute() { return null; },
+      appendChild(child) { this.children.push(child); },
+      append() { for (const child of arguments) this.children.push(child); },
+      addEventListener() {},
+      contains: () => false,
+      remove() { this.isConnected = false; },
+    }),
+    querySelectorAll: (selector) => (selector === 'header[data-window-drag]'
+      ? headerNodes.map(() => ({ querySelectorAll: () => titles }))
+      : []),
+    querySelector: (selector) => (selector === '[data-conversation-session]'
+      ? { getAttribute: () => currentId }
+      : null),
+    addEventListener: listen(handlers.document),
+    removeEventListener: unlisten(handlers.document),
+  };
+
+  const core = switcher.createSessionSwitcherCore({
+    t: (key) => DICT.en[key] ?? key,
+    currentSessionId: () => currentId,
+    listRows: () => rows,
+    openSession: () => {},
+  });
+  titles = [makeTitle('session-1')];
+  core.start();
+  assert.equal(core.getMarked().length, 1, 'the live title is marked');
+
+  fire(handlers.document, 'click', {
+    button: 0,
+    clientX: 400,
+    clientY: 24,
+    target: titles[0],
+    preventDefault() {},
+    stopPropagation() {},
+  });
+  assert.ok(core.getPopup() !== null, 'clicking the title opens the dropdown');
+  const firstAnchor = core.getPopup().anchor;
+
+  // The host re-renders the crumb: a new node, same session, plus churn.
+  titles[0].isConnected = false;
+  const replacement = makeTitle('session-1');
+  titles = [replacement];
+  core.sync();
+  assert.ok(core.getPopup() !== null, 'a host re-render keeps the dropdown open');
+  assert.equal(core.getPopup().anchor, replacement, 'the dropdown re-anchors onto the new title');
+
+  // A session starting or stopping changes the rows: the open panel follows
+  // the new list instead of being closed and reopened.
+  const savedNow = Date.now;
+  let clock = savedNow();
+  Date.now = () => clock;
+  rows = [
+    { id: 'session-2', title: 'Two', current: false },
+    { id: 'session-3', title: 'Three', current: false },
+  ];
+  clock += 1000;
+  core.sync();
+  assert.equal(core.getPopup().rows.length, 2, 'a running session appears in the open list');
+  Date.now = savedNow;
+
+  // A switch to another session is a view switch: the dropdown closes.
+  currentId = 'session-2';
+  titles = [makeTitle('session-2')];
+  core.sync();
+  assert.equal(core.getPopup(), null, 'switching sessions closes the dropdown');
+
+  // Reopen, then an outside press closes it as before.
+  titles = [makeTitle('session-2')];
+  core.sync();
+  fire(handlers.document, 'click', {
+    button: 0,
+    clientX: 400,
+    clientY: 24,
+    target: titles[0],
+    preventDefault() {},
+    stopPropagation() {},
+  });
+  assert.ok(core.getPopup() !== null);
+  fire(handlers.document, 'pointerdown', { target: { closest: () => null, contains: () => false } });
+  assert.equal(core.getPopup(), null, 'an outside press still dismisses the dropdown');
+
+  // Streaming content scrolls the transcript; that must not dismiss either.
+  titles = [makeTitle('session-2')];
+  core.sync();
+  fire(handlers.document, 'click', {
+    button: 0,
+    clientX: 400,
+    clientY: 24,
+    target: titles[0],
+    preventDefault() {},
+    stopPropagation() {},
+  });
+  assert.ok(core.getPopup() !== null);
+  fire(handlers.window, 'scroll', { target: { closest: () => null, contains: () => false } });
+  assert.ok(core.getPopup() !== null, 'scrolling the transcript keeps the dropdown open');
+
+  // The header itself disappears (session closed / another view): this is a
+  // real switch, so the retries run out and the dropdown closes.
+  const gone = core.getPopup().anchor;
+  gone.isConnected = false;
+  titles = [];
+  core.sync();
+  assert.equal(core.getPopup(), null, 'a vanished header closes the dropdown');
+
+  // A title click is a toggle, never a reopen of a replaced anchor.
+  titles = [makeTitle('session-2')];
+  core.sync();
+  fire(handlers.document, 'click', {
+    button: 0,
+    clientX: 400,
+    clientY: 24,
+    target: titles[0],
+    preventDefault() {},
+    stopPropagation() {},
+  });
+  assert.ok(core.getPopup() !== null);
+  fire(handlers.document, 'click', {
+    button: 0,
+    clientX: 400,
+    clientY: 24,
+    target: titles[0],
+    preventDefault() {},
+    stopPropagation() {},
+  });
+  assert.equal(core.getPopup(), null, 'a second title click closes the dropdown');
+  assert.ok(firstAnchor !== replacement);
+  core.stop();
+  globalThis.document = savedDocument;
+  globalThis.window = savedWindow;
+  globalThis.requestAnimationFrame = savedRaf;
+  globalThis.MutationObserver = savedObserver;
+}
+
 // Workspace locate button: starts/stops safely, and the locate glyph is a
 // currentColor line drawing (no fixed color) like the other host icons.
 const locateCore = switcher.createLocateSessionCore({
@@ -1540,7 +1744,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.8.13');
+assert.equal(host.__test.SELF_VERSION, '0.8.14');
 
 const installFailSpecs = [];
 const installFailManager = {
