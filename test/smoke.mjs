@@ -709,6 +709,63 @@ for (const key of ['page.launcherTitle', 'page.launcherDesc', 'page.launcherTogg
 }
 
 // ---------------------------------------------------------------------------
+// Session title switcher
+// ---------------------------------------------------------------------------
+const switcher = moduleExports.__test;
+
+// Only host-reported running sessions appear, in host list order; the current
+// session is flagged and falls back through title -> displayTitle -> id.
+assert.deepEqual(
+  switcher.runningSessionRows({
+    ids: ['a', 'b', 'c', 'd'],
+    byId: {
+      a: { running: true, displayTitle: 'Alpha' },
+      b: { running: false, displayTitle: 'Beta' },
+      c: { running: true, title: 'Gamma title', displayTitle: '' },
+      d: { running: true },
+    },
+  }, 'c'),
+  [
+    { id: 'a', title: 'Alpha', current: false },
+    { id: 'c', title: 'Gamma title', current: true },
+    { id: 'd', title: 'd', current: false },
+  ],
+  'idle sessions are excluded and titles fall back sensibly',
+);
+assert.deepEqual(switcher.runningSessionRows(null, undefined), [], 'a missing snapshot yields no rows');
+assert.deepEqual(
+  switcher.runningSessionRows({ ids: ['x', 'x'], byId: { x: { running: true, displayTitle: 'X' } } }, undefined),
+  [{ id: 'x', title: 'X', current: false }],
+  'duplicate ids are emitted once',
+);
+
+// The switcher stylesheet floats above host popovers, uses only theme tokens,
+// and marks the title as clickable without a fixed text colour.
+assert.ok(switcher.SESSION_SWITCH_CSS.includes('[data-powerup-session-title]{cursor:pointer'), 'the title advertises a pointer cursor');
+assert.ok(switcher.SESSION_SWITCH_CSS.includes('.dsh-powerup-session-pop{position:fixed;z-index:1500'), 'the dropdown floats above host popovers');
+assert.ok(switcher.SESSION_SWITCH_CSS.includes('background:var(--dsw-alias-bg-overlay)'), 'the dropdown uses the host overlay surface');
+assert.ok(!/color\s*:\s*#/.test(switcher.SESSION_SWITCH_CSS), 'no literal text colours');
+for (const key of ['sessionSwitch.title', 'sessionSwitch.empty', 'sessionSwitch.hint']) {
+  assert.ok(DICT.zh[key] !== undefined, `zh dictionary has ${key}`);
+  assert.ok(DICT.en[key] !== undefined, `en dictionary has ${key}`);
+}
+
+// The core starts/stops safely without a real header; clicking a synthetic
+// title builds a dropdown of the supplied rows and delegates the selection.
+const openedSessions = [];
+let switchCore;
+switchCore = switcher.createSessionSwitcherCore({
+  t: (key) => DICT.en[key] ?? key,
+  listRows: () => [
+    { id: 'session-1', title: 'One', current: false },
+    { id: 'session-2', title: 'Two', current: false },
+  ],
+  openSession: (id) => { openedSessions.push(id); },
+});
+assert.equal(typeof switchCore.start, 'function');
+assert.equal(typeof switchCore._runningSessionRows, 'function');
+
+// ---------------------------------------------------------------------------
 // Plugin update helpers
 // ---------------------------------------------------------------------------
 const update = moduleExports.__test;
@@ -1356,7 +1413,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.8.10');
+assert.equal(host.__test.SELF_VERSION, '0.8.11');
 
 const installFailSpecs = [];
 const installFailManager = {

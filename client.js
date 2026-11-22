@@ -69,7 +69,7 @@
 
       const NS = 'dsh-powerup';
       const SETTINGS_KEY = 'dsh-powerup:settings:v1';
-      const VERSION = '0.8.9';
+      const VERSION = '0.8.11';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -120,6 +120,9 @@
           'launcher.restartHint': '重启 DSH（正在运行的任务会中断）',
           'launcher.close': '关闭',
           'launcher.closeHint': '关闭 DSH（正在运行的任务会中断）',
+          'sessionSwitch.title': '切换会话',
+          'sessionSwitch.empty': '没有正在运行的会话',
+          'sessionSwitch.hint': '点击会话标题切换',
           'close.title': '关闭 DSH？',
           'close.desc': '关闭会退出 DSH，正在运行的任务会中断。',
           'close.cancel': '取消',
@@ -318,6 +321,9 @@
           'launcher.restartHint': 'Restart DSH (running tasks are interrupted)',
           'launcher.close': 'Close',
           'launcher.closeHint': 'Close DSH (running tasks are interrupted)',
+          'sessionSwitch.title': 'Switch session',
+          'sessionSwitch.empty': 'No running sessions',
+          'sessionSwitch.hint': 'Click the session title to switch',
           'close.title': 'Close DSH?',
           'close.desc': 'Closing quits DSH; running tasks are interrupted.',
           'close.cancel': 'Cancel',
@@ -2815,11 +2821,400 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
 @media (max-width:680px){.dsh-powerup-page{padding:20px 16px 42px}.dsh-powerup-actions{grid-template-columns:minmax(0,1fr)}.dsh-powerup-hero-art{width:54px;height:54px}.dsh-powerup-hero h1{font-size:19px}.dsh-powerup-card-head{flex-wrap:wrap}.dsh-powerup-switch{margin-left:auto}.dsh-powerup-update-mask{padding:12px}.dsh-powerup-update-dialog{max-height:calc(100dvh - 24px)}.dsh-powerup-update-head{padding:18px 12px 10px 18px}.dsh-powerup-update-body{padding:0 18px 4px}.dsh-powerup-update-foot{padding:14px 18px 18px}}
 `;
 
+      const SESSION_SWITCH_CSS = `
+[data-powerup-session-title]{cursor:pointer!important}
+[data-powerup-session-title]:hover{color:var(--dsw-alias-brand-primary)}
+.dsh-powerup-session-pop{position:fixed;z-index:1500;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-lg,10px);background:var(--dsw-alias-bg-overlay);box-shadow:var(--dsw-elevation-prominent,0 12px 32px rgba(15,23,42,.28));color:var(--dsw-alias-label-primary);font-size:12.5px;line-height:1.5;opacity:0;transform:translateY(-4px);transition:opacity .12s ease,transform .12s ease;pointer-events:auto}
+.dsh-powerup-session-pop.is-open{opacity:1;transform:none}
+.dsh-powerup-session-pop-head{flex:none;padding:10px 12px 8px;border-bottom:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary);font-size:11px;font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+.dsh-powerup-session-pop-list{flex:1;min-height:0;overflow-y:auto;padding:5px}
+.dsh-powerup-session-pop-item{display:flex;align-items:center;gap:8px;width:100%;box-sizing:border-box;padding:7px 9px;border:0;border-radius:var(--dsw-radius-md,7px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:12.5px;text-align:left;cursor:pointer}
+.dsh-powerup-session-pop-item:hover{background:var(--dsw-alias-bg-layer-2)}
+.dsh-powerup-session-pop-item[data-current]{background:var(--dsw-alias-bg-layer-2)}
+.dsh-powerup-session-pop-dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--dsw-alias-state-success-primary)}
+.dsh-powerup-session-pop-item[data-current] .dsh-powerup-session-pop-dot{background:var(--dsw-alias-brand-primary)}
+.dsh-powerup-session-pop-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dsh-powerup-session-pop-empty{padding:14px 12px;color:var(--dsw-alias-label-secondary);text-align:center}
+@media (prefers-reduced-motion:reduce){.dsh-powerup-session-pop{transition:none}}
+`;
+
+      /**
+       * Project the live session list into the rows shown by the switcher.
+       * Only sessions the host currently reports as running are listed; the
+       * host's own list order (most recent first) is preserved.
+       * @param {unknown} snapshot value of `sessions.list.getSnapshot()`
+       * @param {string | undefined} currentId id of the open session
+       * @returns {Array<{id:string,title:string,current:boolean}>}
+       */
+      function runningSessionRows(snapshot, currentId) {
+        const state = snapshot !== null && typeof snapshot === 'object' ? snapshot : {};
+        const byId = state.byId !== null && typeof state.byId === 'object' ? state.byId : {};
+        const ids = Array.isArray(state.ids) ? state.ids : Object.keys(byId);
+        const rows = [];
+        const seen = new Set();
+        for (const id of ids) {
+          if (typeof id !== 'string' || seen.has(id)) continue;
+          const item = byId[id];
+          if (item === null || typeof item !== 'object' || item.running !== true) continue;
+          seen.add(id);
+          const title = typeof item.displayTitle === 'string' && item.displayTitle !== ''
+            ? item.displayTitle
+            : typeof item.title === 'string' && item.title !== '' ? item.title : id;
+          rows.push({ id, title, current: id === currentId });
+        }
+        return rows;
+      }
+
+      /**
+       * DOM controller for the clickable session title. React owns the crumb,
+       * so this controller never replaces it: it only marks the current title
+       * with a data attribute (re-applied after host re-renders) and delegates
+       * clicks from the document. The dropdown itself is a body-level fixed
+       * node, so the header's clipping and drag row cannot contain it.
+       * @param {{t?: Function, listRows?: Function, openSession?: Function}} deps
+       */
+      function createSessionSwitcherCore(deps) {
+        const options = deps ?? {};
+        const t = typeof options.t === 'function' ? options.t : (key) => key;
+        const listRows = typeof options.listRows === 'function' ? options.listRows : () => [];
+        const openSession = typeof options.openSession === 'function' ? options.openSession : () => false;
+
+        const MIN_WIDTH = 220;
+        const PREFERRED_HEIGHT = 320;
+        const GAP = 6;
+        const DRAG_THRESHOLD = 6;
+
+        let observer = null;
+        let marked = [];
+        let popup = null;
+        let press = null;
+        let started = false;
+
+        function warn(message, error) {
+          try {
+            console.warn('[dsh-powerup] ' + message, error?.message ?? error);
+          } catch {
+            /* Console output must never break the switcher. */
+          }
+        }
+
+        function hasDocument() {
+          return typeof document !== 'undefined' && document !== null
+            && typeof document.querySelectorAll === 'function'
+            && document.body !== null && document.body !== undefined;
+        }
+
+        /** The current-title crumbs inside real conversation headers. */
+        function findTitles() {
+          if (!hasDocument()) return [];
+          const out = [];
+          let headers;
+          try {
+            headers = document.querySelectorAll('header[data-window-drag]');
+          } catch {
+            headers = [];
+          }
+          for (const header of headers) {
+            let crumbs;
+            try {
+              crumbs = header.querySelectorAll('[class*="crumbCurrent"]');
+            } catch {
+              crumbs = [];
+            }
+            for (const crumb of crumbs) {
+              if (typeof crumb.closest !== 'function' || crumb.closest('nav[class*="crumbs"]') === null) continue;
+              out.push(crumb);
+            }
+          }
+          return out;
+        }
+
+        /** Re-apply the marker after React re-renders the crumb. */
+        function sync() {
+          if (!started || !hasDocument()) return;
+          const found = findTitles();
+          marked = found;
+          const hint = t('sessionSwitch.hint');
+          for (const el of found) {
+            if (!el.hasAttribute('data-powerup-session-title')) el.setAttribute('data-powerup-session-title', '');
+            if (el.getAttribute('title') !== hint) el.setAttribute('title', hint);
+          }
+        }
+
+        function scheduleSync() {
+          if (!started) return;
+          if (typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(() => { if (started) sync(); });
+          } else {
+            sync();
+          }
+        }
+
+        function onMouseDown(event) {
+          if (event.button !== 0 || typeof event.target?.closest !== 'function') return;
+          const anchor = event.target.closest('[data-powerup-session-title]');
+          press = anchor === null ? null : { anchor, x: event.clientX, y: event.clientY };
+        }
+
+        function onOutside(event) {
+          if (popup === null || event.target === null || event.target === undefined) return;
+          if (typeof popup.element.contains === 'function' && popup.element.contains(event.target)) return;
+          if (typeof popup.anchor.contains === 'function' && popup.anchor.contains(event.target)) return;
+          closePopup();
+        }
+
+        function onKey(event) {
+          if (popup === null || event.key !== 'Escape') return;
+          event.preventDefault();
+          event.stopPropagation();
+          closePopup();
+        }
+
+        function onScroll(event) {
+          if (popup === null || event.target === null || event.target === undefined) return;
+          if (typeof popup.element.contains === 'function' && popup.element.contains(event.target)) return;
+          closePopup();
+        }
+
+        function onClick(event) {
+          if (event.button !== 0 || typeof event.target?.closest !== 'function') return;
+          if (popup !== null && typeof popup.element.contains === 'function' && popup.element.contains(event.target)) return;
+          const anchor = event.target.closest('[data-powerup-session-title]');
+          if (anchor === null) {
+            if (popup !== null) closePopup();
+            return;
+          }
+          // A press that moved is a window drag, not a title click.
+          if (press !== null && press.anchor === anchor
+            && Math.abs(event.clientX - press.x) + Math.abs(event.clientY - press.y) > DRAG_THRESHOLD) return;
+          event.preventDefault();
+          event.stopPropagation();
+          if (popup !== null && popup.anchor === anchor) {
+            closePopup();
+            return;
+          }
+          openPopup(anchor);
+        }
+
+        function positionPopup() {
+          if (popup === null || typeof window === 'undefined' || window === null) return;
+          const anchor = popup.anchor;
+          if (anchor === null || anchor.isConnected !== true || typeof anchor.getBoundingClientRect !== 'function') {
+            closePopup();
+            return;
+          }
+          const rect = anchor.getBoundingClientRect();
+          const element = popup.element;
+          const width = Math.max(1, Math.min(Math.max(rect.width, MIN_WIDTH), window.innerWidth - 24));
+          const below = window.innerHeight - rect.bottom - GAP - 12;
+          const above = rect.top - GAP - 12;
+          const openUp = below < Math.min(PREFERRED_HEIGHT, 180) && above > below;
+          const maxHeight = Math.max(120, Math.min(PREFERRED_HEIGHT, openUp ? above : below));
+          element.style.width = width + 'px';
+          element.style.maxHeight = maxHeight + 'px';
+          element.style.left = Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)) + 'px';
+          if (openUp) {
+            element.style.bottom = (window.innerHeight - rect.top + GAP) + 'px';
+            element.style.top = 'auto';
+          } else {
+            element.style.top = (rect.bottom + GAP) + 'px';
+            element.style.bottom = 'auto';
+          }
+        }
+
+        function renderPopup() {
+          if (popup === null) return;
+          const rows = listRows();
+          popup.rows = rows;
+          const element = popup.element;
+          element.textContent = '';
+          const head = document.createElement('div');
+          head.className = 'dsh-powerup-session-pop-head';
+          head.textContent = t('sessionSwitch.title');
+          element.appendChild(head);
+          if (rows.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'dsh-powerup-session-pop-empty';
+            empty.textContent = t('sessionSwitch.empty');
+            element.appendChild(empty);
+            positionPopup();
+            return;
+          }
+          const list = document.createElement('div');
+          list.className = 'dsh-powerup-session-pop-list';
+          for (const row of rows) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'dsh-powerup-session-pop-item';
+            button.setAttribute('data-session-id', row.id);
+            if (row.current) button.setAttribute('data-current', '');
+            const dot = document.createElement('span');
+            dot.className = 'dsh-powerup-session-pop-dot';
+            dot.setAttribute('aria-hidden', 'true');
+            const label = document.createElement('span');
+            label.className = 'dsh-powerup-session-pop-label';
+            label.textContent = row.title;
+            button.append(dot, label);
+            button.addEventListener('click', (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              const id = button.getAttribute('data-session-id');
+              closePopup();
+              if (typeof id === 'string' && id !== '') {
+                try {
+                  openSession(id);
+                } catch (error) {
+                  warn('session switch failed:', error);
+                }
+              }
+            });
+            list.appendChild(button);
+          }
+          element.appendChild(list);
+          positionPopup();
+        }
+
+        function openPopup(anchor) {
+          closePopup();
+          const element = document.createElement('div');
+          element.className = 'dsh-powerup-session-pop';
+          element.setAttribute('role', 'dialog');
+          element.setAttribute('data-powerup-session-pop', '');
+          document.body.appendChild(element);
+          popup = { element, anchor, rows: [] };
+          renderPopup();
+          const reveal = () => {
+            if (popup !== null && popup.element === element) element.classList.add('is-open');
+          };
+          if (typeof requestAnimationFrame === 'function') requestAnimationFrame(reveal);
+          else reveal();
+          document.addEventListener('pointerdown', onOutside, true);
+          document.addEventListener('keydown', onKey, true);
+          if (typeof window !== 'undefined' && window !== null) {
+            window.addEventListener('resize', closePopup, true);
+            window.addEventListener('scroll', onScroll, true);
+          }
+        }
+
+        function closePopup() {
+          if (popup === null) return;
+          const element = popup.element;
+          popup = null;
+          document.removeEventListener('pointerdown', onOutside, true);
+          document.removeEventListener('keydown', onKey, true);
+          if (typeof window !== 'undefined' && window !== null) {
+            window.removeEventListener('resize', closePopup, true);
+            window.removeEventListener('scroll', onScroll, true);
+          }
+          element.classList.remove('is-open');
+          element.remove();
+        }
+
+        function start() {
+          if (started || !hasDocument()) return;
+          started = true;
+          document.addEventListener('mousedown', onMouseDown, true);
+          document.addEventListener('click', onClick, true);
+          if (typeof MutationObserver === 'function') {
+            observer = new MutationObserver(() => {
+              if (popup !== null && (popup.anchor === null || popup.anchor.isConnected !== true)) closePopup();
+              scheduleSync();
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
+          }
+          sync();
+        }
+
+        function stop() {
+          started = false;
+          if (observer !== null) observer.disconnect();
+          observer = null;
+          document.removeEventListener('mousedown', onMouseDown, true);
+          document.removeEventListener('click', onClick, true);
+          closePopup();
+          marked = [];
+          press = null;
+        }
+
+        return {
+          start,
+          stop,
+          sync,
+          getMarked: () => marked,
+          getPopup: () => popup,
+          refresh: () => { if (popup !== null) renderPopup(); },
+          _runningSessionRows: runningSessionRows,
+        };
+      }
+
+      /**
+       * Wire the session title switcher to the live Client services. Services
+       * are read lazily at click time so late-provided ones still work.
+       * @param {object} ctx client plugin context
+       */
+      function installSessionSwitcher(ctx) {
+        const currentSessionId = () => {
+          try {
+            if (typeof document !== 'undefined' && document !== null) {
+              const el = document.querySelector('[data-conversation-session]');
+              const id = el === null ? null : el.getAttribute('data-conversation-session');
+              if (typeof id === 'string' && id !== '') return id;
+            }
+          } catch {
+            /* Fall through to the session adapter. */
+          }
+          try {
+            const uiSession = ctx.get('uiSession');
+            const binding = uiSession?.adapter?.current?.getSnapshot?.();
+            if (typeof binding?.sessionId === 'string' && binding.sessionId !== '') return binding.sessionId;
+          } catch {
+            /* No adapter in this host. */
+          }
+          return undefined;
+        };
+        const core = createSessionSwitcherCore({
+          t: (key, params) => translateCurrent(key, params),
+          listRows: () => {
+            try {
+              const sessions = ctx.get('sessions');
+              const list = sessions?.list;
+              if (list === undefined || typeof list.getSnapshot !== 'function') return [];
+              return runningSessionRows(list.getSnapshot(), currentSessionId());
+            } catch {
+              return [];
+            }
+          },
+          openSession: (id) => {
+            try {
+              const uiWorkspace = ctx.get('uiWorkspace');
+              if (uiWorkspace === undefined || typeof uiWorkspace.openSession !== 'function') return false;
+              uiWorkspace.openSession(id);
+              return true;
+            } catch (error) {
+              warnSwitch(error);
+              return false;
+            }
+          },
+        });
+        function warnSwitch(error) {
+          try {
+            console.warn('[dsh-powerup] session switch failed:', error?.message ?? error);
+          } catch {
+            /* ignore */
+          }
+        }
+        ctx.effect(() => {
+          core.start();
+          return () => core.stop();
+        }, 'dsh-powerup: session title switcher');
+        return core;
+      }
+
       function installStyles(ctx) {
         try {
           const style = document.createElement('style');
           style.setAttribute('data-dsh-powerup', '');
-          style.textContent = CSS + '\n' + LAUNCHER_CSS;
+          style.textContent = CSS + '\n' + LAUNCHER_CSS + '\n' + SESSION_SWITCH_CSS;
           document.head.appendChild(style);
           ctx.effect(() => () => style.remove(), 'dsh-powerup: styles');
         } catch (error) {
@@ -5898,6 +6293,7 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
         bindLocale(ctx);
         installStyles(ctx);
         installLauncher(ctx);
+        installSessionSwitcher(ctx);
 
         const slots = ctx.get('slots');
         if (slots === undefined || typeof slots.inject !== 'function' || typeof slots.register !== 'function') {
@@ -5989,6 +6385,9 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
         __test: {
           DICT,
           CSS,
+          SESSION_SWITCH_CSS,
+          runningSessionRows,
+          createSessionSwitcherCore,
           LAUNCHER_CSS,
           LAUNCHER_STORAGE_KEY,
           LAUNCHER_CHAT_KEY,
