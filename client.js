@@ -69,7 +69,7 @@
 
       const NS = 'dsh-powerup';
       const SETTINGS_KEY = 'dsh-powerup:settings:v1';
-      const VERSION = '0.8.11';
+      const VERSION = '0.8.12';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -110,6 +110,12 @@
           'page.launcherDesc': '把左侧边栏的面板按钮变成自适应图标网格：列数跟着侧边栏宽度走，图标在上、文字在下；拖动图标可以排序，把一个图标拖到另一个图标的中间就会合成一个分组（像 Windows 开始菜单的文件夹），点分组会以浮层弹出里面的图标。网格里自带「返回会话」「重启 DSH」「关闭 DSH」三个按钮，它们和「更多」一样也能拖进分组。',
           'page.launcherToggle': '启用图标网格',
           'page.launcherToggleHint': '关闭后侧边栏恢复宿主原本的列表样式；排序与分组仍会保留。',
+          'page.sessionSwitchTitle': '会话标题切换',
+          'page.sessionSwitchDesc': '把会话标题变成可点击的下拉列表，列出正在运行的会话（带工作区名称前缀），点击即可切换。',
+          'page.sessionSwitchHow': '打开任意会话，点击顶部的会话标题，在运行中的会话列表中选择目标会话。',
+          'page.locateTitle': '定位当前会话',
+          'page.locateDesc': '在工作区侧边栏的按钮栏加一个定位按钮，把当前会话在工作区列表中展开、居中显示，自动展开折叠的工作区。',
+          'page.locateHow': '在工作区列表顶部点击「定位当前会话」图标按钮，当前会话所在的工作区会自动展开并滚动到视图中央。',
           'launcher.groupDefault': '分组',
           'launcher.count': '{count} 个面板',
           'launcher.renameHint': '点击重命名',
@@ -123,6 +129,9 @@
           'sessionSwitch.title': '切换会话',
           'sessionSwitch.empty': '没有正在运行的会话',
           'sessionSwitch.hint': '点击会话标题切换',
+          'sessionSwitch.defaultWorkspace': '默认工作区',
+          'locate.label': '定位当前会话',
+          'locate.hint': '在工作区列表中定位并居中显示当前会话',
           'close.title': '关闭 DSH？',
           'close.desc': '关闭会退出 DSH，正在运行的任务会中断。',
           'close.cancel': '取消',
@@ -311,6 +320,12 @@
           'page.launcherDesc': 'Turns the left sidebar panel buttons into an adaptive icon grid: the column count follows the sidebar width, icons sit above their labels, icons can be dragged to reorder, dropping one icon onto the middle of another forms a folder (like a Windows Start menu folder), and clicking a folder opens its contents in a flyout. The grid also carries three built-in buttons — back to conversation, restart DSH and close DSH — and they, like the host\'s "more" entry, can be dragged into a folder too.',
           'page.launcherToggle': 'Enable the icon grid',
           'page.launcherToggleHint': 'When off, the sidebar keeps the host list; order and folders are remembered.',
+          'page.sessionSwitchTitle': 'Session title switcher',
+          'page.sessionSwitchDesc': 'Makes the session title a clickable dropdown listing running sessions (prefixed with their workspace name); pick one to switch to it.',
+          'page.sessionSwitchHow': 'Open any session, click its title in the header, and choose a target from the running-sessions list.',
+          'page.locateTitle': 'Locate current session',
+          'page.locateDesc': 'Adds a button to the workspace sidebar header that expands, reveals and centers the current session in the workspace list, auto-expanding collapsed workspaces.',
+          'page.locateHow': 'Click the locate button in the workspace header; the workspace containing the current session expands and scrolls to the center of the view.',
           'launcher.groupDefault': 'Group',
           'launcher.count': '{count} panels',
           'launcher.renameHint': 'Click to rename',
@@ -324,6 +339,9 @@
           'sessionSwitch.title': 'Switch session',
           'sessionSwitch.empty': 'No running sessions',
           'sessionSwitch.hint': 'Click the session title to switch',
+          'sessionSwitch.defaultWorkspace': 'Default workspace',
+          'locate.label': 'Locate current session',
+          'locate.hint': 'Find and center the current session in the workspace list',
           'close.title': 'Close DSH?',
           'close.desc': 'Closing quits DSH; running tasks are interrupted.',
           'close.cancel': 'Cancel',
@@ -511,18 +529,34 @@
       // ------------------------------------------------------------------
       // Settings store (localStorage, per browser)
       // ------------------------------------------------------------------
-      /** One-click update defaults: enable and restart unless the user turned one off. */
-      const DEFAULT_SETTINGS = { enabled: true, oneClickEnable: true, oneClickRestart: true, launcher: true };
+      /** Per-feature enable flags and one-click defaults. All default on. */
+      const DEFAULT_SETTINGS = {
+        contextMenu: true,
+        launcher: true,
+        sessionSwitch: true,
+        jobStop: true,
+        update: true,
+        locateSession: true,
+        oneClickEnable: true,
+        oneClickRestart: true,
+      };
 
       function readSettings() {
         try {
           const parsed = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
           if (parsed !== null && typeof parsed === 'object') {
+            const contextMenu = parsed.contextMenu !== undefined
+              ? parsed.contextMenu !== false
+              : parsed.enabled !== false;
             return {
-              enabled: parsed.enabled !== false,
+              contextMenu,
+              launcher: parsed.launcher !== false,
+              sessionSwitch: parsed.sessionSwitch !== false,
+              jobStop: parsed.jobStop !== false,
+              update: parsed.update !== false,
+              locateSession: parsed.locateSession !== false,
               oneClickEnable: parsed.oneClickEnable !== false,
               oneClickRestart: parsed.oneClickRestart !== false,
-              launcher: parsed.launcher !== false,
             };
           }
         } catch {
@@ -2314,6 +2348,17 @@
         );
       }
 
+      function LocateIcon({ size = 16 }) {
+        return h(Icon, { size },
+          h('circle', { cx: '8', cy: '8', r: '4.6', stroke: 'currentColor', strokeWidth: '1.3' }),
+          h('circle', { cx: '8', cy: '8', r: '1.4', fill: 'currentColor' }),
+          h('path', {
+            d: 'M8 1.2v2.2M8 12.6v2.2M1.2 8h2.2M12.6 8h2.2',
+            stroke: 'currentColor', strokeWidth: '1.3', strokeLinecap: 'round',
+          }),
+        );
+      }
+
       function PowerUpLineIcon({ size = 16 }) {
         return h(Icon, { size },
           h('path', {
@@ -2591,7 +2636,7 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
 .dsh-powerup-drag-ghost [class*="panelUnpin"]{display:none!important}
 .dsh-powerup-drag-ghost [class*="panelGlyph"] svg{width:20px;height:20px}
 .dsh-powerup-drag-ghost [class*="panelTitle"]{display:block;width:100%;max-width:100%;color:var(--dsw-alias-label-secondary);font-size:11px;line-height:14px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.dsh-powerup-folder-pop{position:fixed;z-index:1800;box-sizing:border-box;display:flex;flex-direction:column;gap:6px;width:max-content;min-width:196px;max-width:min(440px,calc(100vw - 24px));max-height:min(72vh,440px);padding:8px;border:.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-lg,10px);background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);color:var(--dsw-alias-label-primary);font-size:12px;line-height:16px;opacity:0;transform:scale(.92);transition:opacity .13s ease,transform .17s cubic-bezier(.22,.9,.3,1.06)}
+.dsh-powerup-folder-pop{position:fixed;z-index:1800;box-sizing:border-box;display:flex;flex-direction:column;gap:6px;width:max-content;min-width:196px;max-width:min(440px,calc(100vw - 24px));max-height:min(72vh,440px);padding:8px;border:0;border-radius:var(--dsw-radius-panel,14px);background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);font-size:12px;line-height:16px;opacity:0;transform:scale(.92);transition:opacity .13s ease,transform .17s cubic-bezier(.22,.9,.3,1.06)}
 .dsh-powerup-folder-pop.is-open{opacity:1;transform:scale(1)}
 .dsh-powerup-folder-pop-head{display:flex;align-items:center;gap:6px;min-width:0;padding:0 2px}
 .dsh-powerup-folder-pop-title{flex:1 1 auto;min-width:0;padding:2px 5px;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:12px;line-height:16px;font-weight:500;text-align:left;cursor:text;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -2633,8 +2678,12 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
 .dsh-powerup-hero-copy{min-width:0}
 .dsh-powerup-hero h1{margin:0;font-size:22px;line-height:1.25;font-weight:650;letter-spacing:-.01em}
 .dsh-powerup-hero p{margin:5px 0 0;color:var(--dsw-alias-label-secondary);font-size:12.5px;line-height:1.5}
-.dsh-powerup-card{margin:0 0 14px;padding:16px;border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1)}
+.dsh-powerup-card{margin:0 0 14px;padding:16px;border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1);transition:opacity .14s ease}
+.dsh-powerup-card.is-off .dsh-powerup-card-icon,.dsh-powerup-card.is-off .dsh-powerup-card-copy{opacity:.55}
 .dsh-powerup-card-head{display:flex;align-items:flex-start;gap:12px}
+.dsh-powerup-card-how{margin:12px 0 0;padding:10px 12px;border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.55;overflow-wrap:anywhere}
+.dsh-powerup-card-detail{margin-top:12px;padding-top:4px}
+.dsh-powerup-how-card .dsh-powerup-section-title{margin-bottom:10px}
 .dsh-powerup-card-icon{flex:none;display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:9px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary)}
 .dsh-powerup-card-copy{min-width:0;flex:1 1 auto}
 .dsh-powerup-card-copy h2{margin:0;font-size:14px;line-height:1.35;font-weight:650}
@@ -2666,7 +2715,7 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
 .dsh-powerup-step-num{flex:none;display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;margin-top:1px;border-radius:50%;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-tertiary);font-size:10px;font-weight:700;font-variant-numeric:tabular-nums}
 .dsh-powerup-foot{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:2px 2px 0;color:var(--dsw-alias-label-caption);font-size:10.5px;line-height:1.5}
 .dsh-powerup-dot{width:3px;height:3px;border-radius:50%;background:var(--dsw-alias-label-caption);opacity:.6}
-.dsh-powerup-menu{position:fixed;z-index:1000;min-width:232px;max-width:300px;max-height:min(70vh,430px);overflow-y:auto;padding:4px;border:1px solid var(--dsw-alias-border-l2);border-radius:10px;background:var(--dsw-alias-bg-overlay,var(--dsw-alias-bg-layer-1));box-shadow:var(--dsw-elevation-prominent,0 16px 40px rgba(15,23,42,.24),0 2px 8px rgba(15,23,42,.1));color:var(--dsw-alias-label-primary);font-size:12.5px;line-height:1.4;pointer-events:auto;outline:none;--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2)}
+.dsh-powerup-menu{position:fixed;z-index:1000;min-width:232px;max-width:300px;max-height:min(70vh,430px);overflow-y:auto;padding:4px;border:0;border-radius:var(--dsw-radius-panel,14px);background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);font-size:12.5px;line-height:1.4;pointer-events:auto;outline:none;--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2)}
 .dsh-powerup-menu-head{display:flex;align-items:center;gap:6px;padding:5px 7px 6px;color:var(--dsw-alias-label-tertiary);font-size:10.5px;font-weight:600;letter-spacing:.03em}
 .dsh-powerup-menu-head-icon{display:flex;align-items:center;color:var(--dsw-alias-label-tertiary)}
 .dsh-powerup-menu-kind{margin-left:auto;max-width:112px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 5px;border-radius:4px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-tertiary);font-weight:500;line-height:16px}
@@ -2824,10 +2873,10 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
       const SESSION_SWITCH_CSS = `
 [data-powerup-session-title]{cursor:pointer!important}
 [data-powerup-session-title]:hover{color:var(--dsw-alias-brand-primary)}
-.dsh-powerup-session-pop{position:fixed;z-index:1500;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-lg,10px);background:var(--dsw-alias-bg-overlay);box-shadow:var(--dsw-elevation-prominent,0 12px 32px rgba(15,23,42,.28));color:var(--dsw-alias-label-primary);font-size:12.5px;line-height:1.5;opacity:0;transform:translateY(-4px);transition:opacity .12s ease,transform .12s ease;pointer-events:auto}
+.dsh-powerup-session-pop{position:fixed;z-index:1500;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;border:0;border-radius:var(--dsw-radius-panel,14px);background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);font-size:12.5px;line-height:1.5;opacity:0;transform:translateY(-4px);transition:opacity .12s ease,transform .12s ease;pointer-events:auto}
 .dsh-powerup-session-pop.is-open{opacity:1;transform:none}
 .dsh-powerup-session-pop-head{flex:none;padding:10px 12px 8px;border-bottom:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary);font-size:11px;font-weight:600;letter-spacing:.02em;text-transform:uppercase}
-.dsh-powerup-session-pop-list{flex:1;min-height:0;overflow-y:auto;padding:5px}
+.dsh-powerup-session-pop-list{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:4px;padding:6px}
 .dsh-powerup-session-pop-item{display:flex;align-items:center;gap:8px;width:100%;box-sizing:border-box;padding:7px 9px;border:0;border-radius:var(--dsw-radius-md,7px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:12.5px;text-align:left;cursor:pointer}
 .dsh-powerup-session-pop-item:hover{background:var(--dsw-alias-bg-layer-2)}
 .dsh-powerup-session-pop-item[data-current]{background:var(--dsw-alias-bg-layer-2)}
@@ -2838,18 +2887,63 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
 @media (prefers-reduced-motion:reduce){.dsh-powerup-session-pop{transition:none}}
 `;
 
+      const LOCATE_CSS = `
+[data-sidebar-workspace-header] .dsh-powerup-locate{flex:none;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-caption);cursor:pointer;transition:background .12s ease,color .12s ease}
+[data-sidebar-workspace-header] .dsh-powerup-locate:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
+[data-sidebar-workspace-header] .dsh-powerup-locate:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:1px}
+[data-sidebar-workspace-header] .dsh-powerup-locate svg{width:16px;height:16px}
+`;
+
+      /** Max display length of a session option, in Unicode code points. */
+      const SESSION_SWITCH_LABEL_MAX = 40;
+      /** Separator between the workspace name and the session title. */
+      const SESSION_SWITCH_LABEL_SEP = ' · ';
+
+      /**
+       * Truncate a string to a maximum number of Unicode code points, appending
+       * an ellipsis when anything was cut. Code-point based so an astral emoji
+       * is never split into a lone surrogate.
+       * @param {string} value
+       * @param {number} max
+       * @returns {string}
+       */
+      function truncateLabel(value, max) {
+        const text = typeof value === 'string' ? value : '';
+        const points = [...text];
+        if (points.length <= max) return text;
+        const keep = Math.max(0, max - 1);
+        return points.slice(0, keep).join('') + '\u2026';
+      }
+
+      /**
+       * Compose the option label: `<workspace> · <session title>`, truncated as
+       * a whole so the workspace prefix stays visible even for long titles.
+       * @param {string} workspace workspace display name (may be empty)
+       * @param {string} title session title
+       * @returns {string}
+       */
+      function sessionOptionLabel(workspace, title) {
+        const ws = typeof workspace === 'string' ? workspace : '';
+        const base = typeof title === 'string' ? title : '';
+        if (ws === '') return truncateLabel(base, SESSION_SWITCH_LABEL_MAX);
+        return truncateLabel(ws + SESSION_SWITCH_LABEL_SEP + base, SESSION_SWITCH_LABEL_MAX);
+      }
+
       /**
        * Project the live session list into the rows shown by the switcher.
        * Only sessions the host currently reports as running are listed; the
-       * host's own list order (most recent first) is preserved.
+       * host's own list order (most recent first) is preserved. Each label is
+       * prefixed with its workspace name when known.
        * @param {unknown} snapshot value of `sessions.list.getSnapshot()`
        * @param {string | undefined} currentId id of the open session
+       * @param {(sessionId: string, cwd?: string) => string} [workspaceOf] resolve a workspace name
        * @returns {Array<{id:string,title:string,current:boolean}>}
        */
-      function runningSessionRows(snapshot, currentId) {
+      function runningSessionRows(snapshot, currentId, workspaceOf) {
         const state = snapshot !== null && typeof snapshot === 'object' ? snapshot : {};
         const byId = state.byId !== null && typeof state.byId === 'object' ? state.byId : {};
         const ids = Array.isArray(state.ids) ? state.ids : Object.keys(byId);
+        const resolveWorkspace = typeof workspaceOf === 'function' ? workspaceOf : () => '';
         const rows = [];
         const seen = new Set();
         for (const id of ids) {
@@ -2860,7 +2954,15 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
           const title = typeof item.displayTitle === 'string' && item.displayTitle !== ''
             ? item.displayTitle
             : typeof item.title === 'string' && item.title !== '' ? item.title : id;
-          rows.push({ id, title, current: id === currentId });
+          const cwd = typeof item.cwd === 'string' ? item.cwd : undefined;
+          let workspace = '';
+          try {
+            workspace = resolveWorkspace(id, cwd);
+          } catch {
+            workspace = '';
+          }
+          const label = sessionOptionLabel(workspace, title);
+          rows.push({ id, title: label, current: id === currentId });
         }
         return rows;
       }
@@ -3148,6 +3250,38 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
       }
 
       /**
+       * Index workspace titles by session id and by normalized path leaf. Used
+       * to prefix session options with their workspace name.
+       * @param {unknown} snapshot value of `workspaces.list.getSnapshot()`
+       * @param {(title: string) => string} [displayTitle] optional default-name mapping
+       * @returns {{bySession: Record<string,string>, byPath: Record<string,string>}}
+       */
+      function buildWorkspaceIndex(snapshot, displayTitle) {
+        const state = snapshot !== null && typeof snapshot === 'object' ? snapshot : {};
+        const items = Array.isArray(state.items) ? state.items : [];
+        const mapTitle = typeof displayTitle === 'function' ? displayTitle : (value) => value;
+        const bySession = {};
+        const byPath = {};
+        const normalizePath = (value) => {
+          const text = typeof value === 'string' ? value.replace(/[\\/]+$/u, '') : '';
+          const parts = text.split(/[\\/]/u).filter(Boolean);
+          const leaf = parts.length > 0 ? parts[parts.length - 1] : '';
+          return leaf.toLowerCase();
+        };
+        for (const item of items) {
+          if (item === null || typeof item !== 'object') continue;
+          const title = mapTitle(typeof item.title === 'string' ? item.title : '');
+          const sessionIds = Array.isArray(item.sessionIds) ? item.sessionIds : [];
+          for (const id of sessionIds) {
+            if (typeof id === 'string' && id !== '') bySession[id] = title;
+          }
+          const leaf = normalizePath(item.path);
+          if (leaf !== '') byPath[leaf] = title;
+        }
+        return { bySession, byPath };
+      }
+
+      /**
        * Wire the session title switcher to the live Client services. Services
        * are read lazily at click time so late-provided ones still work.
        * @param {object} ctx client plugin context
@@ -3179,7 +3313,22 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
               const sessions = ctx.get('sessions');
               const list = sessions?.list;
               if (list === undefined || typeof list.getSnapshot !== 'function') return [];
-              return runningSessionRows(list.getSnapshot(), currentSessionId());
+              const workspaces = ctx.get('workspaces');
+              let index = { bySession: {}, byPath: {} };
+              if (workspaces?.list !== undefined && typeof workspaces.list.getSnapshot === 'function') {
+                index = buildWorkspaceIndex(workspaces.list.getSnapshot(), (title) =>
+                  title === 'default-workspace' ? translateCurrent('sessionSwitch.defaultWorkspace') : title);
+              }
+              const workspaceOf = (id, cwd) => {
+                if (Object.prototype.hasOwnProperty.call(index.bySession, id)) return index.bySession[id];
+                if (typeof cwd === 'string') {
+                  const parts = cwd.replace(/[\\/]+$/u, '').split(/[\\/]/u).filter(Boolean);
+                  const leaf = parts.length > 0 ? parts[parts.length - 1].toLowerCase() : '';
+                  if (leaf !== '' && Object.prototype.hasOwnProperty.call(index.byPath, leaf)) return index.byPath[leaf];
+                }
+                return '';
+              };
+              return runningSessionRows(list.getSnapshot(), currentSessionId(), workspaceOf);
             } catch {
               return [];
             }
@@ -3204,9 +3353,179 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
           }
         }
         ctx.effect(() => {
-          core.start();
-          return () => core.stop();
+          if (getSettings().sessionSwitch) core.start();
+          const off = subscribeSettings(() => {
+            if (getSettings().sessionSwitch) core.start();
+            else core.stop();
+          });
+          return () => {
+            off();
+            core.stop();
+          };
         }, 'dsh-powerup: session title switcher');
+        return core;
+      }
+
+      /** 16-grid locate glyph: a target reticle with a center dot. */
+      const LOCATE_ICON = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="4.6" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="8" r="1.4" fill="currentColor"/><path d="M8 1.2v2.2M8 12.6v2.2M1.2 8h2.2M12.6 8h2.2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>';
+
+      /**
+       * DOM controller for the "locate current session" button in the workspace
+       * section header. It expands collapsed workspace groups until the current
+       * session row is present, then centers that row in its scroll container.
+       * @param {{t?: Function, currentSessionId?: Function, isEnabled?: Function}} deps
+       */
+      function createLocateSessionCore(deps) {
+        const options = deps ?? {};
+        const t = typeof options.t === 'function' ? options.t : (key) => key;
+        const currentSessionId = typeof options.currentSessionId === 'function' ? options.currentSessionId : () => undefined;
+        const isEnabled = typeof options.isEnabled === 'function' ? options.isEnabled : () => true;
+
+        let button = null;
+        let observer = null;
+        let started = false;
+        let expandAttempts = 0;
+
+        function hasDocument() {
+          return typeof document !== 'undefined' && document !== null
+            && typeof document.querySelector === 'function' && document.body !== null;
+        }
+
+        function header() {
+          if (!hasDocument()) return null;
+          return document.querySelector('[data-sidebar-workspace-header]');
+        }
+
+        function sessionRow(id) {
+          if (!hasDocument() || typeof id !== 'string' || id === '') return null;
+          const rows = document.querySelectorAll('[data-row-key^="session:"]');
+          for (const el of rows) {
+            if (el.getAttribute('data-row-key') === 'session:' + id) return el;
+          }
+          return null;
+        }
+
+        function collapsedWorkspaces() {
+          if (!hasDocument()) return [];
+          const rows = document.querySelectorAll('[data-row-key^="workspace:"]');
+          const out = [];
+          for (const el of rows) {
+            if (el.getAttribute('aria-expanded') === 'false') out.push(el);
+          }
+          return out;
+        }
+
+        function locate() {
+          if (!hasDocument()) return;
+          const id = currentSessionId();
+          if (typeof id !== 'string' || id === '') return;
+          expandAttempts = 0;
+          const reveal = () => {
+            const row = sessionRow(id);
+            if (row === null) {
+              // Expand one collapsed workspace at a time, then retry after the
+              // host re-renders. Bound the loop so a missing row cannot spin.
+              if (expandAttempts >= 24) return;
+              const collapsed = collapsedWorkspaces();
+              if (collapsed.length === 0) return;
+              expandAttempts += 1;
+              const target = collapsed[collapsed.length - 1];
+              target.click();
+              if (typeof requestAnimationFrame === 'function') requestAnimationFrame(reveal);
+              else setTimeout(reveal, 16);
+              return;
+            }
+            try {
+              row.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+            } catch {
+              row.scrollIntoView();
+            }
+          };
+          reveal();
+        }
+
+        function ensureButton() {
+          const host = header();
+          if (host === null || !isEnabled()) {
+            if (button !== null) {
+              button.remove();
+              button = null;
+            }
+            return;
+          }
+          if (button !== null && button.isConnected === true) return;
+          button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'dsh-powerup-locate';
+          button.setAttribute('data-powerup-locate', '');
+          button.setAttribute('aria-label', t('locate.label'));
+          button.setAttribute('title', t('locate.hint'));
+          button.innerHTML = LOCATE_ICON;
+          button.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            locate();
+          });
+          const actions = host.querySelector('[class*="headerActions"]') ?? host;
+          actions.appendChild(button);
+        }
+
+        function sync() {
+          if (!started) return;
+          ensureButton();
+        }
+
+        function start() {
+          if (started || !hasDocument()) return;
+          started = true;
+          ensureButton();
+          if (typeof MutationObserver === 'function') {
+            observer = new MutationObserver(() => sync());
+            observer.observe(document.body, { childList: true, subtree: true });
+          }
+        }
+
+        function stop() {
+          started = false;
+          if (observer !== null) observer.disconnect();
+          observer = null;
+          if (button !== null) button.remove();
+          button = null;
+        }
+
+        return { start, stop, sync, locate, sessionRow, collapsedWorkspaces };
+      }
+
+      /**
+       * Install the workspace "locate current session" button.
+       * @param {object} ctx client plugin context
+       */
+      function installLocateSession(ctx) {
+        const currentSessionId = () => {
+          try {
+            const el = document.querySelector('[data-conversation-session]');
+            const id = el === null ? null : el.getAttribute('data-conversation-session');
+            return typeof id === 'string' && id !== '' ? id : undefined;
+          } catch {
+            return undefined;
+          }
+        };
+        const core = createLocateSessionCore({
+          t: (key, params) => translateCurrent(key, params),
+          currentSessionId,
+          isEnabled: () => getSettings().locateSession,
+        });
+        ctx.effect(() => {
+          if (getSettings().locateSession) core.start();
+          const off = subscribeSettings(() => {
+            if (getSettings().locateSession) core.start();
+            else core.stop();
+          });
+          return () => {
+            off();
+            core.stop();
+          };
+        }, 'dsh-powerup: locate session');
         return core;
       }
 
@@ -3214,7 +3533,7 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
         try {
           const style = document.createElement('style');
           style.setAttribute('data-dsh-powerup', '');
-          style.textContent = CSS + '\n' + LAUNCHER_CSS + '\n' + SESSION_SWITCH_CSS;
+          style.textContent = CSS + '\n' + LAUNCHER_CSS + '\n' + SESSION_SWITCH_CSS + '\n' + LOCATE_CSS;
           document.head.appendChild(style);
           ctx.effect(() => () => style.remove(), 'dsh-powerup: styles');
         } catch (error) {
@@ -3491,7 +3810,7 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
         }, [notify, t]);
 
         useEffect(() => {
-          if (!settings.enabled) {
+          if (!settings.contextMenu) {
             close();
             return undefined;
           }
@@ -3551,7 +3870,7 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
             window.removeEventListener('resize', onResize);
             window.removeEventListener('blur', onResize);
           };
-        }, [settings.enabled, close, t, ctx, notify]);
+        }, [settings.contextMenu, close, t, ctx, notify]);
 
         useLayoutEffect(() => {
           if (menu === null || menuRef.current === null) return;
@@ -4460,6 +4779,7 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
        * host's original stop flow runs unchanged.
        */
       function JobStopOverlay({ jobs, ctx }) {
+        const settings = useSettings();
         const [target, setTarget] = useState(null);
         const [reason, setReason] = useState('');
         const [pending, setPending] = useState(false);
@@ -4477,6 +4797,10 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
         }, []);
 
         useEffect(() => {
+          if (!settings.jobStop) {
+            setTarget(null);
+            return undefined;
+          }
           const onClick = (event) => {
             if (event.defaultPrevented) return;
             const node = event.target;
@@ -4495,7 +4819,7 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
           };
           document.addEventListener('click', onClick, true);
           return () => document.removeEventListener('click', onClick, true);
-        }, [jobs]);
+        }, [jobs, settings.jobStop]);
 
         useEffect(() => {
           if (target === null) return undefined;
@@ -4667,6 +4991,7 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
        * asks about enabling, and offers to restart DSH.
        */
       function PluginUpdateOverlay({ manager, remote, ctx }) {
+        const settings = useSettings();
         const [view, setView] = useState(null);
         const [localeTick, forceLocale] = useState(0);
         const [pending, setPending] = useState(() => readPendingRestarts());
@@ -4967,6 +5292,7 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
         const openRef = useRef(openFor);
         openRef.current = openFor;
         useEffect(() => {
+          if (!settings.update) return undefined;
           const buttons = buttonsRef.current;
           let scheduled = false;
           let stopped = false;
@@ -4998,7 +5324,7 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
             }
             buttons.clear();
           };
-        }, [localeTick, pending]);
+        }, [localeTick, pending, settings.update]);
 
         // Keep the selected version input focused when the chooser opens.
         useEffect(() => {
@@ -6128,13 +6454,11 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
           { id: 'stepref', icon: TagIcon, name: t('action.stepRef'), hint: t('action.stepRefHint') },
           { id: 'export', icon: ExportIcon, name: t('action.export'), hint: t('action.exportHint') },
         ];
-        /** One label/description row with a host-styled switch. */
-        const settingRow = (key, checked, label, hint) => h('div', { key, className: 'dsh-powerup-setting' },
-          h('div', { className: 'dsh-powerup-setting-copy' },
-            h('span', { className: 'dsh-powerup-setting-label' }, label),
-            h('span', { className: 'dsh-powerup-setting-hint' }, hint),
-          ),
-          h('button', {
+
+        /** A host-styled toggle button shared by every feature card. */
+        const toggle = (key, label) => {
+          const checked = settings[key] !== false;
+          return h('button', {
             type: 'button',
             role: 'switch',
             'aria-checked': checked ? 'true' : 'false',
@@ -6142,12 +6466,57 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
             className: 'dsh-powerup-switch',
             onClick: () => setSettings({ [key]: !checked }),
           },
-          h('span', { className: 'dsh-powerup-switch-track' },
-            h('span', { className: 'dsh-powerup-switch-thumb' }),
+            h('span', { className: 'dsh-powerup-switch-track' },
+              h('span', { className: 'dsh-powerup-switch-thumb' }),
+            ),
+            h('span', null, checked ? t('page.enabled') : t('page.disabled')),
+          );
+        };
+
+        /** One uniform feature card: icon + title + description + toggle, with optional detail rows. */
+        const featureCard = (key, iconComp, titleKey, descKey, howKey, detail) => h('section', {
+          key,
+          className: 'dsh-powerup-card' + (settings[key] === false ? ' is-off' : ''),
+        },
+          h('div', { className: 'dsh-powerup-card-head' },
+            h('div', { className: 'dsh-powerup-card-icon' }, h(iconComp, { size: 18 })),
+            h('div', { className: 'dsh-powerup-card-copy' },
+              h('h2', null, t(titleKey)),
+              h('p', null, t(descKey)),
+            ),
+            toggle(key, t(titleKey)),
           ),
-          h('span', null, checked ? t('page.enabled') : t('page.disabled')),
+          howKey !== undefined ? h('p', { className: 'dsh-powerup-card-how' }, t(howKey)) : null,
+          detail ?? null,
+        );
+
+        /** A label/hint sub-row inside a card (for secondary options). */
+        const settingRow = (key, checked, label, hint) => h('div', { key, className: 'dsh-powerup-setting' },
+          h('div', { className: 'dsh-powerup-setting-copy' },
+            h('span', { className: 'dsh-powerup-setting-label' }, label),
+            h('span', { className: 'dsh-powerup-setting-hint' }, hint),
+          ),
+          toggle(key, label),
+        );
+
+        const actionsDetail = h('div', { className: 'dsh-powerup-card-detail' },
+          h('h3', { className: 'dsh-powerup-section-title' }, t('page.actions')),
+          h('ul', { className: 'dsh-powerup-actions' },
+            actions.map((action) => h('li', { key: action.id, className: 'dsh-powerup-action' },
+              h('span', { className: 'dsh-powerup-action-icon' }, h(action.icon, { size: 15 })),
+              h('span', { className: 'dsh-powerup-action-copy' },
+                h('span', { className: 'dsh-powerup-action-name' }, action.name),
+                h('span', { className: 'dsh-powerup-action-hint' }, action.hint),
+              ),
+            )),
           ),
         );
+
+        const oneClickDetail = h('div', { className: 'dsh-powerup-card-detail' },
+          settingRow('oneClickEnable', settings.oneClickEnable !== false, t('page.oneClickEnable'), t('page.oneClickEnableHint')),
+          settingRow('oneClickRestart', settings.oneClickRestart !== false, t('page.oneClickRestart'), t('page.oneClickRestartHint')),
+        );
+
         return h('div', { className: 'dsh-powerup-page' },
           h('div', { className: 'dsh-powerup-shell' },
             h('header', { className: 'dsh-powerup-hero' },
@@ -6157,86 +6526,17 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
                 h('p', null, t('page.subtitle')),
               ),
             ),
-            h('section', { className: 'dsh-powerup-card' },
-              h('div', { className: 'dsh-powerup-card-head' },
-                h('div', { className: 'dsh-powerup-card-icon' }, h(PowerUpLineIcon, { size: 18 })),
-                h('div', { className: 'dsh-powerup-card-copy' },
-                  h('h2', null, t('page.featureTitle')),
-                  h('p', null, t('page.featureDesc')),
-                ),
-                h('button', {
-                  type: 'button',
-                  role: 'switch',
-                  'aria-checked': settings.enabled ? 'true' : 'false',
-                  'aria-label': t('page.featureTitle'),
-                  className: 'dsh-powerup-switch',
-                  onClick: () => setSettings({ enabled: !settings.enabled }),
-                },
-                h('span', { className: 'dsh-powerup-switch-track' },
-                  h('span', { className: 'dsh-powerup-switch-thumb' }),
-                ),
-                h('span', null, settings.enabled ? t('page.enabled') : t('page.disabled')),
-                ),
-              ),
-              h('div', { style: { marginTop: '14px' } },
-                h('h3', { className: 'dsh-powerup-section-title' }, t('page.actions')),
-                h('ul', { className: 'dsh-powerup-actions' },
-                  actions.map((action) => h('li', { key: action.id, className: 'dsh-powerup-action' },
-                    h('span', { className: 'dsh-powerup-action-icon' }, h(action.icon, { size: 15 })),
-                    h('span', { className: 'dsh-powerup-action-copy' },
-                      h('span', { className: 'dsh-powerup-action-name' }, action.name),
-                      h('span', { className: 'dsh-powerup-action-hint' }, action.hint),
-                    ),
-                  )),
-                ),
-              ),
-            ),
-            h('section', { className: 'dsh-powerup-card' },
-              h('div', { className: 'dsh-powerup-card-head' },
-                h('div', { className: 'dsh-powerup-card-icon' }, h(LauncherIcon, { size: 18 })),
-                h('div', { className: 'dsh-powerup-card-copy' },
-                  h('h2', null, t('page.launcherTitle')),
-                  h('p', null, t('page.launcherDesc')),
-                ),
-              ),
-              h('div', { className: 'dsh-powerup-settings' },
+            featureCard('contextMenu', PowerUpLineIcon, 'page.featureTitle', 'page.featureDesc', undefined, actionsDetail),
+            featureCard('launcher', LauncherIcon, 'page.launcherTitle', 'page.launcherDesc', undefined,
+              h('div', { className: 'dsh-powerup-card-detail' },
                 settingRow('launcher', settings.launcher !== false, t('page.launcherToggle'), t('page.launcherToggleHint')),
               ),
             ),
-            h('section', { className: 'dsh-powerup-card' },
-              h('div', { className: 'dsh-powerup-card-head' },
-                h('div', { className: 'dsh-powerup-card-icon' }, h(QuickIcon, { size: 18 })),
-                h('div', { className: 'dsh-powerup-card-copy' },
-                  h('h2', null, t('page.oneClickTitle')),
-                  h('p', null, t('page.oneClickDesc')),
-                ),
-              ),
-              h('div', { className: 'dsh-powerup-settings' },
-                settingRow('oneClickEnable', settings.oneClickEnable !== false, t('page.oneClickEnable'), t('page.oneClickEnableHint')),
-                settingRow('oneClickRestart', settings.oneClickRestart !== false, t('page.oneClickRestart'), t('page.oneClickRestartHint')),
-              ),
-            ),
-            h('section', { className: 'dsh-powerup-card' },
-              h('div', { className: 'dsh-powerup-card-head' },
-                h('div', { className: 'dsh-powerup-card-icon' }, h(UpdateIcon, { size: 18 })),
-                h('div', { className: 'dsh-powerup-card-copy' },
-                  h('h2', null, t('page.updateTitle')),
-                  h('p', null, t('page.updateDesc')),
-                ),
-              ),
-              h('p', { className: 'dsh-powerup-update-note', style: { marginTop: '12px' } }, t('page.updateHow')),
-            ),
-            h('section', { className: 'dsh-powerup-card' },
-              h('div', { className: 'dsh-powerup-card-head' },
-                h('div', { className: 'dsh-powerup-card-icon' }, h(StopIcon, { size: 18 })),
-                h('div', { className: 'dsh-powerup-card-copy' },
-                  h('h2', null, t('page.jobStopTitle')),
-                  h('p', null, t('page.jobStopDesc')),
-                ),
-              ),
-              h('p', { className: 'dsh-powerup-update-note', style: { marginTop: '12px' } }, t('page.jobStopHow')),
-            ),
-            h('section', { className: 'dsh-powerup-card' },
+            featureCard('sessionSwitch', QuickIcon, 'page.sessionSwitchTitle', 'page.sessionSwitchDesc', 'page.sessionSwitchHow'),
+            featureCard('locateSession', LocateIcon, 'page.locateTitle', 'page.locateDesc', 'page.locateHow'),
+            featureCard('jobStop', StopIcon, 'page.jobStopTitle', 'page.jobStopDesc', 'page.jobStopHow'),
+            featureCard('update', UpdateIcon, 'page.updateTitle', 'page.updateDesc', 'page.updateHow', oneClickDetail),
+            h('section', { className: 'dsh-powerup-card dsh-powerup-how-card' },
               h('h2', { className: 'dsh-powerup-section-title', style: { marginBottom: '10px' } }, t('page.howTitle')),
               h('ol', { className: 'dsh-powerup-steps' },
                 h('li', { className: 'dsh-powerup-step' },
@@ -6294,6 +6594,7 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
         installStyles(ctx);
         installLauncher(ctx);
         installSessionSwitcher(ctx);
+        installLocateSession(ctx);
 
         const slots = ctx.get('slots');
         if (slots === undefined || typeof slots.inject !== 'function' || typeof slots.register !== 'function') {
@@ -6386,8 +6687,12 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
           DICT,
           CSS,
           SESSION_SWITCH_CSS,
+          LOCATE_CSS,
           runningSessionRows,
+          buildWorkspaceIndex,
           createSessionSwitcherCore,
+          createLocateSessionCore,
+          LocateIcon,
           LAUNCHER_CSS,
           LAUNCHER_STORAGE_KEY,
           LAUNCHER_CHAT_KEY,

@@ -256,7 +256,8 @@ resetHooks();
 const page = moduleExports.__test.PowerUpPage({ ctx });
 assert.equal(page.type, 'div');
 assert.ok(JSON.stringify(page).includes('dsh-powerup-hero'));
-assert.ok(JSON.stringify(page).includes('dsh-powerup-settings'), 'the page exposes the one-click update defaults');
+assert.ok(JSON.stringify(page).includes('dsh-powerup-card-detail'), 'the page exposes per-feature detail rows');
+assert.ok(JSON.stringify(page).includes('dsh-powerup-setting'), 'the page exposes the one-click update defaults');
 
 // Overlay renders nothing until a context menu opens, but the component body
 // must be valid in the root overlay slot.
@@ -743,8 +744,44 @@ assert.deepEqual(
 // and marks the title as clickable without a fixed text colour.
 assert.ok(switcher.SESSION_SWITCH_CSS.includes('[data-powerup-session-title]{cursor:pointer'), 'the title advertises a pointer cursor');
 assert.ok(switcher.SESSION_SWITCH_CSS.includes('.dsh-powerup-session-pop{position:fixed;z-index:1500'), 'the dropdown floats above host popovers');
-assert.ok(switcher.SESSION_SWITCH_CSS.includes('background:var(--dsw-alias-bg-overlay)'), 'the dropdown uses the host overlay surface');
+assert.ok(switcher.SESSION_SWITCH_CSS.includes('background:var(--dsw-alias-bg-layer-2)'), 'the dropdown uses the host dialog surface');
+assert.ok(switcher.SESSION_SWITCH_CSS.includes('border-radius:var(--dsw-radius-panel'), 'the dropdown uses the host panel radius');
+assert.ok(switcher.SESSION_SWITCH_CSS.includes('--dsw-elevation-stroke-color'), 'the dropdown uses the host elevation stroke');
+assert.ok(switcher.SESSION_SWITCH_CSS.includes('gap:4px'), 'session options have spacing');
 assert.ok(!/color\s*:\s*#/.test(switcher.SESSION_SWITCH_CSS), 'no literal text colours');
+
+// Workspace prefix + truncation: options read "<workspace> · <title>", capped
+// at 40 code points with an ellipsis and never splitting an astral emoji.
+const workspaceOf = (id) => id === 'a' ? '研究项目' : '';
+assert.deepEqual(
+  switcher.runningSessionRows({
+    ids: ['a', 'b'],
+    byId: { a: { running: true, displayTitle: 'Alpha' }, b: { running: true, displayTitle: 'Beta' } },
+  }, undefined, workspaceOf),
+  [
+    { id: 'a', title: '研究项目 · Alpha', current: false },
+    { id: 'b', title: 'Beta', current: false },
+  ],
+  'known workspaces prefix the label, unknown ones fall back to the bare title',
+);
+const longLabel = switcher.runningSessionRows(
+  { ids: ['x'], byId: { x: { running: true, displayTitle: '标题'.repeat(60) } } },
+  undefined,
+  () => '工作区',
+)[0].title;
+assert.ok([...longLabel].length <= 40, 'the option label is truncated to the max length');
+assert.ok(longLabel.endsWith('\u2026'), 'a truncated label ends with an ellipsis');
+assert.deepEqual(
+  switcher.buildWorkspaceIndex(
+    { items: [
+      { workspaceId: 'w1', title: 'Alpha', sessionIds: ['s1'], path: '/x/alpha' },
+      { workspaceId: 'w2', title: 'default-workspace', sessionIds: [], path: '/x/default-workspace' },
+    ] },
+    (title) => title === 'default-workspace' ? 'Default' : title,
+  ),
+  { bySession: { s1: 'Alpha' }, byPath: { alpha: 'Alpha', 'default-workspace': 'Default' } },
+  'workspaces index by session id and normalized path leaf, mapping the default name',
+);
 for (const key of ['sessionSwitch.title', 'sessionSwitch.empty', 'sessionSwitch.hint']) {
   assert.ok(DICT.zh[key] !== undefined, `zh dictionary has ${key}`);
   assert.ok(DICT.en[key] !== undefined, `en dictionary has ${key}`);
@@ -765,20 +802,50 @@ switchCore = switcher.createSessionSwitcherCore({
 assert.equal(typeof switchCore.start, 'function');
 assert.equal(typeof switchCore._runningSessionRows, 'function');
 
+// Workspace locate button: starts/stops safely, and the locate glyph is a
+// currentColor line drawing (no fixed color) like the other host icons.
+const locateCore = switcher.createLocateSessionCore({
+  t: (key) => key,
+  currentSessionId: () => 'session-1',
+  isEnabled: () => true,
+});
+assert.equal(typeof locateCore.start, 'function');
+assert.equal(typeof locateCore.locate, 'function');
+locateCore.start();
+locateCore.locate();
+locateCore.stop();
+const locateIcon = switcher.LocateIcon({ size: 18 });
+assert.equal(typeof locateIcon.type, 'function');
+const locateTree = locateIcon.type(locateIcon.props);
+assert.equal(locateTree.type, 'svg');
+assert.equal(locateTree.props.width, 18);
+assert.ok(JSON.stringify(locateTree).includes('currentColor'), 'locate icon inherits the host color');
+assert.ok(switcher.LOCATE_CSS.includes('[data-sidebar-workspace-header] .dsh-powerup-locate'), 'locate button anchors on the workspace header');
+
 // ---------------------------------------------------------------------------
 // Plugin update helpers
 // ---------------------------------------------------------------------------
 const update = moduleExports.__test;
 
-// One-click update settings default to automatic enable + restart, and a
-// stored false (from an older settings object or the page switches) wins.
+// Every feature defaults on; a stored false (from older settings or the page
+// switches) wins. The legacy `enabled` flag migrates to `contextMenu`.
+const ALL_ON_SETTINGS = {
+  contextMenu: true, launcher: true, sessionSwitch: true, jobStop: true,
+  update: true, locateSession: true, oneClickEnable: true, oneClickRestart: true,
+};
 const savedGetItem = globalThis.localStorage.getItem;
 globalThis.localStorage.getItem = () => null;
-assert.deepEqual(update.readSettings(), { enabled: true, oneClickEnable: true, oneClickRestart: true, launcher: true });
+assert.deepEqual(update.readSettings(), ALL_ON_SETTINGS);
 globalThis.localStorage.getItem = () => '{"enabled":false}';
-assert.deepEqual(update.readSettings(), { enabled: false, oneClickEnable: true, oneClickRestart: true, launcher: true }, 'older settings gain the one-click and launcher defaults');
-globalThis.localStorage.getItem = () => JSON.stringify({ enabled: true, oneClickEnable: false, oneClickRestart: false, launcher: false });
-assert.deepEqual(update.readSettings(), { enabled: true, oneClickEnable: false, oneClickRestart: false, launcher: false });
+assert.deepEqual(update.readSettings(), { ...ALL_ON_SETTINGS, contextMenu: false }, 'the legacy enabled flag migrates to contextMenu');
+globalThis.localStorage.getItem = () => JSON.stringify({
+  contextMenu: false, launcher: false, sessionSwitch: false, jobStop: false,
+  update: false, locateSession: false, oneClickEnable: false, oneClickRestart: false,
+});
+assert.deepEqual(update.readSettings(), {
+  contextMenu: false, launcher: false, sessionSwitch: false, jobStop: false,
+  update: false, locateSession: false, oneClickEnable: false, oneClickRestart: false,
+});
 globalThis.localStorage.getItem = savedGetItem;
 
 // Both install paths use the version in the dialog input, so reinstall and
@@ -1413,7 +1480,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.8.11');
+assert.equal(host.__test.SELF_VERSION, '0.8.12');
 
 const installFailSpecs = [];
 const installFailManager = {
