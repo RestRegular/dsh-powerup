@@ -2877,9 +2877,11 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
 .dsh-powerup-session-pop.is-open{opacity:1;transform:none}
 .dsh-powerup-session-pop-head{flex:none;padding:10px 12px 8px;border-bottom:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary);font-size:11px;font-weight:600;letter-spacing:.02em;text-transform:uppercase}
 .dsh-powerup-session-pop-list{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:4px;padding:6px}
-.dsh-powerup-session-pop-item{display:flex;align-items:center;gap:8px;width:100%;box-sizing:border-box;padding:7px 9px;border:0;border-radius:var(--dsw-radius-md,7px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:12.5px;text-align:left;cursor:pointer}
-.dsh-powerup-session-pop-item:hover{background:var(--dsw-alias-bg-layer-2)}
+.dsh-powerup-session-pop-item{display:flex;align-items:center;gap:8px;width:100%;box-sizing:border-box;padding:7px 9px;border:0;border-radius:var(--dsw-radius-md,7px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:12.5px;text-align:left;cursor:pointer;transition:background .12s ease,color .12s ease}
+.dsh-powerup-session-pop-item:hover{background:var(--dsw-alias-interactive-bg-hover,var(--dsw-alias-bg-layer-3));color:var(--dsw-alias-label-primary)}
 .dsh-powerup-session-pop-item[data-current]{background:var(--dsw-alias-bg-layer-2)}
+.dsh-powerup-session-pop-item[data-current]:hover{background:var(--dsw-alias-interactive-bg-hover,var(--dsw-alias-bg-layer-3))}
+.dsh-powerup-session-pop-item:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:-1px}
 .dsh-powerup-session-pop-dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--dsw-alias-state-success-primary)}
 .dsh-powerup-session-pop-item[data-current] .dsh-powerup-session-pop-dot{background:var(--dsw-alias-brand-primary)}
 .dsh-powerup-session-pop-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -2888,6 +2890,11 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
 `;
 
       const LOCATE_CSS = `
+/* The host caps the toolbar's action row at 60px (two 28px buttons plus the
+4px gap) and clips the overflow, so a third button would be invisible. The
+marker is only present while our button is mounted, and the host's
+"search expanded" class still collapses the row. */
+[data-sidebar-workspace-header] [data-powerup-locate-actions]:not([class*="headerActionsHidden"]){max-width:none}
 [data-sidebar-workspace-header] .dsh-powerup-locate{flex:none;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-caption);cursor:pointer;transition:background .12s ease,color .12s ease}
 [data-sidebar-workspace-header] .dsh-powerup-locate:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
 [data-sidebar-workspace-header] .dsh-powerup-locate:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:1px}
@@ -3444,6 +3451,20 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
           reveal();
         }
 
+        /** The action row the button lives in, marked so CSS can widen it. */
+        let actions = null;
+
+        function clearActions() {
+          if (actions !== null) {
+            try {
+              actions.removeAttribute('data-powerup-locate-actions');
+            } catch {
+              /* A detached node is already clean. */
+            }
+          }
+          actions = null;
+        }
+
         function ensureButton() {
           const host = header();
           if (host === null || !isEnabled()) {
@@ -3451,9 +3472,21 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
               button.remove();
               button = null;
             }
+            clearActions();
             return;
           }
-          if (button !== null && button.isConnected === true) return;
+          if (button !== null && button.isConnected === true) {
+            // React can replace the row without dropping our button; re-mark it.
+            const parent = button.parentElement;
+            if (parent !== null && parent !== undefined
+              && typeof parent.setAttribute === 'function'
+              && typeof parent.hasAttribute === 'function'
+              && !parent.hasAttribute('data-powerup-locate-actions')) {
+              parent.setAttribute('data-powerup-locate-actions', '');
+              actions = parent;
+            }
+            return;
+          }
           button = document.createElement('button');
           button.type = 'button';
           button.className = 'dsh-powerup-locate';
@@ -3466,8 +3499,14 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
             event.stopPropagation();
             locate();
           });
-          const actions = host.querySelector('[class*="headerActions"]') ?? host;
-          actions.appendChild(button);
+          const row = host.querySelector('[class*="headerActions"]') ?? host;
+          // The host clips this row at 60px; the marker lets LOCATE_CSS widen it
+          // so the third button is actually reachable.
+          if (typeof row.setAttribute === 'function') {
+            row.setAttribute('data-powerup-locate-actions', '');
+            actions = row;
+          }
+          row.appendChild(button);
         }
 
         function sync() {
@@ -3491,6 +3530,7 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
           observer = null;
           if (button !== null) button.remove();
           button = null;
+          clearActions();
         }
 
         return { start, stop, sync, locate, sessionRow, collapsedWorkspaces };

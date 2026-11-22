@@ -821,6 +821,66 @@ assert.equal(locateTree.type, 'svg');
 assert.equal(locateTree.props.width, 18);
 assert.ok(JSON.stringify(locateTree).includes('currentColor'), 'locate icon inherits the host color');
 assert.ok(switcher.LOCATE_CSS.includes('[data-sidebar-workspace-header] .dsh-powerup-locate'), 'locate button anchors on the workspace header');
+// The host clips the toolbar action row at 60px (two 28px buttons + 4px gap),
+// which hides a third button entirely; the marker must lift that cap but not
+// fight the host's search-expanded collapse.
+assert.ok(
+  switcher.LOCATE_CSS.includes('[data-powerup-locate-actions]:not([class*="headerActionsHidden"]){max-width:none}'),
+  'the marked action row is widened so the locate button stays visible',
+);
+assert.ok(
+  !/\[data-powerup-locate-actions\][^{]*\{max-width:none[^}]*!important/.test(switcher.LOCATE_CSS),
+  'the widening does not use !important against host styles',
+);
+
+// The button marks its action row so the widening rule can reach it, and the
+// marker leaves with the button (no stale marker on a re-rendered row).
+const markerWrites = [];
+const fakeRow = {
+  attributes: new Map(),
+  children: [],
+  setAttribute(name, value) {
+    this.attributes.set(name, value);
+    markerWrites.push(['set', name, value]);
+  },
+  removeAttribute(name) {
+    this.attributes.delete(name);
+    markerWrites.push(['remove', name]);
+  },
+  hasAttribute(name) {
+    return this.attributes.has(name);
+  },
+  appendChild(child) {
+    this.children.push(child);
+    child.parentElement = this;
+    child.isConnected = true;
+  },
+  querySelector: () => null,
+};
+const fakeHeader = { querySelector: (sel) => (sel.includes('headerActions') ? fakeRow : null) };
+const realDocument = globalThis.document;
+globalThis.document = {
+  ...realDocument,
+  querySelector: (sel) => (sel === '[data-sidebar-workspace-header]' ? fakeHeader : null),
+  createElement: () => ({
+    style: {},
+    textContent: '',
+    setAttribute() {},
+    addEventListener() {},
+    remove() { this.isConnected = false; },
+  }),
+};
+const markedCore = switcher.createLocateSessionCore({
+  t: (key) => key,
+  currentSessionId: () => 'session-1',
+  isEnabled: () => true,
+});
+markedCore.start();
+assert.equal(fakeRow.attributes.get('data-powerup-locate-actions'), '', 'the action row is marked');
+assert.equal(fakeRow.children.length, 1, 'the locate button is appended to the action row');
+markedCore.stop();
+assert.equal(fakeRow.attributes.has('data-powerup-locate-actions'), false, 'stopping removes the marker');
+globalThis.document = realDocument;
 
 // ---------------------------------------------------------------------------
 // Plugin update helpers
@@ -1480,7 +1540,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.8.12');
+assert.equal(host.__test.SELF_VERSION, '0.8.13');
 
 const installFailSpecs = [];
 const installFailManager = {
