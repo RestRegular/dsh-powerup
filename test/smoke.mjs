@@ -1288,10 +1288,23 @@ globalThis.localStorage.getItem = savedGetItem;
   store.writeGlobalMaskRules([rule, { pattern: '(', enabled: true }, { pattern: 'x', enabled: false }]);
   const compiled = store.compileMaskRules(store.readGlobalMaskRules());
   assert.equal(compiled.length, 1, 'invalid regex and disabled rules are skipped');
-  assert.equal(store.applyMaskRules('前面[内部123]后面', compiled), '前面' + store.MASK_PLACEHOLDER + '后面');
+  assert.equal(store.applyMaskRules('前面[内部123]后面', compiled), '前面后面', 'blank replacement removes the match');
   assert.equal(store.applyMaskRules('没有标记', compiled), '没有标记', 'no match leaves text unchanged');
   const custom = store.compileMaskRules([{ pattern: 'foo', replacement: 'BAR', enabled: true }]);
   assert.equal(store.applyMaskRules('foo foo', custom), 'BAR BAR', 'replacement and global flag work');
+  const placeholder = store.compileMaskRules([{ pattern: 'foo', replacement: store.MASK_PLACEHOLDER, enabled: true }]);
+  assert.equal(store.applyMaskRules('a foo b', placeholder), 'a ' + store.MASK_PLACEHOLDER + ' b', 'default placeholder replacement works');
+  // Multiline: ^/$ match line boundaries (m) and . crosses newlines (s).
+  // Use a non-greedy body so ^/$ anchor to one line rather than swallowing all.
+  const multiline = store.compileMaskRules([{ pattern: '^内部.*?$', replacement: 'X', enabled: true }]);
+  assert.equal(store.applyMaskRules('甲\n内部秘密\n乙', multiline), '甲\nX\n乙', '^/$ match each line with the m flag');
+  const dotAll = store.compileMaskRules([{ pattern: '开始.*?结束', replacement: 'X', enabled: true }]);
+  assert.equal(store.applyMaskRules('开始\n跨行\n结束', dotAll), 'X', '. matches newlines with the s flag');
+  // Plain-text mode: regex metacharacters are matched literally.
+  const literal = store.compileMaskRules([{ pattern: 'a.b[1]', replacement: 'LIT', enabled: true, regex: false }]);
+  assert.equal(store.applyMaskRules('x a.b[1] y aZb1 y', literal), 'x LIT y aZb1 y', 'plain-text rule matches literally only');
+  const regexMode = store.compileMaskRules([{ pattern: 'a.b[1]', replacement: 'LIT', enabled: true, regex: true }]);
+  assert.equal(store.applyMaskRules('x a.b[1] y', regexMode), 'x a.b[1] y', 'regex mode treats the pattern as a regex');
   globalThis.localStorage.getItem = savedGet;
   globalThis.localStorage.setItem = savedSet;
 }
@@ -1315,7 +1328,7 @@ globalThis.localStorage.getItem = savedGetItem;
   const row = { getAttribute: (name) => ({ 'data-chat-flow-kind': 'assistant-step', 'data-chat-group-part': 'response' })[name] ?? null, querySelector: () => body };
   core.refreshRules();
   core.maskRow(row);
-  assert.equal(textNode.nodeValue, '你好 ' + update.MASK_PLACEHOLDER + ' 世界', 'reply text is masked in place');
+  assert.equal(textNode.nodeValue, '你好  世界', 'blank replacement removes the match in place');
   // A reasoning row must be left untouched.
   const reasoningText = { nodeType: 3, nodeValue: '[内部提示] 思考' };
   globalThis.document.createTreeWalker = () => ({ nextNode: (() => { let done = false; return () => { if (done) return null; done = true; return reasoningText; }; })() });
@@ -1979,7 +1992,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.9.0');
+assert.equal(host.__test.SELF_VERSION, '0.9.1');
 
 const installFailSpecs = [];
 const installFailManager = {

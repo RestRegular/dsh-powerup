@@ -374,15 +374,22 @@ fiber is unloaded. The panel closes; refresh the page when the install finishes.
 ### Conversation rendering enhancements
 
 A feature set for more readable conversations, toggled as a whole on the
-Power-Up page. Its first sub-feature is **reply masking**: each rule is a regular
-expression; matching fragments in Agent reply prose are replaced with a
-placeholder (`[已屏蔽]` by default, or a custom replacement). Reasoning blocks,
-tool calls and user messages are never touched — only the assistant's answer
-text, including the final task summary.
+Power-Up page. Its first sub-feature is **reply masking**: each rule matches
+Agent reply prose and replaces matching fragments. Reasoning blocks, tool calls
+and user messages are never touched — only the assistant's answer text,
+including the final task summary.
+
+Each rule has:
+- a pattern, with a per-rule **Regex** toggle (on = regular expression with
+  `g/u/m/s` flags so `^`/`$` match line boundaries and `.` crosses newlines;
+  off = plain literal text),
+- a replacement (blank removes the match; a **Default** button fills in
+  `[已屏蔽]`),
+- an enable switch.
 
 Global rules are managed on the Power-Up page's **Masking** tab. Workspace rules
-are managed from the **Power-Up settings** tab in any conversation header (it
-appears after Trajectory), and are stored in the workspace's
+are managed from the **PowerUp** tab in any conversation header (it appears
+after Trajectory), and are stored in the workspace's
 `.dsh/dsh-powerup/mask-rules.json` through a local Host route.
 
 ### Dual send buttons

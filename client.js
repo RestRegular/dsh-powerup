@@ -83,7 +83,7 @@
       const promptCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.9.0';
+      const VERSION = '0.9.1';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -137,7 +137,7 @@
           'scrollToTop.hint': '将左侧边栏滚动回最顶部',
           'page.renderingTitle': '会话内容渲染增强',
           'page.renderingDesc': '一组让会话内容更好读的增强，当前包含「回复内容屏蔽」：按正则表达式把 Agent 回复正文中匹配的片段替换成占位符，例如隐藏内部标签、水印或重复前缀。思考过程与工具调用不会被动到，只有发给你的回复正文（含最终总结）会被处理。',
-          'page.renderingHow': '在 Power-Up 设置页的「内容屏蔽」标签页管理全局规则；也可以在会话顶部的「Power-Up 设置」标签页管理当前工作区的规则。每条规则填一个正则表达式和替换文本，可不填替换文本（默认 [已屏蔽]）。',
+          'page.renderingHow': '在 Power-Up 设置页的「内容屏蔽」标签页管理全局规则；也可以在会话顶部的 PowerUp 标签页管理当前工作区的规则。每条规则填一个正则表达式和替换文本；替换文本留空表示直接删除匹配内容，也可点「默认值」按钮填入 [已屏蔽]。正则支持多行匹配（^/$ 匹配行首行尾，. 可跨行）。',
           'page.dualSendTitle': '双发送按钮',
           'page.dualSendDesc': '在输入框右侧增加两个发送按钮：普通发送（等待/排队）与插话发送（立即打断当前生成）。快捷键 Enter 固定为等待发送、Ctrl+Shift+Enter 固定为插话发送，不受系统「繁忙时发送行为」设置影响。',
           'page.dualSendHow': '启用后输入框里会出现两个按钮，鼠标悬停可看到各自说明；输入文字后按 Enter 排队发送，按 Ctrl+Shift+Enter 立即插话发送。',
@@ -150,7 +150,11 @@
           'mask.pattern': '正则表达式',
           'mask.patternPlaceholder': '例如：\\[内部[^\\]]*\\]',
           'mask.replacement': '替换为',
-          'mask.replacementPlaceholder': '留空则显示 [已屏蔽]',
+          'mask.replacementPlaceholder': '留空则删除匹配内容',
+          'mask.useDefault': '默认值',
+          'mask.useDefaultHint': '填入 [已屏蔽]',
+          'mask.regex': '正则',
+          'mask.regexHint': '关闭后按纯文本匹配',
           'mask.enabled': '启用',
           'mask.add': '添加规则',
           'mask.delete': '删除',
@@ -159,6 +163,7 @@
           'mask.scopeGlobal': '全局',
           'mask.scopeWorkspace': '当前工作区',
           'mask.sessionTitle': 'Power-Up 设置',
+          'mask.viewTabLabel': 'PowerUp',
           'mask.sessionDesc': '管理当前工作区的 Power-Up 功能设置与内容屏蔽规则。',
           'send.wait': '等待发送',
           'send.waitHint': '排队发送（Enter）',
@@ -424,7 +429,7 @@
           'scrollToTop.hint': 'Scroll the left sidebar back to the top',
           'page.renderingTitle': 'Conversation rendering enhancements',
           'page.renderingDesc': 'A feature set for more readable conversations. Its first sub-feature is reply masking: regular expressions replace matching fragments in Agent reply text with a placeholder, for example to hide internal tags, watermarks or repeated prefixes. Reasoning and tool calls are untouched; only reply prose (including the final summary) is processed.',
-          'page.renderingHow': 'Manage global rules on the Power-Up page\'s Masking tab, or workspace rules from the Power-Up Settings tab in a session header. Each rule has a regular expression and a replacement (blank defaults to [masked]).',
+          'page.renderingHow': 'Manage global rules on the Power-Up page\'s Masking tab, or workspace rules from the PowerUp tab in a session header. Each rule has a regular expression and a replacement text; a blank replacement removes the match, or click the Default button to fill in [masked]. Regex supports multiline matching (^/$ match line boundaries, . matches newlines).',
           'page.dualSendTitle': 'Dual send buttons',
           'page.dualSendDesc': 'Adds two send buttons beside the composer: a normal (queued) send and an interrupt (steer) send. Enter always queues and Ctrl+Shift+Enter always interrupts, overriding the system busy-time send behavior.',
           'page.dualSendHow': 'Once enabled, two buttons appear in the composer with hover labels. Press Enter to queue a message, or Ctrl+Shift+Enter to interrupt the running turn with it.',
@@ -437,7 +442,11 @@
           'mask.pattern': 'Regular expression',
           'mask.patternPlaceholder': 'e.g. \\[internal[^\\]]*\\]',
           'mask.replacement': 'Replace with',
-          'mask.replacementPlaceholder': 'Blank shows [masked]',
+          'mask.replacementPlaceholder': 'Blank removes the match',
+          'mask.useDefault': 'Default',
+          'mask.useDefaultHint': 'Fill in [masked]',
+          'mask.regex': 'Regex',
+          'mask.regexHint': 'Off means plain-text match',
           'mask.enabled': 'Enabled',
           'mask.add': 'Add rule',
           'mask.delete': 'Delete',
@@ -446,6 +455,7 @@
           'mask.scopeGlobal': 'Global',
           'mask.scopeWorkspace': 'This workspace',
           'mask.sessionTitle': 'Power-Up settings',
+          'mask.viewTabLabel': 'PowerUp',
           'mask.sessionDesc': 'Manage Power-Up settings and masking rules for this workspace.',
           'send.wait': 'Send (queued)',
           'send.waitHint': 'Queue to send (Enter)',
@@ -884,6 +894,8 @@
           pattern: typeof item.pattern === 'string' ? item.pattern : '',
           replacement: typeof item.replacement === 'string' ? item.replacement : '',
           enabled: item.enabled !== false,
+          // Existing rules predate this flag and were regexes, so default true.
+          regex: item.regex !== false,
           scope: item.scope === 'workspace' ? 'workspace' : 'global',
         };
       }
@@ -953,16 +965,26 @@
         return [...globalMaskRules, ...workspaceMaskRules].filter((rule) => rule.enabled && rule.pattern !== '');
       }
 
-      /** Compile rules once per change into reusable RegExp objects. */
+      /** Escape a literal string so it can be used as an exact regex source. */
+      function escapeRegExp(text) {
+        return text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+      }
+
+      /**
+       * Compile rules once per change into reusable RegExp objects. Regex mode
+       * uses 'g' (all), 'u' (unicode), 'm' (^/$ per line) and 's' (dot crosses
+       * newlines); plain-text mode escapes the pattern for a literal match.
+       */
       function compileMaskRules(list) {
         const compiled = [];
         for (const rule of Array.isArray(list) ? list : []) {
           if (rule === null || rule.enabled === false || typeof rule.pattern !== 'string' || rule.pattern === '') continue;
+          const isRegex = rule.regex !== false;
           try {
             compiled.push({
-              re: new RegExp(rule.pattern, 'gu'),
-              replacement: typeof rule.replacement === 'string' && rule.replacement !== ''
-                ? rule.replacement : MASK_PLACEHOLDER,
+              re: isRegex ? new RegExp(rule.pattern, 'gums') : new RegExp(escapeRegExp(rule.pattern), 'gu'),
+              // A blank replacement is intentional: remove the matched text.
+              replacement: typeof rule.replacement === 'string' ? rule.replacement : '',
             });
           } catch {
             /* Invalid regex is skipped, never throws into rendering. */
@@ -3862,8 +3884,14 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-dual-send{display:inline-flex;align-items:center;gap:4px}
 .dsh-powerup-mask-editor{display:flex;flex-direction:column;gap:10px}
 .dsh-powerup-mask-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:8px;border:.5px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-1)}
+.dsh-powerup-mask-default.on{background:var(--dsw-alias-brand-primary);color:var(--dsw-alias-bg-layer-1);border-color:var(--dsw-alias-brand-primary)}
 .dsh-powerup-mask-input{width:100%;box-sizing:border-box;padding:6px 8px;border:.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font:inherit;font-size:12px;line-height:18px}
 .dsh-powerup-mask-input.invalid{border-color:var(--dsw-alias-state-error-primary)}
+.dsh-powerup-mask-replacement{display:flex;align-items:center;gap:4px;min-width:0}
+.dsh-powerup-mask-replacement .dsh-powerup-mask-input{flex:1 1 auto;min-width:0}
+.dsh-powerup-mask-default{flex:none;padding:5px 8px;border:.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font:inherit;font-size:11px;line-height:18px;white-space:nowrap;cursor:pointer;transition:background .12s ease,color .12s ease}
+.dsh-powerup-mask-default:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
+.dsh-powerup-mask-default:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:1px}
 .dsh-powerup-mask-empty{color:var(--dsw-alias-label-secondary);font-size:12px}
 @media (max-width:680px){.dsh-powerup-mask-row{grid-template-columns:minmax(0,1fr)}}
 `;
@@ -8218,27 +8246,47 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           h('p', { className: 'dsh-powerup-card-desc' }, t('mask.hint')),
           ...visible.map((rule) => {
             let invalid = false;
-            if (rule.pattern !== '') {
-              try { new RegExp(rule.pattern); } catch { invalid = true; }
+            if (rule.pattern !== '' && rule.regex !== false) {
+              try { new RegExp(rule.pattern, 'gums'); } catch { invalid = true; }
             }
             return h('div', { key: rule.id, className: 'dsh-powerup-mask-row' },
-              h('input', {
-                type: 'text',
-                className: 'dsh-powerup-mask-input' + (invalid ? ' invalid' : ''),
-                value: rule.pattern,
-                placeholder: t('mask.patternPlaceholder'),
-                'aria-label': t('mask.pattern'),
-                title: invalid ? t('mask.invalid') : t('mask.pattern'),
-                onChange: (event) => update(rule.id, { pattern: event.target.value }),
-              }),
-              h('input', {
-                type: 'text',
-                className: 'dsh-powerup-mask-input',
-                value: rule.replacement,
-                placeholder: t('mask.replacementPlaceholder'),
-                'aria-label': t('mask.replacement'),
-                onChange: (event) => update(rule.id, { replacement: event.target.value }),
-              }),
+              h('div', { className: 'dsh-powerup-mask-replacement' },
+                h('input', {
+                  type: 'text',
+                  className: 'dsh-powerup-mask-input' + (invalid ? ' invalid' : ''),
+                  value: rule.pattern,
+                  placeholder: t('mask.patternPlaceholder'),
+                  'aria-label': t('mask.pattern'),
+                  title: invalid ? t('mask.invalid') : t('mask.pattern'),
+                  onChange: (event) => update(rule.id, { pattern: event.target.value }),
+                }),
+                h('button', {
+                  type: 'button',
+                  role: 'switch',
+                  'aria-checked': rule.regex !== false ? 'true' : 'false',
+                  className: 'dsh-powerup-mask-default' + (rule.regex !== false ? ' on' : ''),
+                  title: t('mask.regexHint'),
+                  'aria-label': t('mask.regexHint'),
+                  onClick: () => update(rule.id, { regex: rule.regex === false }),
+                }, t('mask.regex')),
+              ),
+              h('div', { className: 'dsh-powerup-mask-replacement' },
+                h('input', {
+                  type: 'text',
+                  className: 'dsh-powerup-mask-input',
+                  value: rule.replacement,
+                  placeholder: t('mask.replacementPlaceholder'),
+                  'aria-label': t('mask.replacement'),
+                  onChange: (event) => update(rule.id, { replacement: event.target.value }),
+                }),
+                h('button', {
+                  type: 'button',
+                  className: 'dsh-powerup-mask-default',
+                  title: t('mask.useDefaultHint'),
+                  'aria-label': t('mask.useDefaultHint'),
+                  onClick: () => update(rule.id, { replacement: MASK_PLACEHOLDER }),
+                }, t('mask.useDefault')),
+              ),
               h('button', {
                 type: 'button',
                 role: 'switch',
@@ -8894,7 +8942,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         register('conversation.view', {
           id: 'powerup-settings',
           order: 20,
-          label: () => translateCurrent('mask.sessionTitle'),
+          label: () => translateCurrent('mask.viewTabLabel'),
         }, (props) => h(WorkspaceSettingsView, { ...props, ctx }), 'dsh-powerup: workspace settings view');
 
         // The update control drives the built-in plugin manager through its
