@@ -83,7 +83,7 @@
       const promptCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.9.4';
+      const VERSION = '0.9.5';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -2916,7 +2916,10 @@
             send.type = 'button';
             send.className = 'dsh-powerup-prompt-pop-send';
             send.setAttribute('data-prompt-send', prompt.id);
-            send.textContent = t('prompts.sendDirect');
+            send.setAttribute('aria-label', t('prompts.sendDirect'));
+            send.setAttribute('title', t('prompts.sendDirect'));
+            // Icon-only send action; label moved to title/aria-label above.
+            send.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M2 7.5 13.5 3 9 14.5 7.4 9.2 2 7.5Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>';
             send.addEventListener('click', (event) => {
               event.preventDefault();
               event.stopPropagation();
@@ -3945,7 +3948,8 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-prompt-pop-main{flex:1 1 auto;display:flex;flex-direction:column;gap:1px;min-width:0;padding:3px 0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
 .dsh-powerup-prompt-pop-name{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;line-height:18px}
 .dsh-powerup-prompt-pop-preview{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-tertiary);font-size:10.5px;line-height:15px}
-.dsh-powerup-prompt-pop-send{flex:none;display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 7px;border:.5px solid var(--dsw-alias-border-l2);border-radius:8px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-secondary);font:inherit;font-size:10.5px;line-height:16px;white-space:nowrap;cursor:pointer;transition:background .12s ease,color .12s ease,border-color .12s ease}
+.dsh-powerup-prompt-pop-send{flex:none;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0;border:.5px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-secondary);font:inherit;line-height:1;cursor:pointer;transition:background .12s ease,color .12s ease,border-color .12s ease}
+.dsh-powerup-prompt-pop-send svg{width:14px;height:14px}
 .dsh-powerup-prompt-pop-send:hover{border-color:var(--dsw-alias-state-business-primary);background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-brand-primary)}
 .dsh-powerup-prompt-pop-send:focus-visible,.dsh-powerup-prompt-pop-main:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:-1px}
 .dsh-powerup-prompt-pop-sep{flex:none;height:1px;margin:4px 6px;background:var(--dsw-alias-border-l1)}
