@@ -83,7 +83,7 @@
       const promptCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.9.2';
+      const VERSION = '0.9.3';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -3126,12 +3126,16 @@
       }
 
       /**
-       * Slot occupant for `conversation.hero.options`. Choosing a prompt fills
-       * the composer so the user can keep editing; the per-row send button
-       * submits immediately.
+       * Prompt picker shared by two slots: `conversation.hero.options` (new
+       * session) and `conversation.input.left` (ongoing session, beside the
+       * host's permission dropdown). In the composer the popover expands
+       * upward and the trigger uses a compact icon-only style.
+       * Choosing a prompt fills the composer; the per-row send button submits
+       * immediately.
        */
-      function HeroPromptsControl({ sessionId, inputActions, useWorkspaces, useInput }) {
+      function PromptsControl({ sessionId, inputActions, useWorkspaces, useInput, variant }) {
         const settings = useSettings();
+        const compact = variant === 'composer';
         const workspaceSelector = useMemo(() => (snapshot) => resolveWorkspaceIdFromSnapshot(snapshot, sessionId), [sessionId]);
         const workspaceId = typeof useWorkspaces === 'function'
           ? useWorkspaces(workspaceSelector) ?? ''
@@ -3205,8 +3209,9 @@
           h('button', {
             type: 'button',
             ref: anchorRef,
-            className: 'dsh-powerup-prompt-trigger',
+            className: 'dsh-powerup-prompt-trigger' + (compact ? ' dsh-powerup-prompt-trigger-compact' : ''),
             'data-powerup-prompts': '',
+            'data-powerup-prompts-variant': compact ? 'composer' : 'hero',
             'aria-haspopup': 'menu',
             'aria-expanded': 'false',
             title: t('prompts.pickHint'),
@@ -3224,7 +3229,7 @@
               anchor,
               t,
               items: visible,
-              placement: (node) => popoverPlacement(node, 260, 340),
+              placement: (node) => popoverPlacement(node, 260, 340, { preferUp: compact }),
               onPick: (prompt) => apply(prompt, false),
               onSend: (prompt) => apply(prompt, true),
               onCreate: () => setCreating(true),
@@ -3264,6 +3269,14 @@
             })
             : null,
         );
+      }
+
+      /** Thin wrappers so both slots share one implementation. */
+      function HeroPromptsControl(props) {
+        return PromptsControl({ ...props, variant: 'hero' });
+      }
+      function ComposerPromptsControl(props) {
+        return PromptsControl({ ...props, variant: 'composer' });
       }
 
       // ------------------------------------------------------------------
@@ -3919,6 +3932,10 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-prompt-trigger-label{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dsh-powerup-prompt-trigger-chevron{flex:none;display:inline-flex;color:var(--dsw-alias-label-tertiary);transition:transform .15s ease}
 .dsh-powerup-prompt-trigger[aria-expanded=true] .dsh-powerup-prompt-trigger-chevron{transform:rotate(180deg)}
+/* Compact variant in the ongoing-session composer tool row: icon + short label,
+   left of the send controls, pops upward above the permission dropdown row. */
+.dsh-powerup-prompt-trigger-compact{max-width:none;height:30px;padding:0 8px;font-size:11.5px}
+.dsh-powerup-prompt-trigger-compact .dsh-powerup-prompt-trigger-label{max-width:96px}
 .dsh-powerup-prompt-pop{position:fixed;z-index:1600;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;overflow-x:hidden;border:0;border-radius:10px;background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);font-size:12.5px;line-height:1.5;opacity:0;transform:translateY(-4px);transition:opacity .12s ease,transform .12s ease;pointer-events:auto;--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2)}
 .dsh-powerup-prompt-pop.is-open{opacity:1;transform:none}
 .dsh-powerup-prompt-pop-head{flex:none;display:flex;align-items:center;gap:6px;padding:8px 11px 7px;color:var(--dsw-alias-label-tertiary);font-size:10.5px;font-weight:600;letter-spacing:.03em}
@@ -6373,17 +6390,22 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
        * @param {number} preferredHeight
        * @returns {{ left: number, width: number, top?: number, bottom?: number, maxHeight: number }}
        */
-      function popoverPlacement(anchor, minWidth, preferredHeight) {
+      function popoverPlacement(anchor, minWidth, preferredHeight, options) {
         const rect = anchor.getBoundingClientRect();
         const gap = 6;
         const margin = 12;
+        const opts = options ?? {};
         const viewportWidth = typeof window === 'undefined' ? 1280 : window.innerWidth;
         const viewportHeight = typeof window === 'undefined' ? 900 : window.innerHeight;
         const width = Math.min(Math.max(rect.width, minWidth), Math.max(200, viewportWidth - margin * 2));
         const left = Math.min(Math.max(margin, rect.left), Math.max(margin, viewportWidth - width - margin));
         const spaceBelow = viewportHeight - rect.bottom - margin - gap;
         const spaceAbove = rect.top - margin - gap;
-        const above = spaceBelow < Math.min(preferredHeight, 180) && spaceAbove > spaceBelow;
+        // 'up' forces upward expansion (composer at the screen bottom); 'auto'
+        // keeps the original flip-when-cramped behavior used by the hero.
+        const above = opts.preferUp === true
+          ? spaceAbove >= Math.min(preferredHeight, 180)
+          : spaceBelow < Math.min(preferredHeight, 180) && spaceAbove > spaceBelow;
         return {
           left,
           width,
@@ -8956,6 +8978,14 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           ctx,
           t: (key, params) => translateCurrent(key, params),
         }), 'dsh-powerup: dual send buttons');
+
+        // In an ongoing session, place the prompt picker in the bottom tool row
+        // just after the host's permission / plan dropdowns; its popover opens
+        // upward so it is not clipped by the screen bottom.
+        register('conversation.input.left', {
+          id: 'powerup-prompts-composer',
+          order: 10,
+        }, ComposerPromptsControl, 'dsh-powerup: composer prompt picker');
 
         // Per-workspace Power-Up settings as a Conversation View tab, ordered
         // after the host's Trajectory view (order 10).

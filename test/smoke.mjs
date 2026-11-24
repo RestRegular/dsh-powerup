@@ -224,12 +224,14 @@ assert.equal(typeof moduleExports.apply, 'function');
 assert.deepEqual(moduleExports.inject, ['slots', 'locale']);
 moduleExports.apply(ctx);
 
-assert.equal(registrations.length, 9, 'nine slot registrations');
+assert.equal(registrations.length, 10, 'ten slot registrations');
 const bySlot = new Map(registrations.map((entry) => [entry.options.name, entry]));
-for (const slot of ['sidebar.panellist', 'main', 'shell.overlay', 'conversation.session.header.utilities', 'conversation.hero.options', 'conversation.input.right', 'conversation.view']) {
+for (const slot of ['sidebar.panellist', 'main', 'shell.overlay', 'conversation.session.header.utilities', 'conversation.hero.options', 'conversation.input.right', 'conversation.input.left', 'conversation.view']) {
   assert.ok(bySlot.has(slot), `registered ${slot}`);
 }
 assert.equal(bySlot.get('conversation.input.right').options.id, 'powerup-dual-send');
+const composerPrompt = registrations.find((entry) => entry.options.name === 'conversation.input.left');
+assert.equal(composerPrompt.options.id, 'powerup-prompts-composer', 'prompt picker is registered in the ongoing-session composer');
 assert.equal(bySlot.get('conversation.view').options.id, 'powerup-settings');
 assert.equal(bySlot.get('conversation.hero.options').options.id, 'powerup-prompts');
 assert.equal(bySlot.get('sidebar.panellist').options.id, 'powerup');
@@ -1396,6 +1398,10 @@ const aboveAnchor = { getBoundingClientRect: () => ({ left: 100, top: 800, botto
 const above = update.popoverPlacement(aboveAnchor, 280, 260);
 assert.equal(above.top, undefined, 'panel flips above near the viewport bottom');
 assert.ok(above.bottom > 0);
+// The composer prompt picker forces upward expansion even with room below.
+const forcedUp = update.popoverPlacement(belowAnchor, 280, 260, { preferUp: true });
+assert.equal(forcedUp.top, undefined, 'preferUp opens the panel upward');
+assert.ok(forcedUp.bottom > 0);
 assert.equal(update.normalizeRegistry('https://registry.example.com'), 'https://registry.example.com/');
 assert.equal(update.registryHost('https://registry.npmmirror.com/'), 'registry.npmmirror.com');
 
@@ -1991,7 +1997,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.9.2');
+assert.equal(host.__test.SELF_VERSION, '0.9.3');
 
 const installFailSpecs = [];
 const installFailManager = {

@@ -185,9 +185,11 @@ Save reusable prompts and drop one into a new session without retyping it.
   characters of the body. A blank workspace scope makes the prompt available in
   every workspace; otherwise it appears only in that one.
 - In the New Session row, to the right of the Agent preset, a dropdown lists the
-  prompts available in the current workspace. **Clicking a prompt fills the
-  composer** so you can keep editing before sending. Each row also has a
-  **Send now** button that fills and submits immediately.
+  prompts available in the current workspace. In an **ongoing session** the same
+  picker also appears in the composer's bottom tool row, just right of the
+  permission dropdown; there its menu opens **upward**. **Clicking a prompt
+  fills the composer** so you can keep editing before sending. Each row also has
+  a **Send now** button that fills and submits immediately.
 - **Create a new prompt…** in the dropdown opens an in-conversation dialog. A
   prompt created here is pinned to the current workspace — you may only keep
   that scope or switch to **All workspaces**, never pick another workspace.
