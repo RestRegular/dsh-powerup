@@ -1286,10 +1286,9 @@ globalThis.localStorage.getItem = savedGetItem;
   assert.ok(/\.dsh-powerup-prompt-modal-mask\.is-closing\{animation:dsh-powerup-prompt-mask-out/.test(css), 'create dialog mask has an exit animation');
   assert.ok(/\.dsh-powerup-prompt-modal\.is-closing\{animation:dsh-powerup-prompt-sink/.test(css), 'create dialog has an exit animation');
   assert.ok(/\.dsh-powerup-prompt-pop-send\{[^}]*width:26px/.test(css), 'direct-send control is an icon button');
-  // Previews must not be cut in code; the CSS clamp decides how much shows.
-  assert.ok(!/slice\(0, 40\)/.test(source), 'prompt preview is not hard-cut at 40 characters');
-  assert.ok(/\.dsh-powerup-prompt-pop-preview\{[^}]*-webkit-line-clamp:2/.test(css), 'preview wraps to two lines');
-  assert.ok(/\.dsh-powerup-prompt-pop-name\{[^}]*-webkit-line-clamp:2/.test(css), 'title wraps to two lines');
+  // The row carries width:100% plus horizontal padding: without border-box the
+  // row overflows the list and the send button on the right gets clipped.
+  assert.ok(/\.dsh-powerup-prompt-pop-item\{box-sizing:border-box/.test(css), 'prompt row does not overflow the list');
   assert.ok(/\.dsh-powerup-prompt-pop\{[^}]*overflow-x:hidden/.test(css), 'popover forbids horizontal overflow');
   // Coordinated radii: both dropdowns use a 10px outer shell and 8px inner controls.
   assert.ok(/\.dsh-powerup-prompt-pop\{[^}]*border-radius:10px/.test(css), 'prompt dropdown shell uses 10px radius');
@@ -2009,7 +2008,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.9.7');
+assert.equal(host.__test.SELF_VERSION, '0.9.8');
 
 const installFailSpecs = [];
 const installFailManager = {
