@@ -1291,7 +1291,9 @@ globalThis.localStorage.getItem = savedGetItem;
   assert.ok(/\.dsh-powerup-prompt-pop-item\{box-sizing:border-box/.test(css), 'prompt row does not overflow the list');
   // Dual send replaces the host button only while the draft has text.
   assert.ok(source.includes('[data-powerup-send-hidden]{display:none!important}'), 'host primary button can be hidden');
-  assert.ok(/const active = settings\.dualSend && trimmed !== ''/.test(source), 'dual buttons activate only with a non-empty draft');
+  assert.ok(/const active = settings\.dualSend && trimmed !== '' && sessionRunning/.test(source), 'dual buttons need a non-empty draft and a running session');
+  assert.ok(/function useSessionRunning\(ctx, sessionId\)/.test(source), 'session running state is read from the host store');
+  assert.ok(/list\.subscribe\(\(\) => setRunning\(read\(\)\)\)/.test(source), 'dual buttons follow the running state live');
   assert.ok(/\.dsh-powerup-prompt-pop\{[^}]*overflow-x:hidden/.test(css), 'popover forbids horizontal overflow');
   // Coordinated radii: both dropdowns use a 10px outer shell and 8px inner controls.
   assert.ok(/\.dsh-powerup-prompt-pop\{[^}]*border-radius:10px/.test(css), 'prompt dropdown shell uses 10px radius');
@@ -2011,7 +2013,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.9.9');
+assert.equal(host.__test.SELF_VERSION, '0.10.0');
 
 const installFailSpecs = [];
 const installFailManager = {

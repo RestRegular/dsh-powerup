@@ -83,7 +83,7 @@
       const promptCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.9.9';
+      const VERSION = '0.10.0';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -8407,6 +8407,36 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
        * host primary button keep their own behavior; we add explicit queued and
        * interrupt controls that bypass the system busy-time setting.
        */
+      /**
+       * Whether the given session is currently working. Reads the host's
+       * sessions list snapshot (`byId[id].running`) and re-renders when that
+       * store changes. Falls back to false when the host exposes no list, so an
+       * unknown state keeps the native single button.
+       */
+      function useSessionRunning(ctx, sessionId) {
+        const read = useCallback(() => {
+          if (typeof sessionId !== 'string' || sessionId === '') return false;
+          try {
+            const list = ctx.get('sessions')?.list;
+            if (list === undefined || typeof list.getSnapshot !== 'function') return false;
+            const snapshot = list.getSnapshot();
+            const byId = snapshot !== null && typeof snapshot === 'object' ? snapshot.byId : undefined;
+            const item = byId !== null && typeof byId === 'object' ? byId[sessionId] : undefined;
+            return item !== null && typeof item === 'object' && item.running === true;
+          } catch {
+            return false;
+          }
+        }, [ctx, sessionId]);
+        const [running, setRunning] = useState(read);
+        useEffect(() => {
+          setRunning(read());
+          const list = ctx.get('sessions')?.list;
+          if (list === undefined || typeof list.subscribe !== 'function') return undefined;
+          return list.subscribe(() => setRunning(read()));
+        }, [read, ctx]);
+        return running;
+      }
+
       function DualSendButtons({ sessionId, useInput, inputActions, ctx, t }) {
         const settings = useSettings();
         const draft = typeof useInput === 'function' ? useInput((s) => s.draft) : '';
@@ -8423,6 +8453,10 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           }
         };
         const trimmed = typeof draft === 'string' ? draft.trim() : '';
+        // Dual send only makes sense while the session is actually working:
+        // "queue" vs "interrupt" is meaningless on an idle session, where the
+        // host's single Send button is the correct affordance.
+        const sessionRunning = useSessionRunning(ctx, sessionId);
         const currentDraft = { trimmed, sessionId, inputActions, ctx };
         const send = (mode, text) => {
           const value = typeof text === 'string' ? text.trim() : trimmed;
@@ -8477,9 +8511,9 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         }, [settings.dualSend, sessionId, draft, ctx, inputActions]);
         void currentDraft;
         // Replace the host's single primary button with our two only while the
-        // composer actually holds text. An empty draft keeps the native button
-        // (that state is the host's Stop / retry affordance).
-        const active = settings.dualSend && trimmed !== '';
+        // composer holds text AND the session is working. An idle session (or
+        // an empty draft) keeps the native button, where it is Send or Stop.
+        const active = settings.dualSend && trimmed !== '' && sessionRunning;
         const wrapRef = useRef(null);
         useEffect(() => {
           if (!settings.dualSend || typeof document === 'undefined' || document === null) return undefined;
