@@ -284,7 +284,7 @@ const hero = moduleExports.__test.HeroPromptsControl({
   inputActions: { setDraft() {}, submit() {}, persistDraft() {}, focus() {} },
   useWorkspaces: (selector) => selector({ items: [{ workspaceId: 'ws-1', sessionIds: ['session-1'] }] }),
 });
-assert.ok(hero !== null && hero.props.className.includes('dsh-powerup-prompt-trigger'), 'hero renders the trigger');
+assert.ok(hero !== null && JSON.stringify(hero).includes('dsh-powerup-prompt-trigger'), 'hero renders the trigger');
 assert.ok(JSON.stringify(hero).includes('dsh-powerup-prompt-trigger-label'));
 resetHooks();
 const manager = moduleExports.__test.PromptManager({ ctx });
@@ -743,16 +743,16 @@ assert.deepEqual(
     },
   }, 'c'),
   [
-    { id: 'a', title: 'Alpha', current: false },
-    { id: 'c', title: 'Gamma title', current: true },
-    { id: 'd', title: 'd', current: false },
+    { id: 'a', title: 'Alpha', current: false, status: 'running' },
+    { id: 'c', title: 'Gamma title', current: true, status: 'running' },
+    { id: 'd', title: 'd', current: false, status: 'running' },
   ],
   'idle sessions are excluded and titles fall back sensibly',
 );
 assert.deepEqual(switcher.runningSessionRows(null, undefined), [], 'a missing snapshot yields no rows');
 assert.deepEqual(
   switcher.runningSessionRows({ ids: ['x', 'x'], byId: { x: { running: true, displayTitle: 'X' } } }, undefined),
-  [{ id: 'x', title: 'X', current: false }],
+  [{ id: 'x', title: 'X', current: false, status: 'running' }],
   'duplicate ids are emitted once',
 );
 
@@ -775,8 +775,8 @@ assert.deepEqual(
     byId: { a: { running: true, displayTitle: 'Alpha' }, b: { running: true, displayTitle: 'Beta' } },
   }, undefined, workspaceOf),
   [
-    { id: 'a', title: '研究项目 · Alpha', current: false },
-    { id: 'b', title: 'Beta', current: false },
+    { id: 'a', title: '研究项目 · Alpha', current: false, status: 'running' },
+    { id: 'b', title: 'Beta', current: false, status: 'running' },
   ],
   'known workspaces prefix the label, unknown ones fall back to the bare title',
 );
@@ -787,6 +787,41 @@ const longLabel = switcher.runningSessionRows(
 )[0].title;
 assert.ok([...longLabel].length <= 40, 'the option label is truncated to the max length');
 assert.ok(longLabel.endsWith('\u2026'), 'a truncated label ends with an ellipsis');
+
+// Session status: 'blocked' for pending questions, and finished-but-unseen
+// sessions stay listed until the user switches to them.
+assert.deepEqual(
+  switcher.runningSessionRows(
+    { ids: ['a', 'b'], byId: {
+      a: { running: true, displayTitle: 'Alpha' },
+      b: { running: true, displayTitle: 'Beta' },
+    } },
+    undefined,
+    undefined,
+    { statusOf: (id) => id === 'b' ? 'blocked' : 'running' },
+  ),
+  [
+    { id: 'a', title: 'Alpha', current: false, status: 'running' },
+    { id: 'b', title: 'Beta', current: false, status: 'blocked' },
+  ],
+  'a pending question marks the row blocked',
+);
+assert.deepEqual(
+  switcher.runningSessionRows(
+    { ids: ['a', 'b'], byId: {
+      a: { running: true, displayTitle: 'Alpha' },
+      b: { running: false, displayTitle: 'Beta' },
+    } },
+    'a',
+    undefined,
+    { extraIds: new Set(['b']), statusOf: () => 'running' },
+  ),
+  [
+    { id: 'a', title: 'Alpha', current: true, status: 'running' },
+    { id: 'b', title: 'Beta', current: false, status: 'running' },
+  ],
+  'a finished session stays until it has been opened',
+);
 assert.deepEqual(
   switcher.buildWorkspaceIndex(
     { items: [
@@ -1137,9 +1172,6 @@ globalThis.localStorage.getItem = savedGetItem;
   const store = update;
   const savedSetItem = globalThis.localStorage.setItem;
   const savedGet = globalThis.localStorage.getItem;
-  let stored = '[]';
-  globalThis.localStorage.getItem = (key) => (key === store.PROMPTS_KEY ? stored : null);
-  globalThis.localStorage.setItem = (key, value) => { if (key === store.PROMPTS_KEY) stored = value; };
   assert.deepEqual(store.readPrompts(), [], 'prompts default to an empty list');
   const list = [
     { id: 'a', title: 'Build', text: 'do the build', workspaceId: 'ws-1' },
@@ -1147,7 +1179,7 @@ globalThis.localStorage.getItem = savedGetItem;
     { id: 'c', title: 'Other', text: 'other workspace', workspaceId: 'ws-2' },
     { id: '', title: 'Missing id', text: 'x', workspaceId: 'ws-1' },
   ];
-  globalThis.localStorage.getItem = (key) => (key === store.PROMPTS_KEY ? JSON.stringify(list) : null);
+  store.writePrompts(list);
   const parsed = store.readPrompts();
   assert.equal(parsed.length, 4, 'malformed ids are regenerated, records retained');
   assert.ok(parsed[3].id.length > 0);
@@ -1160,8 +1192,6 @@ globalThis.localStorage.getItem = savedGetItem;
   const snapshot = { items: [{ workspaceId: 'ws-9', sessionIds: ['s-1'] }, { workspaceId: 'ws-2', sessionIds: ['s-2'] }] };
   assert.equal(store.resolveWorkspaceIdFromSnapshot(snapshot, 's-1'), 'ws-9');
   assert.equal(store.resolveWorkspaceIdFromSnapshot(snapshot, 'unknown'), '');
-  store.writePrompts([list[0]]);
-  assert.equal(JSON.parse(stored).length, 1, 'writePrompts persists');
   globalThis.localStorage.getItem = savedGet;
   globalThis.localStorage.setItem = savedSetItem;
 }
@@ -1715,6 +1745,27 @@ await host.__test.handle(
 assert.equal(failedKillResponse.status, 404);
 assert.equal(JSON.parse(failedKillResponse.body).code, 'kill-failed');
 
+// Prompts live under each workspace's .dsh/dsh-powerup directory, never in the
+// browser. The host resolves a workspace id to that path through the registry.
+{
+  const { promptStorePath } = host.__test;
+  const ctx = {
+    get(name) {
+      if (name !== 'workspaceRegistry') return undefined;
+      return {
+        get(id) {
+          if (id !== 'ws-1') return undefined;
+          return { id, path: 'D:/workspaces/alpha' };
+        },
+      };
+    },
+  };
+  const path = promptStorePath(ctx, 'ws-1');
+  assert.ok(path.endsWith('.dsh\\dsh-powerup\\prompts.json') || path.endsWith('.dsh/dsh-powerup/prompts.json'), 'prompt store path uses .dsh/dsh-powerup');
+  assert.equal(promptStorePath(ctx, 'missing'), undefined, 'unknown workspace has no store');
+  assert.equal(promptStorePath(ctx, ''), undefined, 'empty id has no store');
+}
+
 assert.equal(host.__test.normalizeStopReason('  a\nb\tc  '), 'a b c');
 assert.equal(host.__test.normalizeStopReason(null), '');
 assert.equal(host.__test.normalizeStopReason('x'.repeat(300)).length, 200);
@@ -1798,7 +1849,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.8.15');
+assert.equal(host.__test.SELF_VERSION, '0.8.16');
 
 const installFailSpecs = [];
 const installFailManager = {

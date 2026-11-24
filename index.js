@@ -31,8 +31,8 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { appendFileSync, mkdirSync, readFileSync, statSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { appendFileSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve as resolvePath, sep } from 'node:path';
 import { homedir } from 'node:os';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import { describeClose, describeRestart, requestRestart, requestShutdown } from './lib/restart.js';
@@ -49,6 +49,10 @@ const SELF_UPDATE_DELAY_MS = 600;
 
 /** Request body bound for the small JSON commands. */
 const BODY_LIMIT = 16 * 1024;
+
+/** Per-workspace prompts live under the workspace's own .dsh directory. */
+const PROMPTS_DIR = join('.dsh', 'dsh-powerup');
+const PROMPTS_FILE = 'prompts.json';
 
 /** The moment this Host process started; a profile file newer than it may await a restart. */
 const HOST_STARTED_AT = Date.now() - process.uptime() * 1000;
@@ -344,6 +348,40 @@ export async function performSelfUpdate(ctx, version, registry, options = {}) {
 }
 
 /**
+ * Absolute path of one workspace's prompt store. The workspace path is
+ * canonical (realpath) and the id is a uuid, so a stray id can never escape
+ * into an arbitrary directory.
+ * @param {import('@deepseek-ai/cordis').Context} ctx
+ * @param {string} workspaceId
+ * @returns {string | undefined}
+ */
+function promptStorePath(ctx, workspaceId) {
+  if (typeof workspaceId !== 'string' || workspaceId === '') return undefined;
+  const registry = ctx?.get?.('workspaceRegistry');
+  const workspace = registry?.get?.(workspaceId);
+  if (workspace === null || workspace === undefined || typeof workspace.path !== 'string' || workspace.path === '') {
+    return undefined;
+  }
+  const root = resolvePath(workspace.path);
+  const target = resolvePath(root, PROMPTS_DIR, PROMPTS_FILE);
+  // The store must stay inside the workspace, whatever the registry returned.
+  const prefix = root.endsWith(sep) ? root : root + sep;
+  if (!target.startsWith(prefix)) return undefined;
+  return target;
+}
+
+/** Read one workspace's prompts from disk; a missing file is an empty list. */
+function readPromptStore(filePath) {
+  try {
+    const parsed = JSON.parse(readFileSync(filePath, 'utf8'));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    if (error?.code === 'ENOENT') return [];
+    throw error;
+  }
+}
+
+/**
  * @param {import('node:http').IncomingMessage} req
  * @param {import('node:http').ServerResponse} res
  * @param {import('@deepseek-ai/cordis').Context} ctx
@@ -356,8 +394,50 @@ async function handle(req, res, ctx) {
 
   const url = new URL(req.url ?? ROUTE, 'http://localhost');
   const op = url.pathname.slice(ROUTE.length).replace(/^\/+/u, '') || url.searchParams.get('op') || '';
-  if (op !== '' && op !== 'restart' && op !== 'close' && op !== 'self-update' && op !== 'audit' && op !== 'job-kill') {
+  if (op !== '' && op !== 'restart' && op !== 'close' && op !== 'self-update' && op !== 'audit' && op !== 'job-kill' && op !== 'prompts') {
     sendJson(res, { ok: false, error: 'not-found' }, 404);
+    return;
+  }
+
+  if (op === 'prompts') {
+    // The active workspace's directory holds the whole prompt store, including
+    // prompts scoped to other workspaces and the "all workspaces" ones.
+    const targetId = req.method === 'GET'
+      ? (url.searchParams.get('workspaceId') ?? '')
+      : '';
+    let workspaceId = targetId;
+    if (req.method === 'POST') {
+      try {
+        const body = await readJsonBody(req);
+        workspaceId = typeof body?.workspaceId === 'string' ? body.workspaceId.trim() : '';
+        const filePath = promptStorePath(ctx, workspaceId);
+        if (filePath === undefined) {
+          sendJson(res, { ok: false, code: 'workspace-not-found', error: 'workspace not found' }, 404);
+          return;
+        }
+        const prompts = Array.isArray(body?.prompts) ? body.prompts : [];
+        mkdirSync(dirname(filePath), { recursive: true });
+        writeFileSync(filePath, JSON.stringify(prompts, null, 2) + '\n', 'utf8');
+        sendJson(res, { ok: true, workspaceId, prompts });
+      } catch (error) {
+        sendJson(res, { ok: false, error: String(error?.message ?? error) }, 500);
+      }
+      return;
+    }
+    if (req.method !== 'GET') {
+      sendJson(res, { ok: false, error: 'method-not-allowed' }, 405);
+      return;
+    }
+    try {
+      const filePath = promptStorePath(ctx, workspaceId);
+      if (filePath === undefined) {
+        sendJson(res, { ok: false, code: 'workspace-not-found', error: 'workspace not found' }, 404);
+        return;
+      }
+      sendJson(res, { ok: true, workspaceId, prompts: readPromptStore(filePath) });
+    } catch (error) {
+      sendJson(res, { ok: false, error: String(error?.message ?? error) }, 500);
+    }
     return;
   }
 
@@ -509,8 +589,11 @@ export const __test = {
   selfVersion,
   auditProfileBundles,
   profileDirectory,
+  promptStorePath,
+  readPromptStore,
   HOST_STARTED_AT,
   SELF_VERSION,
   ROUTE,
   MODULE_ID,
+  PROMPTS_DIR,
 };
