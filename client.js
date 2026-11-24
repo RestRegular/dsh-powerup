@@ -83,7 +83,7 @@
       const promptCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.9.3';
+      const VERSION = '0.9.4';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -3229,7 +3229,7 @@
               anchor,
               t,
               items: visible,
-              placement: (node) => popoverPlacement(node, 260, 340, { preferUp: compact }),
+              placement: (node) => popoverPlacement(node, 360, 340, { preferUp: compact }),
               onPick: (prompt) => apply(prompt, false),
               onSend: (prompt) => apply(prompt, true),
               onCreate: () => setCreating(true),
@@ -3939,9 +3939,9 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-prompt-pop{position:fixed;z-index:1600;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;overflow-x:hidden;border:0;border-radius:10px;background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);font-size:12.5px;line-height:1.5;opacity:0;transform:translateY(-4px);transition:opacity .12s ease,transform .12s ease;pointer-events:auto;--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2)}
 .dsh-powerup-prompt-pop.is-open{opacity:1;transform:none}
 .dsh-powerup-prompt-pop-head{flex:none;display:flex;align-items:center;gap:6px;padding:8px 11px 7px;color:var(--dsw-alias-label-tertiary);font-size:10.5px;font-weight:600;letter-spacing:.03em}
-.dsh-powerup-prompt-pop-list{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:1px;padding:4px;overflow-y:auto;overflow-x:hidden}
-.dsh-powerup-prompt-pop-item{display:flex;align-items:center;gap:4px;width:100%;min-width:0;min-height:34px;padding:2px 4px 2px 7px;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;text-align:left}
-.dsh-powerup-prompt-pop-item:hover{background:var(--dsw-alias-interactive-bg-hover)}
+.dsh-powerup-prompt-pop-list{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:4px;padding:6px;overflow-y:auto;overflow-x:hidden}
+.dsh-powerup-prompt-pop-item{display:flex;align-items:center;gap:6px;width:100%;min-width:0;min-height:38px;padding:4px 5px 4px 9px;border:.5px solid transparent;border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;text-align:left;transition:border-color .12s ease,background .12s ease}
+.dsh-powerup-prompt-pop-item:hover{border-color:var(--dsw-alias-border-l2);background:var(--dsw-alias-interactive-bg-hover)}
 .dsh-powerup-prompt-pop-main{flex:1 1 auto;display:flex;flex-direction:column;gap:1px;min-width:0;padding:3px 0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
 .dsh-powerup-prompt-pop-name{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;line-height:18px}
 .dsh-powerup-prompt-pop-preview{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-tertiary);font-size:10.5px;line-height:15px}

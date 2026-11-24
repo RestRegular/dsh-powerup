@@ -1278,6 +1278,7 @@ globalThis.localStorage.getItem = savedGetItem;
   const css = store.PROMPTS_CSS;
   assert.ok(/\.dsh-powerup-prompt-pop-list\{[^}]*flex:1 1 auto[^}]*min-height:0[^}]*overflow-y:auto[^}]*overflow-x:hidden/.test(css), 'prompt list flexes and scrolls vertically only');
   assert.ok(/\.dsh-powerup-prompt-pop-create\{flex:none;/.test(css), 'new-prompt button never shrinks');
+  assert.ok(/\.dsh-powerup-prompt-pop-list\{[^}]*gap:4px/.test(css), 'prompt options have visible spacing between them');
   assert.ok(/\.dsh-powerup-prompt-pop\{[^}]*overflow-x:hidden/.test(css), 'popover forbids horizontal overflow');
   // Coordinated radii: both dropdowns use a 10px outer shell and 8px inner controls.
   assert.ok(/\.dsh-powerup-prompt-pop\{[^}]*border-radius:10px/.test(css), 'prompt dropdown shell uses 10px radius');
@@ -1997,7 +1998,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.9.3');
+assert.equal(host.__test.SELF_VERSION, '0.9.4');
 
 const installFailSpecs = [];
 const installFailManager = {
