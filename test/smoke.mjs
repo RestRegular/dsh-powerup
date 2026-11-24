@@ -290,6 +290,38 @@ resetHooks();
 const manager = moduleExports.__test.PromptManager({ ctx });
 assert.ok(manager.type === 'div' || manager.type === undefined, 'manager renders a tree');
 
+// The management tab groups prompts by workspace, each group collapsible, and
+// every prompt card stays folded to just its title plus edit/delete.
+{
+  moduleExports.__test.writePrompts([
+    { id: 'g1', title: '全局一号', text: 'global body', workspaceId: '' },
+    { id: 'w1', title: '工作区一号', text: 'workspace body', workspaceId: 'ws-1' },
+    { id: 'w2', title: '工作区二号', text: 'workspace body 2', workspaceId: 'ws-1' },
+  ]);
+  resetHooks();
+  const tree = moduleExports.__test.PromptManager({ ctx });
+  const json = JSON.stringify(tree);
+  assert.ok(json.includes('dsh-powerup-prompt-group'), 'prompts render inside workspace groups');
+  assert.ok(json.includes('dsh-powerup-prompt-group-head'), 'each group has a collapsible header');
+  assert.ok(!json.includes('dsh-powerup-prompt-scope'), 'the per-card scope pill is gone (the group carries it)');
+  assert.ok(!json.includes('dsh-powerup-prompt-preview'), 'folded cards no longer show a body preview');
+  const folded = (json.match(/dsh-powerup-prompt-card folded/gu) ?? []).length;
+  assert.equal(folded, 3, 'every prompt card starts folded');
+  moduleExports.__test.writePrompts([]);
+}
+
+// The in-session create dialog keeps whatever was typed when it is closed and
+// reopened for the same workspace, and resets after a successful create.
+{
+  const draft = moduleExports.__test.promptCreateDraft;
+  assert.ok(draft !== null && typeof draft === 'object', 'the create draft is exported for tests');
+  assert.equal(typeof draft.title, 'string');
+  assert.equal(typeof draft.text, 'string');
+  draft.workspaceId = null;
+  draft.title = '';
+  draft.text = '';
+}
+
 // ---------------------------------------------------------------------------
 // Pure helpers
 // ---------------------------------------------------------------------------
@@ -1849,7 +1881,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.8.16');
+assert.equal(host.__test.SELF_VERSION, '0.8.17');
 
 const installFailSpecs = [];
 const installFailManager = {

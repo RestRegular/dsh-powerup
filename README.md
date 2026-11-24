@@ -178,19 +178,23 @@ entries other plugins add) become an icon grid instead of a one-per-row list:
 Save reusable prompts and drop one into a new session without retyping it.
 
 - Open the sidebar **Power-Up** page, switch on **Workspace prompts**, then open
-  the **Prompts** tab. Create a prompt with an optional title, an optional
-  workspace scope, and the prompt body. Without a title the dropdown shows the
-  first few characters of the body. A blank workspace scope makes the prompt
-  available in every workspace; otherwise it appears only in that one.
+  the **Prompts** tab. Prompts are grouped by workspace, each group collapsible,
+  and every prompt card stays folded to just its title plus edit/delete until you
+  open it. Create a prompt with an optional title, an optional workspace scope,
+  and the prompt body. Without a title the dropdown shows the first few
+  characters of the body. A blank workspace scope makes the prompt available in
+  every workspace; otherwise it appears only in that one.
 - In the New Session row, to the right of the Agent preset, a dropdown lists the
   prompts available in the current workspace. **Clicking a prompt fills the
   composer** so you can keep editing before sending. Each row also has a
   **Send now** button that fills and submits immediately.
 - **Create a new prompt…** in the dropdown opens an in-conversation dialog. A
   prompt created here is pinned to the current workspace — you may only keep
-  that scope or switch to **All workspaces**, never pick another workspace. The
-  **Prompts** settings tab can also create and manage prompts freely across
-  workspaces; both use the same dsh-memory-style segmented tabs and cards.
+  that scope or switch to **All workspaces**, never pick another workspace.
+  Closing the dialog keeps what you typed, so reopening it restores the draft
+  until the prompt is actually created. The **Prompts** settings tab can also
+  create and manage prompts freely across workspaces; both use the same
+  dsh-memory-style segmented tabs and cards.
 - Prompts are stored on disk under the active workspace, in
   `.dsh/dsh-powerup/prompts.json`; they travel with the workspace rather than
   living in the browser.

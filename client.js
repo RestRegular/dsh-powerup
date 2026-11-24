@@ -75,9 +75,15 @@
        */
       /** Last prompt used per workspace, for the dropdown button label. */
       const PROMPTS_LAST_KEY = 'dsh-powerup:prompts:last:v1';
+      /**
+       * In-progress "new prompt" dialog text, kept in memory so closing and
+       * reopening the dialog restores what the user had already typed instead
+       * of resetting it. Cleared once the prompt is actually created.
+       */
+      const promptCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.8.16';
+      const VERSION = '0.8.17';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -304,7 +310,7 @@
           'prompts.tabFeatures': '功能列表',
           'prompts.tabManage': '提示词',
           'prompts.sectionTitle': '统一管理各工作区的提示词',
-          'prompts.sectionSub': '提示词保存在当前浏览器，仅你可见；选择后填入输入框，可继续编辑再发送。',
+          'prompts.sectionSub': '提示词按工作区分组保存在工作区目录的 .dsh/dsh-powerup/prompts.json；选择后填入输入框，可继续编辑再发送。',
           'prompts.new': '新建提示词',
           'prompts.cancel': '取消',
           'prompts.save': '保存',
@@ -556,7 +562,7 @@
           'prompts.tabFeatures': 'Features',
           'prompts.tabManage': 'Prompts',
           'prompts.sectionTitle': 'Manage prompts for every workspace',
-          'prompts.sectionSub': 'Prompts live in this browser and are only visible to you. Picking one fills the composer so you can edit before sending.',
+          'prompts.sectionSub': 'Prompts are grouped by workspace and stored in that workspace\'s .dsh/dsh-powerup/prompts.json. Picking one fills the composer so you can edit before sending.',
           'prompts.new': 'New prompt',
           'prompts.cancel': 'Cancel',
           'prompts.save': 'Save',
@@ -2742,10 +2748,25 @@
        */
       function PromptCreateModal({ workspaceId, workspaceTitle, onClose, onCreated }) {
         const t = (key, params) => translateCurrent(key, params);
-        const [title, setTitle] = useState('');
-        const [text, setText] = useState('');
-        const [scope, setScope] = useState(typeof workspaceId === 'string' && workspaceId !== '' ? 'current' : 'all');
+        const fixedScope = typeof workspaceId !== 'string' || workspaceId === '';
+        // Reopening the dialog for the same workspace restores the previous
+        // draft; switching to another workspace starts from a clean slate.
+        const sameWorkspace = promptCreateDraft.workspaceId === (fixedScope ? '' : workspaceId);
+        if (!sameWorkspace) {
+          promptCreateDraft.workspaceId = fixedScope ? '' : workspaceId;
+          promptCreateDraft.title = '';
+          promptCreateDraft.text = '';
+          promptCreateDraft.scope = fixedScope ? 'all' : 'current';
+        }
+        const [title, setTitle] = useState(promptCreateDraft.title);
+        const [text, setText] = useState(promptCreateDraft.text);
+        const [scope, setScope] = useState(promptCreateDraft.scope);
         const titleRef = useRef(null);
+        useEffect(() => {
+          promptCreateDraft.title = title;
+          promptCreateDraft.text = text;
+          promptCreateDraft.scope = scope;
+        }, [title, text, scope]);
         useEffect(() => {
           try {
             titleRef.current?.focus?.();
@@ -2775,11 +2796,14 @@
           const list = readPrompts();
           list.push(record);
           writePrompts(list);
+          // The draft became a real prompt: the next dialog starts empty.
+          promptCreateDraft.title = '';
+          promptCreateDraft.text = '';
+          promptCreateDraft.scope = fixedScope ? 'all' : 'current';
           onCreated(record);
         };
         const fieldClass = 'dsh-powerup-prompt-input';
         const labelClass = 'dsh-powerup-prompt-field-label';
-        const fixedScope = typeof workspaceId !== 'string' || workspaceId === '';
         return renderInBody(h('div', {
           className: 'dsh-powerup-prompt-modal-mask',
           role: 'presentation',
@@ -3632,18 +3656,23 @@ marker is only present while our button is mounted, and the host's
 .dsh-powerup-prompt-new{height:30px;padding:0 12px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font:inherit;font-size:12.5px;line-height:1.5;cursor:pointer;transition:border-color .12s ease,color .12s ease}
 .dsh-powerup-prompt-new:hover{border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-brand-primary)}
 .dsh-powerup-prompt-new:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:1px}
-.dsh-powerup-prompt-list{display:flex;flex-direction:column;gap:9px;margin-top:12px}
-.dsh-powerup-prompt-card{border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1);overflow:hidden}
-.dsh-powerup-prompt-card-head{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--dsw-alias-border-l1);background:linear-gradient(120deg,color-mix(in srgb,var(--dsw-alias-brand-primary) 5%,var(--dsw-alias-bg-layer-1)),var(--dsw-alias-bg-layer-1) 62%);flex-wrap:wrap}
-.dsh-powerup-prompt-card.folded .dsh-powerup-prompt-card-head{border-bottom:0}
+.dsh-powerup-prompt-groups{display:flex;flex-direction:column;gap:14px;margin-top:14px}
+.dsh-powerup-prompt-group{border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-2);overflow:hidden}
+.dsh-powerup-prompt-group-head{display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;border:0;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;text-align:left;cursor:pointer}
+.dsh-powerup-prompt-group-head:hover{background:var(--dsw-alias-interactive-bg-hover)}
+.dsh-powerup-prompt-group-head:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:-2px}
+.dsh-powerup-prompt-group-chevron{flex:none;display:inline-flex;color:var(--dsw-alias-label-tertiary);transition:transform .15s ease}
+.dsh-powerup-prompt-group.is-collapsed .dsh-powerup-prompt-group-chevron{transform:rotate(-90deg)}
+.dsh-powerup-prompt-group-title{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:600;line-height:1.4}
+.dsh-powerup-prompt-group-count{flex:none;color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:1.5;font-variant-numeric:tabular-nums}
+.dsh-powerup-prompt-group-body{display:flex;flex-direction:column;gap:7px;padding:0 8px 8px}
+.dsh-powerup-prompt-card{border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1);overflow:hidden}
+.dsh-powerup-prompt-card-head{display:flex;align-items:center;gap:10px;padding:8px 11px;flex-wrap:wrap}
 .dsh-powerup-prompt-name{font-size:13px;font-weight:600;line-height:1.4;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.dsh-powerup-prompt-scope{flex:none;padding:0 7px;border:1px solid var(--dsw-alias-border-l1);border-radius:999px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font-size:10px;line-height:1.7}
 .dsh-powerup-prompt-card-actions{display:flex;align-items:center;gap:4px;margin-left:auto;flex-wrap:wrap}
 .dsh-powerup-linkbtn{background:none;border:0;padding:2px 4px;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;line-height:1.7;cursor:pointer;border-radius:5px}
 .dsh-powerup-linkbtn:hover{color:var(--dsw-alias-brand-primary);background:var(--dsw-alias-interactive-bg-hover)}
 .dsh-powerup-linkbtn.danger:hover{color:var(--dsw-alias-state-error-primary,#d33)}
-.dsh-powerup-prompt-card-body{padding:11px 13px}
-.dsh-powerup-prompt-preview{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--dsw-alias-label-secondary);font-size:11.5px;line-height:1.55}
 .dsh-powerup-prompt-form{display:flex;flex-direction:column;gap:10px;padding:11px 13px;border-top:1px solid var(--dsw-alias-border-l1)}
 .dsh-powerup-prompt-field{display:flex;flex-direction:column;gap:5px;min-width:0}
 .dsh-powerup-prompt-field-label{color:var(--dsw-alias-label-secondary);font-size:11.5px;line-height:1.5}
@@ -7627,6 +7656,8 @@ marker is only present while our button is mounted, and the host's
         const [, forceLocale] = useState(0);
         const [expanded, setExpanded] = useState(null);
         const [draft, setDraft] = useState(null);
+        // Groups start expanded; collapsing one only affects this view.
+        const [collapsedGroups, setCollapsedGroups] = useState(() => new Set());
         const t = (key, params) => translateCurrent(key, params);
         useEffect(() => {
           const locale = ctx.get('locale');
@@ -7733,39 +7764,95 @@ marker is only present while our button is mounted, and the host's
           ),
         );
 
-        const cards = prompts.length === 0
-          ? h('div', { className: 'dsh-powerup-prompt-empty' }, t('prompts.empty'))
-          : h('div', { className: 'dsh-powerup-prompt-list' }, prompts.map((prompt) => {
-            const isExpanded = expanded === prompt.id;
-            const preview = [...(prompt.text || '').trim()].slice(0, 80).join('');
-            return h('section', {
-              key: prompt.id,
-              className: 'dsh-powerup-prompt-card' + (isExpanded ? '' : ' folded'),
-            },
-              h('div', { className: 'dsh-powerup-prompt-card-head' },
-                h('span', { className: 'dsh-powerup-prompt-name' }, promptLabel(prompt, t)),
-                h('span', { className: 'dsh-powerup-prompt-scope' },
-                  prompt.workspaceId === ''
-                    ? t('prompts.anyWorkspace')
-                    : (workspaces.find((ws) => ws.workspaceId === prompt.workspaceId)?.title
-                      || prompt.workspaceId)),
-                h('div', { className: 'dsh-powerup-prompt-card-actions' },
-                  h('button', {
-                    type: 'button',
-                    className: 'dsh-powerup-linkbtn',
-                    onClick: () => (isExpanded ? cancelEdit() : beginEdit(prompt)),
-                  }, isExpanded ? t('prompts.cancel') : t('prompts.edit')),
-                  h('button', {
-                    type: 'button',
-                    className: 'dsh-powerup-linkbtn danger',
-                    onClick: () => remove(prompt),
-                  }, t('prompts.delete')),
-                ),
+        const workspaceTitleOf = (id) => {
+          if (id === '') return t('prompts.anyWorkspace');
+          const found = workspaces.find((ws) => ws.workspaceId === id);
+          return found?.title || id;
+        };
+
+        /**
+         * Group prompts by workspace: "all workspaces" first, then every real
+         * workspace in list order, then any orphaned scope not in the registry.
+         */
+        const groups = [];
+        const seenScope = new Set();
+        const pushGroup = (id) => {
+          if (seenScope.has(id)) return;
+          const items = prompts.filter((p) => p.workspaceId === id);
+          if (items.length === 0) return;
+          seenScope.add(id);
+          groups.push({ id, title: workspaceTitleOf(id), items });
+        };
+        pushGroup('');
+        for (const ws of workspaces) pushGroup(ws.workspaceId);
+        for (const prompt of prompts) pushGroup(prompt.workspaceId);
+
+        const toggleGroup = (id) => {
+          setCollapsedGroups((current) => {
+            const next = new Set(current);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+          });
+        };
+
+        /** One collapsed prompt card: only the title plus edit/delete actions. */
+        const promptCard = (prompt) => {
+          const isExpanded = expanded === prompt.id;
+          return h('section', {
+            key: prompt.id,
+            className: 'dsh-powerup-prompt-card' + (isExpanded ? '' : ' folded'),
+          },
+            h('div', { className: 'dsh-powerup-prompt-card-head' },
+              h('span', { className: 'dsh-powerup-prompt-name' }, promptLabel(prompt, t)),
+              h('div', { className: 'dsh-powerup-prompt-card-actions' },
+                h('button', {
+                  type: 'button',
+                  className: 'dsh-powerup-linkbtn',
+                  onClick: () => (isExpanded ? cancelEdit() : beginEdit(prompt)),
+                }, isExpanded ? t('prompts.cancel') : t('prompts.edit')),
+                h('button', {
+                  type: 'button',
+                  className: 'dsh-powerup-linkbtn danger',
+                  onClick: () => remove(prompt),
+                }, t('prompts.delete')),
               ),
-              isExpanded ? form : (preview !== ''
-                ? h('div', { className: 'dsh-powerup-prompt-card-body' },
-                  h('p', { className: 'dsh-powerup-prompt-preview' }, preview))
-                : null),
+            ),
+            isExpanded ? form : null,
+          );
+        };
+
+        const groupsView = groups.length === 0
+          ? h('div', { className: 'dsh-powerup-prompt-empty' }, t('prompts.empty'))
+          : h('div', { className: 'dsh-powerup-prompt-groups' }, groups.map((group) => {
+            const collapsed = collapsedGroups.has(group.id);
+            return h('section', {
+              key: 'group:' + group.id,
+              className: 'dsh-powerup-prompt-group' + (collapsed ? ' is-collapsed' : ''),
+            },
+              h('button', {
+                type: 'button',
+                className: 'dsh-powerup-prompt-group-head',
+                'aria-expanded': collapsed ? 'false' : 'true',
+                onClick: () => toggleGroup(group.id),
+              },
+                h('span', {
+                  className: 'dsh-powerup-prompt-group-chevron',
+                  'aria-hidden': 'true',
+                }, h('svg', { width: 10, height: 10, viewBox: '0 0 16 16', fill: 'none' },
+                  h('path', {
+                    d: 'm4 6 4 4 4-4',
+                    stroke: 'currentColor',
+                    strokeWidth: 1.4,
+                    strokeLinecap: 'round',
+                    strokeLinejoin: 'round',
+                  }))),
+                h('span', { className: 'dsh-powerup-prompt-group-title' }, group.title),
+                h('span', { className: 'dsh-powerup-prompt-group-count' },
+                  t('prompts.itemsCount', { count: group.items.length })),
+              ),
+              collapsed ? null : h('div', { className: 'dsh-powerup-prompt-group-body' },
+                group.items.map(promptCard)),
             );
           }));
 
@@ -7784,7 +7871,7 @@ marker is only present while our button is mounted, and the host's
           expanded === 'new'
             ? h('section', { className: 'dsh-powerup-prompt-card' }, form)
             : null,
-          cards,
+          groupsView,
         );
       }
 
@@ -8072,6 +8159,7 @@ marker is only present while our button is mounted, and the host's
           LOCATE_CSS,
           PROMPTS_CSS,
           PROMPTS_LAST_KEY,
+          promptCreateDraft,
           readPrompts,
           writePrompts,
           promptsForWorkspace,
