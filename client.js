@@ -83,7 +83,7 @@
       const promptCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.8.18';
+      const VERSION = '0.8.19';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -130,6 +130,11 @@
           'page.locateTitle': '定位当前会话',
           'page.locateDesc': '在工作区侧边栏的按钮栏加一个定位按钮，把当前会话在工作区列表中展开、居中显示，自动展开折叠的工作区。',
           'page.locateHow': '在工作区列表顶部点击「定位当前会话」图标按钮，当前会话所在的工作区会自动展开并滚动到视图中央。',
+          'page.scrollToTopTitle': '侧边栏回到顶部',
+          'page.scrollToTopDesc': '在左侧边栏「新会话」按钮旁加一个回到顶部按钮：工作区列表向下滚动后才出现，点击后左侧边栏平滑滚回最顶部。',
+          'page.scrollToTopHow': '在左侧边栏向下滚动工作区列表，顶部的「新会话」旁会出现向上箭头按钮，点击即可回到顶部。',
+          'scrollToTop.label': '回到顶部',
+          'scrollToTop.hint': '将左侧边栏滚动回最顶部',
           'launcher.groupDefault': '分组',
           'launcher.count': '{count} 个面板',
           'launcher.renameHint': '点击重命名',
@@ -382,6 +387,11 @@
           'page.locateTitle': 'Locate current session',
           'page.locateDesc': 'Adds a button to the workspace sidebar header that expands, reveals and centers the current session in the workspace list, auto-expanding collapsed workspaces.',
           'page.locateHow': 'Click the locate button in the workspace header; the workspace containing the current session expands and scrolls to the center of the view.',
+          'page.scrollToTopTitle': 'Sidebar back to top',
+          'page.scrollToTopDesc': 'Adds a back-to-top button next to New Session in the left sidebar: it appears once the workspace list is scrolled down, and clicking it smoothly scrolls the sidebar back to the very top.',
+          'page.scrollToTopHow': 'Scroll the workspace list down in the left sidebar; an up-arrow button appears beside New Session — click it to return to the top.',
+          'scrollToTop.label': 'Back to top',
+          'scrollToTop.hint': 'Scroll the left sidebar back to the top',
           'launcher.groupDefault': 'Group',
           'launcher.count': '{count} panels',
           'launcher.renameHint': 'Click to rename',
@@ -635,6 +645,7 @@
         jobStop: true,
         update: true,
         locateSession: true,
+        scrollToTop: true,
         workspacePrompts: true,
         oneClickEnable: true,
         oneClickRestart: true,
@@ -654,6 +665,7 @@
               jobStop: parsed.jobStop !== false,
               update: parsed.update !== false,
               locateSession: parsed.locateSession !== false,
+              scrollToTop: parsed.scrollToTop !== false,
               workspacePrompts: parsed.workspacePrompts !== false,
               oneClickEnable: parsed.oneClickEnable !== false,
               oneClickRestart: parsed.oneClickRestart !== false,
@@ -3092,6 +3104,20 @@
         );
       }
 
+      function ScrollTopIcon({ size = 16 }) {
+        return h(Icon, { size },
+          h('path', {
+            d: 'M8 12.5V3.5M4.2 7.3 8 3.5l3.8 3.8',
+            fill: 'none', stroke: 'currentColor', strokeWidth: '1.4',
+            strokeLinecap: 'round', strokeLinejoin: 'round',
+          }),
+          h('path', {
+            d: 'M3 14h10', fill: 'none', stroke: 'currentColor',
+            strokeWidth: '1.4', strokeLinecap: 'round',
+          }),
+        );
+      }
+
       function BrandMark({ size = 56 }) {
         return h('svg', {
           width: size, height: size, viewBox: '0 0 256 256', fill: 'none', 'aria-hidden': 'true',
@@ -3614,6 +3640,19 @@ marker is only present while our button is mounted, and the host's
 [data-sidebar-workspace-header] .dsh-powerup-locate:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
 [data-sidebar-workspace-header] .dsh-powerup-locate:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:1px}
 [data-sidebar-workspace-header] .dsh-powerup-locate svg{width:16px;height:16px}
+`;
+
+      const SCROLL_TOP_CSS = `
+/* Back-to-top button injected next to the host's New Session row. Hidden by
+default; shown only while the sidebar workspace list is scrolled down. */
+.dsh-powerup-scrolltop{display:none;flex:none;align-items:center;justify-content:center;width:38px;height:38px;padding:0;box-sizing:border-box;border:.5px solid var(--dsw-alias-border-l3);border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-button-elevated-fill);color:var(--dsw-alias-label-primary);font:inherit;cursor:pointer;transition:background .12s ease,color .12s ease,opacity .12s ease;opacity:0}
+.dsh-powerup-scrolltop[data-visible="true"]{display:inline-flex;opacity:1}
+.dsh-powerup-scrolltop:hover{background:var(--dsw-alias-button-floating-hover)}
+.dsh-powerup-scrolltop:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:1px}
+.dsh-powerup-scrolltop svg{width:16px;height:16px}
+html[data-platform="darwin"] .dsh-powerup-scrolltop{background:var(--dsw-specific-sidebar-glass-fill)}
+html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-specific-sidebar-glass-hover)}
+@media (prefers-reduced-motion:reduce){.dsh-powerup-scrolltop{transition:none}}
 `;
 
       const PROMPTS_CSS = `
@@ -4640,11 +4679,173 @@ marker is only present while our button is mounted, and the host's
         return core;
       }
 
+      /**
+       * Back-to-top button for the left sidebar. It is injected into the host's
+       * New Session row (`[class*="newSessionRow"]`) and only becomes visible
+       * once the workspace list has been scrolled away from the top. Clicking
+       * it scrolls both the outer sidebar viewport and the workspace list back
+       * to the very top. No host modules are imported — we observe the same
+       * `data-*` contracts the other sidebar features already use.
+       * @param {{t?: Function, isEnabled?: Function, threshold?: number}} deps
+       */
+      function createScrollToTopCore(deps) {
+        const options = deps ?? {};
+        const t = typeof options.t === 'function' ? options.t : (key) => key;
+        const isEnabled = typeof options.isEnabled === 'function' ? options.isEnabled : () => true;
+        const threshold = Number.isFinite(options.threshold) ? options.threshold : 24;
+
+        let button = null;
+        let observer = null;
+        let started = false;
+        let boundContainers = [];
+        let detachListeners = [];
+
+        function hasDocument() {
+          return typeof document !== 'undefined' && document !== null
+            && typeof document.querySelector === 'function' && document.body !== null;
+        }
+
+        /** Both scrollers can carry the offset; the outer viewport wins. */
+        function scrollContainers() {
+          if (!hasDocument()) return [];
+          const out = [];
+          const outer = document.querySelector('[data-sidebar-scrollport]');
+          if (outer !== null) out.push(outer);
+          const inner = document.querySelector('[data-sidebar-list-area]');
+          if (inner !== null && !out.includes(inner)) out.push(inner);
+          return out;
+        }
+
+        function scrolledDown() {
+          return scrollContainers().some((el) => (el.scrollTop || 0) > threshold);
+        }
+
+        function syncVisibility() {
+          if (button === null) return;
+          button.setAttribute('data-visible', scrolledDown() ? 'true' : 'false');
+        }
+
+        function toTop() {
+          for (const el of scrollContainers()) {
+            try {
+              el.scrollTo({ top: 0, behavior: 'smooth' });
+            } catch {
+              el.scrollTop = 0;
+            }
+          }
+          syncVisibility();
+        }
+
+        function row() {
+          if (!hasDocument()) return null;
+          return document.querySelector('[class*="newSessionRow"]');
+        }
+
+        function bindScrollers() {
+          for (const off of detachListeners) {
+            try { off(); } catch { /* already detached */ }
+          }
+          detachListeners = [];
+          boundContainers = scrollContainers();
+          for (const el of boundContainers) {
+            const handler = () => syncVisibility();
+            el.addEventListener('scroll', handler, { passive: true });
+            detachListeners.push(() => el.removeEventListener('scroll', handler));
+          }
+          syncVisibility();
+        }
+
+        function ensureButton() {
+          const host = row();
+          if (host === null || !isEnabled()) {
+            if (button !== null) {
+              button.remove();
+              button = null;
+            }
+            return;
+          }
+          if (button !== null && button.isConnected === true) return;
+          button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'dsh-powerup-scrolltop';
+          button.setAttribute('data-powerup-scrolltop', '');
+          button.setAttribute('data-visible', 'false');
+          button.setAttribute('aria-label', t('scrollToTop.label'));
+          button.setAttribute('title', t('scrollToTop.hint'));
+          button.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M8 12.5V3.5M4.2 7.3 8 3.5l3.8 3.8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+          button.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            toTop();
+          });
+          host.appendChild(button);
+          bindScrollers();
+        }
+
+        function sync() {
+          if (!started) return;
+          const containers = scrollContainers();
+          if (containers.length !== boundContainers.length || containers.some((el, i) => el !== boundContainers[i])) {
+            bindScrollers();
+          }
+          ensureButton();
+          syncVisibility();
+        }
+
+        function start() {
+          if (started || !hasDocument()) return;
+          started = true;
+          ensureButton();
+          if (typeof MutationObserver === 'function') {
+            observer = new MutationObserver(() => sync());
+            observer.observe(document.body, { childList: true, subtree: true });
+          }
+        }
+
+        function stop() {
+          started = false;
+          if (observer !== null) observer.disconnect();
+          observer = null;
+          for (const off of detachListeners) {
+            try { off(); } catch { /* already detached */ }
+          }
+          detachListeners = [];
+          boundContainers = [];
+          if (button !== null) button.remove();
+          button = null;
+        }
+
+        return { start, stop, sync, toTop, scrollContainers, scrolledDown };
+      }
+
+      /**
+       * Install the sidebar back-to-top button.
+       * @param {object} ctx client plugin context
+       */
+      function installScrollToTop(ctx) {
+        const core = createScrollToTopCore({
+          t: (key, params) => translateCurrent(key, params),
+          isEnabled: () => getSettings().scrollToTop,
+        });
+        ctx.effect(() => {
+          if (getSettings().scrollToTop) core.start();
+          const off = subscribeSettings(() => {
+            if (getSettings().scrollToTop) core.start();
+            else core.stop();
+          });
+          return () => {
+            off();
+            core.stop();
+          };
+        }, 'dsh-powerup: sidebar scroll to top');
+        return core;
+      }
+
       function installStyles(ctx) {
         try {
           const style = document.createElement('style');
           style.setAttribute('data-dsh-powerup', '');
-          style.textContent = CSS + '\n' + LAUNCHER_CSS + '\n' + SESSION_SWITCH_CSS + '\n' + LOCATE_CSS + '\n' + PROMPTS_CSS;
+          style.textContent = CSS + '\n' + LAUNCHER_CSS + '\n' + SESSION_SWITCH_CSS + '\n' + LOCATE_CSS + '\n' + SCROLL_TOP_CSS + '\n' + PROMPTS_CSS;
           document.head.appendChild(style);
           ctx.effect(() => () => style.remove(), 'dsh-powerup: styles');
         } catch (error) {
@@ -7995,6 +8196,7 @@ marker is only present while our button is mounted, and the host's
           ),
           featureCard('sessionSwitch', QuickIcon, 'page.sessionSwitchTitle', 'page.sessionSwitchDesc', 'page.sessionSwitchHow'),
           featureCard('locateSession', LocateIcon, 'page.locateTitle', 'page.locateDesc', 'page.locateHow'),
+          featureCard('scrollToTop', ScrollTopIcon, 'page.scrollToTopTitle', 'page.scrollToTopDesc', 'page.scrollToTopHow'),
           featureCard('workspacePrompts', TagIcon, 'page.promptsTitle', 'page.promptsDesc', 'page.promptsHow'),
           featureCard('jobStop', StopIcon, 'page.jobStopTitle', 'page.jobStopDesc', 'page.jobStopHow'),
           featureCard('update', UpdateIcon, 'page.updateTitle', 'page.updateDesc', 'page.updateHow', oneClickDetail),
@@ -8059,6 +8261,7 @@ marker is only present while our button is mounted, and the host's
         installLauncher(ctx);
         installSessionSwitcher(ctx);
         installLocateSession(ctx);
+        installScrollToTop(ctx);
 
         const slots = ctx.get('slots');
         if (slots === undefined || typeof slots.inject !== 'function' || typeof slots.register !== 'function') {
@@ -8157,6 +8360,7 @@ marker is only present while our button is mounted, and the host's
           CSS,
           SESSION_SWITCH_CSS,
           LOCATE_CSS,
+          SCROLL_TOP_CSS,
           PROMPTS_CSS,
           PROMPTS_LAST_KEY,
           promptCreateDraft,
@@ -8173,7 +8377,9 @@ marker is only present while our button is mounted, and the host's
           buildWorkspaceIndex,
           createSessionSwitcherCore,
           createLocateSessionCore,
+          createScrollToTopCore,
           LocateIcon,
+          ScrollTopIcon,
           LAUNCHER_CSS,
           LAUNCHER_STORAGE_KEY,
           LAUNCHER_CHAT_KEY,

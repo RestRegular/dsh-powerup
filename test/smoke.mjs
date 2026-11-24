@@ -1169,6 +1169,48 @@ markedCore.stop();
 assert.equal(fakeRow.attributes.has('data-powerup-locate-actions'), false, 'stopping removes the marker');
 globalThis.document = realDocument;
 
+// Sidebar back-to-top button: injected into the New Session row, visible only
+// while a scroller is away from the top, and clicking resets both scrollers.
+assert.ok(switcher.SCROLL_TOP_CSS.includes('.dsh-powerup-scrolltop[data-visible="true"]'), 'the button only shows when marked visible');
+assert.ok(switcher.SCROLL_TOP_CSS.includes('[data-sidebar-scrollport]') === false, 'CSS stays scoped to the injected class');
+const scrollTopIcon = switcher.ScrollTopIcon({ size: 18 });
+const scrollTopTree = scrollTopIcon.type(scrollTopIcon.props);
+assert.equal(scrollTopTree.type, 'svg');
+assert.ok(JSON.stringify(scrollTopTree).includes('currentColor'), 'the back-to-top icon inherits host color');
+{
+  const outer = { scrollTop: 120, listeners: {}, scrollTo(opts) { this.scrollTop = opts.top; }, addEventListener(n, fn) { this.listeners[n] = fn; }, removeEventListener(n) { delete this.listeners[n]; } };
+  const inner = { scrollTop: 0, listeners: {}, scrollTo(opts) { this.scrollTop = opts.top; }, addEventListener(n, fn) { this.listeners[n] = fn; }, removeEventListener(n) { delete this.listeners[n]; } };
+  const newRow = { children: [], appendChild(child) { this.children.push(child); child.isConnected = true; child.parentElement = this; } };
+  const savedQuerySelector = globalThis.document.querySelector;
+  globalThis.document.querySelector = (sel) => {
+    if (sel === '[class*="newSessionRow"]') return newRow;
+    if (sel === '[data-sidebar-scrollport]') return outer;
+    if (sel === '[data-sidebar-list-area]') return inner;
+    return null;
+  };
+  const savedCreate = globalThis.document.createElement;
+  let created = null;
+  globalThis.document.createElement = () => {
+    created = { style: {}, attributes: {}, setAttribute(n, v) { this.attributes[n] = v; }, addEventListener() {}, remove() { this.isConnected = false; } };
+    return created;
+  };
+  const savedObserver = globalThis.MutationObserver;
+  globalThis.MutationObserver = undefined;
+  const core = switcher.createScrollToTopCore({ t: (key) => key, isEnabled: () => true });
+  core.start();
+  assert.equal(newRow.children.length, 1, 'the back-to-top button is appended to the New Session row');
+  assert.equal(created.attributes['data-visible'], 'true', 'the button appears while the sidebar is scrolled down');
+  core.toTop();
+  assert.equal(outer.scrollTop, 0, 'clicking scrolls the outer sidebar viewport to the top');
+  assert.equal(created.attributes['data-visible'], 'false', 'the button hides again at the top');
+  core.stop();
+  assert.equal(newRow.children.length, 1, 'stop detaches the button from the row via remove()');
+  assert.equal(created.isConnected, false, 'stop removes the injected button');
+  globalThis.document.querySelector = savedQuerySelector;
+  globalThis.document.createElement = savedCreate;
+  globalThis.MutationObserver = savedObserver;
+}
+
 // ---------------------------------------------------------------------------
 // Plugin update helpers
 // ---------------------------------------------------------------------------
@@ -1178,7 +1220,7 @@ const update = moduleExports.__test;
 // switches) wins. The legacy `enabled` flag migrates to `contextMenu`.
 const ALL_ON_SETTINGS = {
   contextMenu: true, launcher: true, sessionSwitch: true, jobStop: true,
-  update: true, locateSession: true, workspacePrompts: true,
+  update: true, locateSession: true, scrollToTop: true, workspacePrompts: true,
   oneClickEnable: true, oneClickRestart: true,
 };
 const savedGetItem = globalThis.localStorage.getItem;
@@ -1188,12 +1230,12 @@ globalThis.localStorage.getItem = () => '{"enabled":false}';
 assert.deepEqual(update.readSettings(), { ...ALL_ON_SETTINGS, contextMenu: false }, 'the legacy enabled flag migrates to contextMenu');
 globalThis.localStorage.getItem = () => JSON.stringify({
   contextMenu: false, launcher: false, sessionSwitch: false, jobStop: false,
-  update: false, locateSession: false, workspacePrompts: false,
+  update: false, locateSession: false, scrollToTop: false, workspacePrompts: false,
   oneClickEnable: false, oneClickRestart: false,
 });
 assert.deepEqual(update.readSettings(), {
   contextMenu: false, launcher: false, sessionSwitch: false, jobStop: false,
-  update: false, locateSession: false, workspacePrompts: false,
+  update: false, locateSession: false, scrollToTop: false, workspacePrompts: false,
   oneClickEnable: false, oneClickRestart: false,
 });
 globalThis.localStorage.getItem = savedGetItem;
@@ -1881,7 +1923,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.8.18');
+assert.equal(host.__test.SELF_VERSION, '0.8.19');
 
 const installFailSpecs = [];
 const installFailManager = {
