@@ -83,7 +83,7 @@
       const promptCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.9.6';
+      const VERSION = '0.9.7';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -2904,7 +2904,9 @@
             name.textContent = promptLabel(prompt, t);
             const preview = document.createElement('span');
             preview.className = 'dsh-powerup-prompt-pop-preview';
-            preview.textContent = [...(prompt.text || '').trim()].slice(0, 40).join('');
+            // No hard character cut: the CSS clamps the preview to two lines so
+            // the available width decides how much text is shown.
+            preview.textContent = (prompt.text || '').trim().replace(/\s+/gu, ' ');
             main.append(name, preview);
             main.addEventListener('click', (event) => {
               event.preventDefault();
@@ -3260,7 +3262,7 @@
               anchor,
               t,
               items: visible,
-              placement: (node) => popoverPlacement(node, 360, 340, { preferUp: compact }),
+              placement: (node) => popoverPlacement(node, 420, 420, { preferUp: compact }),
               onPick: (prompt) => apply(prompt, false),
               onSend: (prompt) => apply(prompt, true),
               onCreate: () => setCreating(true),
@@ -3974,8 +3976,8 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-prompt-pop-item{display:flex;align-items:center;gap:6px;width:100%;min-width:0;min-height:38px;padding:4px 5px 4px 9px;border:.5px solid transparent;border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;text-align:left;transition:border-color .12s ease,background .12s ease}
 .dsh-powerup-prompt-pop-item:hover{border-color:var(--dsw-alias-border-l2);background:var(--dsw-alias-interactive-bg-hover)}
 .dsh-powerup-prompt-pop-main{flex:1 1 auto;display:flex;flex-direction:column;gap:1px;min-width:0;padding:3px 0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
-.dsh-powerup-prompt-pop-name{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;line-height:18px}
-.dsh-powerup-prompt-pop-preview{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-tertiary);font-size:10.5px;line-height:15px}
+.dsh-powerup-prompt-pop-name{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;min-width:0;font-size:12.5px;line-height:18px;overflow-wrap:anywhere}
+.dsh-powerup-prompt-pop-preview{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;min-width:0;color:var(--dsw-alias-label-tertiary);font-size:10.5px;line-height:15px;overflow-wrap:anywhere}
 .dsh-powerup-prompt-pop-send{flex:none;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0;border:.5px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-secondary);font:inherit;line-height:1;cursor:pointer;transition:background .12s ease,color .12s ease,border-color .12s ease}
 .dsh-powerup-prompt-pop-send svg{width:14px;height:14px}
 .dsh-powerup-prompt-pop-send:hover{border-color:var(--dsw-alias-state-business-primary);background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-brand-primary)}
