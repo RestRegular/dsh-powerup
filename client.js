@@ -83,7 +83,7 @@
       const promptCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.8.19';
+      const VERSION = '0.9.0';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -135,6 +135,36 @@
           'page.scrollToTopHow': '在左侧边栏向下滚动工作区列表，顶部的「新会话」旁会出现向上箭头按钮，点击即可回到顶部。',
           'scrollToTop.label': '回到顶部',
           'scrollToTop.hint': '将左侧边栏滚动回最顶部',
+          'page.renderingTitle': '会话内容渲染增强',
+          'page.renderingDesc': '一组让会话内容更好读的增强，当前包含「回复内容屏蔽」：按正则表达式把 Agent 回复正文中匹配的片段替换成占位符，例如隐藏内部标签、水印或重复前缀。思考过程与工具调用不会被动到，只有发给你的回复正文（含最终总结）会被处理。',
+          'page.renderingHow': '在 Power-Up 设置页的「内容屏蔽」标签页管理全局规则；也可以在会话顶部的「Power-Up 设置」标签页管理当前工作区的规则。每条规则填一个正则表达式和替换文本，可不填替换文本（默认 [已屏蔽]）。',
+          'page.dualSendTitle': '双发送按钮',
+          'page.dualSendDesc': '在输入框右侧增加两个发送按钮：普通发送（等待/排队）与插话发送（立即打断当前生成）。快捷键 Enter 固定为等待发送、Ctrl+Shift+Enter 固定为插话发送，不受系统「繁忙时发送行为」设置影响。',
+          'page.dualSendHow': '启用后输入框里会出现两个按钮，鼠标悬停可看到各自说明；输入文字后按 Enter 排队发送，按 Ctrl+Shift+Enter 立即插话发送。',
+          'mask.tab': '内容屏蔽',
+          'mask.tabFeatures': '功能',
+          'mask.tabWorkspace': '工作区设置',
+          'mask.globalTitle': '全局屏蔽规则',
+          'mask.workspaceTitle': '工作区屏蔽规则',
+          'mask.hint': '每条规则是一个正则表达式；命中的片段会被替换为占位符。思考过程与工具调用不会被处理。',
+          'mask.pattern': '正则表达式',
+          'mask.patternPlaceholder': '例如：\\[内部[^\\]]*\\]',
+          'mask.replacement': '替换为',
+          'mask.replacementPlaceholder': '留空则显示 [已屏蔽]',
+          'mask.enabled': '启用',
+          'mask.add': '添加规则',
+          'mask.delete': '删除',
+          'mask.empty': '还没有规则。',
+          'mask.invalid': '正则表达式无效',
+          'mask.scopeGlobal': '全局',
+          'mask.scopeWorkspace': '当前工作区',
+          'mask.sessionTitle': 'Power-Up 设置',
+          'mask.sessionDesc': '管理当前工作区的 Power-Up 功能设置与内容屏蔽规则。',
+          'send.wait': '等待发送',
+          'send.waitHint': '排队发送（Enter）',
+          'send.interrupt': '插话发送',
+          'send.interruptHint': '立即打断并发送（Ctrl+Shift+Enter）',
+          'send.empty': '输入为空',
           'launcher.groupDefault': '分组',
           'launcher.count': '{count} 个面板',
           'launcher.renameHint': '点击重命名',
@@ -392,6 +422,36 @@
           'page.scrollToTopHow': 'Scroll the workspace list down in the left sidebar; an up-arrow button appears beside New Session — click it to return to the top.',
           'scrollToTop.label': 'Back to top',
           'scrollToTop.hint': 'Scroll the left sidebar back to the top',
+          'page.renderingTitle': 'Conversation rendering enhancements',
+          'page.renderingDesc': 'A feature set for more readable conversations. Its first sub-feature is reply masking: regular expressions replace matching fragments in Agent reply text with a placeholder, for example to hide internal tags, watermarks or repeated prefixes. Reasoning and tool calls are untouched; only reply prose (including the final summary) is processed.',
+          'page.renderingHow': 'Manage global rules on the Power-Up page\'s Masking tab, or workspace rules from the Power-Up Settings tab in a session header. Each rule has a regular expression and a replacement (blank defaults to [masked]).',
+          'page.dualSendTitle': 'Dual send buttons',
+          'page.dualSendDesc': 'Adds two send buttons beside the composer: a normal (queued) send and an interrupt (steer) send. Enter always queues and Ctrl+Shift+Enter always interrupts, overriding the system busy-time send behavior.',
+          'page.dualSendHow': 'Once enabled, two buttons appear in the composer with hover labels. Press Enter to queue a message, or Ctrl+Shift+Enter to interrupt the running turn with it.',
+          'mask.tab': 'Masking',
+          'mask.tabFeatures': 'Features',
+          'mask.tabWorkspace': 'Workspace settings',
+          'mask.globalTitle': 'Global masking rules',
+          'mask.workspaceTitle': 'Workspace masking rules',
+          'mask.hint': 'Each rule is a regular expression; matching fragments are replaced with a placeholder. Reasoning and tool calls are never touched.',
+          'mask.pattern': 'Regular expression',
+          'mask.patternPlaceholder': 'e.g. \\[internal[^\\]]*\\]',
+          'mask.replacement': 'Replace with',
+          'mask.replacementPlaceholder': 'Blank shows [masked]',
+          'mask.enabled': 'Enabled',
+          'mask.add': 'Add rule',
+          'mask.delete': 'Delete',
+          'mask.empty': 'No rules yet.',
+          'mask.invalid': 'Invalid regular expression',
+          'mask.scopeGlobal': 'Global',
+          'mask.scopeWorkspace': 'This workspace',
+          'mask.sessionTitle': 'Power-Up settings',
+          'mask.sessionDesc': 'Manage Power-Up settings and masking rules for this workspace.',
+          'send.wait': 'Send (queued)',
+          'send.waitHint': 'Queue to send (Enter)',
+          'send.interrupt': 'Send (interrupt)',
+          'send.interruptHint': 'Interrupt and send now (Ctrl+Shift+Enter)',
+          'send.empty': 'Empty input',
           'launcher.groupDefault': 'Group',
           'launcher.count': '{count} panels',
           'launcher.renameHint': 'Click to rename',
@@ -646,6 +706,8 @@
         update: true,
         locateSession: true,
         scrollToTop: true,
+        contentRendering: true,
+        dualSend: false,
         workspacePrompts: true,
         oneClickEnable: true,
         oneClickRestart: true,
@@ -666,6 +728,8 @@
               update: parsed.update !== false,
               locateSession: parsed.locateSession !== false,
               scrollToTop: parsed.scrollToTop !== false,
+              contentRendering: parsed.contentRendering !== false,
+              dualSend: parsed.dualSend === true,
               workspacePrompts: parsed.workspacePrompts !== false,
               oneClickEnable: parsed.oneClickEnable !== false,
               oneClickRestart: parsed.oneClickRestart !== false,
@@ -796,6 +860,125 @@
         } catch {
           return `p-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
         }
+      }
+
+      // ------------------------------------------------------------------
+      // Mask rules for the content-rendering enhancement.
+      // Global rules live in localStorage; workspace rules live in the
+      // workspace's `.dsh/dsh-powerup/mask-rules.json` via a Host route, exactly
+      // like prompts. Both lists share one normalize/compile helper.
+      // ------------------------------------------------------------------
+      const MASK_RULES_KEY = 'dsh-powerup:mask-rules:v1';
+      const MASK_RULES_API = '/dsh-powerup/api/mask-rules';
+      const MASK_PLACEHOLDER = '[已屏蔽]';
+      let globalMaskRules = readGlobalMaskRules();
+      let workspaceMaskRules = [];
+      let maskRulesWorkspace = '';
+      const maskRulesListeners = new Set();
+
+      /** Normalize one stored rule; invalid regex is kept but never compiled. */
+      function normalizeMaskRule(item) {
+        if (item === null || typeof item !== 'object') return null;
+        return {
+          id: typeof item.id === 'string' && item.id !== '' ? item.id : newId(),
+          pattern: typeof item.pattern === 'string' ? item.pattern : '',
+          replacement: typeof item.replacement === 'string' ? item.replacement : '',
+          enabled: item.enabled !== false,
+          scope: item.scope === 'workspace' ? 'workspace' : 'global',
+        };
+      }
+
+      function readGlobalMaskRules() {
+        try {
+          const parsed = JSON.parse(localStorage.getItem(MASK_RULES_KEY) || '[]');
+          return Array.isArray(parsed) ? parsed.map(normalizeMaskRule).filter(Boolean) : [];
+        } catch {
+          return [];
+        }
+      }
+
+      function writeGlobalMaskRules(list) {
+        globalMaskRules = (Array.isArray(list) ? list : []).map(normalizeMaskRule).filter(Boolean);
+        try {
+          localStorage.setItem(MASK_RULES_KEY, JSON.stringify(globalMaskRules));
+        } catch {
+          /* Private mode: the in-memory list still works this page. */
+        }
+        emitMaskRules();
+      }
+
+      async function loadWorkspaceMaskRules(workspaceId) {
+        const id = typeof workspaceId === 'string' ? workspaceId : '';
+        maskRulesWorkspace = id;
+        try {
+          const response = await fetch(MASK_RULES_API + '?workspaceId=' + encodeURIComponent(id), {
+            headers: { accept: 'application/json' },
+          });
+          const data = response.ok ? await response.json() : null;
+          const rules = data !== null && Array.isArray(data.rules) ? data.rules : [];
+          workspaceMaskRules = rules.map(normalizeMaskRule).filter(Boolean)
+            .map((rule) => ({ ...rule, scope: 'workspace' }));
+        } catch {
+          /* Host unavailable: keep the last known list. */
+        }
+        emitMaskRules();
+        return workspaceMaskRules;
+      }
+
+      function writeWorkspaceMaskRules(list) {
+        workspaceMaskRules = (Array.isArray(list) ? list : []).map(normalizeMaskRule).filter(Boolean)
+          .map((rule) => ({ ...rule, scope: 'workspace' }));
+        emitMaskRules();
+        fetch(MASK_RULES_API, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', accept: 'application/json' },
+          body: JSON.stringify({ workspaceId: maskRulesWorkspace, rules: workspaceMaskRules }),
+        }).catch(() => {
+          /* The in-memory list still works this page. */
+        });
+      }
+
+      function subscribeMaskRules(listener) {
+        maskRulesListeners.add(listener);
+        return () => maskRulesListeners.delete(listener);
+      }
+      function emitMaskRules() {
+        for (const listener of [...maskRulesListeners]) {
+          try { listener(); } catch { /* one listener must not break the rest */ }
+        }
+      }
+
+      /** Rules that apply to the current workspace: global plus its own. */
+      function activeMaskRules() {
+        return [...globalMaskRules, ...workspaceMaskRules].filter((rule) => rule.enabled && rule.pattern !== '');
+      }
+
+      /** Compile rules once per change into reusable RegExp objects. */
+      function compileMaskRules(list) {
+        const compiled = [];
+        for (const rule of Array.isArray(list) ? list : []) {
+          if (rule === null || rule.enabled === false || typeof rule.pattern !== 'string' || rule.pattern === '') continue;
+          try {
+            compiled.push({
+              re: new RegExp(rule.pattern, 'gu'),
+              replacement: typeof rule.replacement === 'string' && rule.replacement !== ''
+                ? rule.replacement : MASK_PLACEHOLDER,
+            });
+          } catch {
+            /* Invalid regex is skipped, never throws into rendering. */
+          }
+        }
+        return compiled;
+      }
+
+      /** Apply compiled rules to one text fragment; safe for any string. */
+      function applyMaskRules(text, compiled) {
+        if (typeof text !== 'string' || text === '' || compiled.length === 0) return text;
+        let out = text;
+        for (const rule of compiled) {
+          out = out.replace(rule.re, rule.replacement);
+        }
+        return out;
       }
 
       /**
@@ -2528,6 +2711,17 @@
           bridge.sessionId = sessionId;
           bridge.trajectory = snapshot;
           bridge.inputActions = inputActions;
+          // Keep workspace masking rules loaded for the active session so the
+          // DOM mask observer can use them without the settings tab being open.
+          if (typeof sessionId === 'string' && sessionId !== '') {
+            const workspaces = ctxRef.current?.get?.('workspaces');
+            const wsId = typeof workspaces?.list?.getSnapshot === 'function'
+              ? resolveWorkspaceIdFromSnapshot(workspaces.list.getSnapshot(), sessionId)
+              : '';
+            if (typeof wsId === 'string' && wsId !== '' && wsId !== maskRulesWorkspace) {
+              void loadWorkspaceMaskRules(wsId);
+            }
+          }
           return () => {
             if (bridge.token === token) {
               bridge.token = null;
@@ -3653,6 +3847,25 @@ default; shown only while the sidebar workspace list is scrolled down. */
 html[data-platform="darwin"] .dsh-powerup-scrolltop{background:var(--dsw-specific-sidebar-glass-fill)}
 html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-specific-sidebar-glass-hover)}
 @media (prefers-reduced-motion:reduce){.dsh-powerup-scrolltop{transition:none}}
+`;
+
+      const RENDERING_CSS = `
+/* Masked fragments get a subtle marker so the reader knows text was hidden. */
+.dsh-powerup-masked{color:var(--dsw-alias-label-caption);font-style:italic;opacity:.72}
+/* Dual send buttons injected into the composer's right slot. */
+.dsh-powerup-send{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;padding:0;box-sizing:border-box;border:.5px solid var(--dsw-alias-border-l3);border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font:inherit;cursor:pointer;transition:background .12s ease,color .12s ease,border-color .12s ease}
+.dsh-powerup-send:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-border-l3)}
+.dsh-powerup-send:disabled{opacity:.45;cursor:not-allowed}
+.dsh-powerup-send:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:1px}
+.dsh-powerup-send[data-kind="interrupt"]{color:var(--dsw-alias-state-warn-label,var(--dsw-alias-label-secondary))}
+.dsh-powerup-send svg{width:16px;height:16px}
+.dsh-powerup-dual-send{display:inline-flex;align-items:center;gap:4px}
+.dsh-powerup-mask-editor{display:flex;flex-direction:column;gap:10px}
+.dsh-powerup-mask-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:8px;border:.5px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-1)}
+.dsh-powerup-mask-input{width:100%;box-sizing:border-box;padding:6px 8px;border:.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font:inherit;font-size:12px;line-height:18px}
+.dsh-powerup-mask-input.invalid{border-color:var(--dsw-alias-state-error-primary)}
+.dsh-powerup-mask-empty{color:var(--dsw-alias-label-secondary);font-size:12px}
+@media (max-width:680px){.dsh-powerup-mask-row{grid-template-columns:minmax(0,1fr)}}
 `;
 
       const PROMPTS_CSS = `
@@ -4841,11 +5054,138 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         return core;
       }
 
+      /**
+       * DOM-based masking for assistant reply prose. We observe the Chat view's
+       * assistant reply rows and replace matching text fragments in place. The
+       * original text of each text node is cached in a WeakMap so a re-render
+       * that restores it can be masked again, and a re-render that produces a
+       * new node is picked up by the MutationObserver. Only reply rows
+       * (`data-chat-flow-kind="assistant-step"` with `group-part="response"`)
+       * are touched; reasoning disclosures and tool calls are left alone.
+       * @param {{isEnabled?: Function, rules?: Function}} deps
+       */
+      function createReplyMaskCore(deps) {
+        const options = deps ?? {};
+        const isEnabled = typeof options.isEnabled === 'function' ? options.isEnabled : () => true;
+        const rulesOf = typeof options.rules === 'function' ? options.rules : () => [];
+        const originals = new WeakMap();
+        let observer = null;
+        let timer = null;
+        let started = false;
+        let compiled = [];
+        let sweeping = false;
+
+        function hasDocument() {
+          return typeof document !== 'undefined' && document !== null
+            && typeof document.querySelectorAll === 'function' && document.body !== null;
+        }
+
+        function refreshRules() {
+          compiled = compileMaskRules(rulesOf());
+        }
+
+        function maskTextNode(node) {
+          if (node.nodeType !== 3) return; // Node.TEXT_NODE
+          const current = node.nodeValue ?? '';
+          const original = originals.get(node);
+          if (original !== undefined) {
+            const maskedFromOriginal = applyMaskRules(original, compiled);
+            if (current === maskedFromOriginal) return; // still our masked output
+          }
+          // Either a fresh node, React restored the original, or streaming grew
+          // the text. Treat what is on screen now as the source of truth.
+          originals.set(node, current);
+          const masked = applyMaskRules(current, compiled);
+          if (masked !== current) node.nodeValue = masked;
+        }
+
+        function maskRow(row) {
+          // Only the assistant's answer prose; skip reasoning / tool rows.
+          const kind = row.getAttribute('data-chat-flow-kind');
+          const part = row.getAttribute('data-chat-group-part');
+          if (kind !== 'assistant-step' || (part !== null && part !== 'response')) return;
+          const body = row.querySelector('[data-streaming], .dsh-powerup-mask-root') ?? row;
+          const walker = document.createTreeWalker(body, 4 /* NodeFilter.SHOW_TEXT */, null);
+          let node;
+          while ((node = walker.nextNode()) !== null) {
+            maskTextNode(node);
+          }
+        }
+
+        function sweep() {
+          if (!started || !isEnabled() || compiled.length === 0 || sweeping) return;
+          // Changing nodeValue fires our own characterData observer; the flag
+          // keeps that from cascading into another full sweep.
+          sweeping = true;
+          try {
+            const rows = document.querySelectorAll('[data-chat-flow-kind="assistant-step"]');
+            for (const row of rows) maskRow(row);
+          } finally {
+            setTimeout(() => { sweeping = false; }, 0);
+          }
+        }
+
+        function schedule() {
+          if (timer !== null) return;
+          timer = setTimeout(() => {
+            timer = null;
+            sweep();
+          }, 40);
+        }
+
+        function start() {
+          if (started || !hasDocument()) return;
+          started = true;
+          refreshRules();
+          sweep();
+          if (typeof MutationObserver === 'function') {
+            observer = new MutationObserver(() => schedule());
+            observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+          }
+        }
+
+        function stop() {
+          started = false;
+          if (observer !== null) observer.disconnect();
+          observer = null;
+          if (timer !== null) clearTimeout(timer);
+          timer = null;
+        }
+
+        return { start, stop, sweep, refreshRules, maskRow, applyMaskRules, compileMaskRules };
+      }
+
+      /** Install the reply-mask observer and keep its compiled rules in sync. */
+      function installReplyMask(ctx) {
+        const core = createReplyMaskCore({
+          isEnabled: () => getSettings().contentRendering,
+          rules: () => activeMaskRules(),
+        });
+        const enabled = () => getSettings().contentRendering;
+        ctx.effect(() => {
+          if (enabled()) core.start();
+          const offSettings = subscribeSettings(() => {
+            if (enabled()) { core.refreshRules(); core.start(); core.sweep(); }
+            else core.stop();
+          });
+          const offRules = subscribeMaskRules(() => {
+            core.refreshRules();
+            if (enabled()) core.sweep();
+          });
+          return () => {
+            offSettings();
+            offRules();
+            core.stop();
+          };
+        }, 'dsh-powerup: reply mask');
+        return core;
+      }
+
       function installStyles(ctx) {
         try {
           const style = document.createElement('style');
           style.setAttribute('data-dsh-powerup', '');
-          style.textContent = CSS + '\n' + LAUNCHER_CSS + '\n' + SESSION_SWITCH_CSS + '\n' + LOCATE_CSS + '\n' + SCROLL_TOP_CSS + '\n' + PROMPTS_CSS;
+          style.textContent = CSS + '\n' + LAUNCHER_CSS + '\n' + SESSION_SWITCH_CSS + '\n' + LOCATE_CSS + '\n' + SCROLL_TOP_CSS + '\n' + RENDERING_CSS + '\n' + PROMPTS_CSS;
           document.head.appendChild(style);
           ctx.effect(() => () => style.remove(), 'dsh-powerup: styles');
         } catch (error) {
@@ -7852,6 +8192,225 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         );
       }
 
+      /**
+       * Shared editor for a list of mask rules. `scope` is 'global' or
+       * 'workspace'; writes go through the matching store functions.
+       */
+      function MaskRuleEditor({ scope, t }) {
+        const rules = useMaskRules();
+        const visible = rules.filter((rule) => (rule.scope || 'global') === scope);
+        const commit = (next) => {
+          if (scope === 'workspace') writeWorkspaceMaskRules(next);
+          else writeGlobalMaskRules(next);
+        };
+        const update = (id, patch) => {
+          commit(visible.map((rule) => (rule.id === id ? { ...rule, ...patch } : rule)));
+        };
+        const remove = (id) => {
+          commit(visible.filter((rule) => rule.id !== id));
+        };
+        const add = () => {
+          commit([...visible, { id: newId(), pattern: '', replacement: '', enabled: true, scope }]);
+        };
+        const title = scope === 'workspace' ? t('mask.workspaceTitle') : t('mask.globalTitle');
+        return h('div', { className: 'dsh-powerup-mask-editor' },
+          h('h3', { className: 'dsh-powerup-section-title' }, title),
+          h('p', { className: 'dsh-powerup-card-desc' }, t('mask.hint')),
+          ...visible.map((rule) => {
+            let invalid = false;
+            if (rule.pattern !== '') {
+              try { new RegExp(rule.pattern); } catch { invalid = true; }
+            }
+            return h('div', { key: rule.id, className: 'dsh-powerup-mask-row' },
+              h('input', {
+                type: 'text',
+                className: 'dsh-powerup-mask-input' + (invalid ? ' invalid' : ''),
+                value: rule.pattern,
+                placeholder: t('mask.patternPlaceholder'),
+                'aria-label': t('mask.pattern'),
+                title: invalid ? t('mask.invalid') : t('mask.pattern'),
+                onChange: (event) => update(rule.id, { pattern: event.target.value }),
+              }),
+              h('input', {
+                type: 'text',
+                className: 'dsh-powerup-mask-input',
+                value: rule.replacement,
+                placeholder: t('mask.replacementPlaceholder'),
+                'aria-label': t('mask.replacement'),
+                onChange: (event) => update(rule.id, { replacement: event.target.value }),
+              }),
+              h('button', {
+                type: 'button',
+                role: 'switch',
+                'aria-checked': rule.enabled ? 'true' : 'false',
+                className: 'dsh-powerup-switch',
+                onClick: () => update(rule.id, { enabled: !rule.enabled }),
+              }, invalid ? t('mask.invalid') : (rule.enabled ? t('page.enabled') : t('page.disabled'))),
+              h('button', {
+                type: 'button',
+                className: 'dsh-powerup-prompt-new',
+                onClick: () => remove(rule.id),
+              }, t('mask.delete')),
+            );
+          }),
+          visible.length === 0 ? h('p', { className: 'dsh-powerup-mask-empty' }, t('mask.empty')) : null,
+          h('button', {
+            type: 'button',
+            className: 'dsh-powerup-prompt-new',
+            onClick: add,
+          }, t('mask.add')),
+        );
+      }
+
+      function useMaskRules() {
+        const [revision, setRevision] = useState(0);
+        useEffect(() => subscribeMaskRules(() => setRevision((v) => v + 1)), []);
+        void revision;
+        return [...globalMaskRules, ...workspaceMaskRules];
+      }
+
+      /**
+       * Two send buttons injected into the composer's right slot. Enter / the
+       * host primary button keep their own behavior; we add explicit queued and
+       * interrupt controls that bypass the system busy-time setting.
+       */
+      function DualSendButtons({ sessionId, useInput, inputActions, ctx, t }) {
+        const settings = useSettings();
+        const draft = typeof useInput === 'function' ? useInput((s) => s.draft) : '';
+        // Session-scope slots usually pass sessionId; fall back to the DOM
+        // contract the rest of this plugin already relies on.
+        const ownerId = () => {
+          if (typeof sessionId === 'string' && sessionId !== '') return sessionId;
+          try {
+            const el = document.querySelector('[data-conversation-session]');
+            const id = el === null ? null : el.getAttribute('data-conversation-session');
+            return typeof id === 'string' && id !== '' ? id : '';
+          } catch {
+            return '';
+          }
+        };
+        const trimmed = typeof draft === 'string' ? draft.trim() : '';
+        const currentDraft = { trimmed, sessionId, inputActions, ctx };
+        const send = (mode, text) => {
+          const value = typeof text === 'string' ? text.trim() : trimmed;
+          const id = ownerId();
+          if (value === '' || id === '') return;
+          try {
+            const sessions = ctx.get('sessions');
+            const binding = sessions?.binding?.(id);
+            const session = binding?.session;
+            if (session === undefined || typeof session.prompt !== 'function') return;
+            const handle = typeof session.beginSubmission === 'function'
+              ? session.beginSubmission({ mode, text: value, attachments: [] })
+              : null;
+            void session.prompt([{ type: 'text', text: value }], mode, undefined, handle?.requestId);
+            if (typeof inputActions?.setDraft === 'function') inputActions.setDraft('');
+          } catch (error) {
+            console.warn('[dsh-powerup] dual send failed:', error?.message ?? error);
+          }
+        };
+        // Capture-phase keymap overrides the host's busy-time send behavior:
+        // Enter always queues, Ctrl/Cmd+Shift+Enter always interrupts. Plain
+        // Shift+Enter (newline), IME composition, and an open command listbox
+        // are left to the host.
+        useEffect(() => {
+          if (!settings.dualSend || typeof document === 'undefined' || document === null) return undefined;
+          const onKeyDown = (event) => {
+            if (event.key !== 'Enter' || event.isComposing === true || event.repeat === true) return;
+            const target = event.target;
+            const editor = target !== null && typeof target.closest === 'function'
+              ? target.closest('[data-composer-input]')
+              : null;
+            if (editor === null) return;
+            if (editor.hasAttribute('data-composer-composing')) return;
+            // An empty draft is the host's retry gesture; leave it alone.
+            if (trimmed === '') return;
+            // Let the host resolve Enter while a / or @ menu (or a selected
+            // command chip) is open — the menu can be portaled outside the card.
+            const openMenu = document.querySelector?.(
+              '[aria-haspopup="listbox"][aria-expanded="true"], [aria-haspopup="menu"][aria-expanded="true"], [role="listbox"]:not([hidden]), [role="menu"]:not([hidden])',
+            );
+            if (openMenu !== null && openMenu !== undefined) return;
+            if (editor.hasAttribute('data-composer-chip-selected')) return;
+            const interrupt = event.shiftKey && (event.ctrlKey || event.metaKey);
+            if (event.shiftKey && !interrupt) return; // plain Shift+Enter = newline
+            if (!interrupt && (event.ctrlKey || event.metaKey || event.altKey)) return;
+            event.preventDefault();
+            event.stopPropagation();
+            send(interrupt ? 'steer' : 'queue');
+          };
+          document.addEventListener('keydown', onKeyDown, true);
+          return () => document.removeEventListener('keydown', onKeyDown, true);
+        }, [settings.dualSend, sessionId, draft, ctx, inputActions]);
+        void currentDraft;
+        if (!settings.dualSend) return null;
+        return h('div', { className: 'dsh-powerup-dual-send' },
+          h('button', {
+            type: 'button',
+            className: 'dsh-powerup-send',
+            'data-kind': 'wait',
+            'aria-label': t('send.waitHint'),
+            title: t('send.waitHint'),
+            disabled: trimmed === '',
+            onMouseDown: (event) => event.preventDefault(),
+            onClick: () => send('queue'),
+          }, h('svg', { viewBox: '0 0 16 16', width: 16, height: 16, 'aria-hidden': 'true' },
+            h('path', { d: 'M3 8h9M8.5 4.5 12 8l-3.5 3.5', fill: 'none', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round', strokeLinejoin: 'round' }))),
+          h('button', {
+            type: 'button',
+            className: 'dsh-powerup-send',
+            'data-kind': 'interrupt',
+            'aria-label': t('send.interruptHint'),
+            title: t('send.interruptHint'),
+            disabled: trimmed === '',
+            onMouseDown: (event) => event.preventDefault(),
+            onClick: () => send('steer'),
+          }, h('svg', { viewBox: '0 0 16 16', width: 16, height: 16, 'aria-hidden': 'true' },
+            h('path', { d: 'M8 2v12M3 6l5-4 5 4', fill: 'none', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round', strokeLinejoin: 'round' }))),
+        );
+      }
+
+      /**
+       * Conversation View tab for per-workspace Power-Up settings. Registered
+       * after Trajectory so it appears last in the header tab row.
+       */
+      function WorkspaceSettingsView({ ctx, sessionId, useWorkspaces }) {
+        const settings = useSettings();
+        const rules = useMaskRules();
+        const [, forceLocale] = useState(0);
+        const t = useCallback((key, params) => translateCurrent(key, params), []);
+        useEffect(() => {
+          const off = ctx.locale?.subscribe?.(() => forceLocale((v) => v + 1));
+          return typeof off === 'function' ? off : undefined;
+        }, [ctx]);
+        // Prefer the slot's sessionId; fall back to the live DOM contract.
+        let ownerId = sessionId;
+        if (typeof ownerId !== 'string' || ownerId === '') {
+          try {
+            const el = document.querySelector('[data-conversation-session]');
+            const id = el === null ? null : el.getAttribute('data-conversation-session');
+            if (typeof id === 'string' && id !== '') ownerId = id;
+          } catch { /* keep the empty id */ }
+        }
+        const workspaceSelector = useMemo(() => (snapshot) => resolveWorkspaceIdFromSnapshot(snapshot, ownerId), [ownerId]);
+        const workspaceId = typeof useWorkspaces === 'function' ? useWorkspaces(workspaceSelector) ?? '' : '';
+        useEffect(() => {
+          if (typeof workspaceId === 'string' && workspaceId !== '') void loadWorkspaceMaskRules(workspaceId);
+        }, [workspaceId]);
+        void rules; void settings;
+        return h('div', { className: 'dsh-powerup-page' },
+          h('div', { className: 'dsh-powerup-shell' },
+            h('header', { className: 'dsh-powerup-hero' },
+              h('div', { className: 'dsh-powerup-hero-copy' },
+                h('h1', null, t('mask.sessionTitle')),
+                h('p', null, t('mask.sessionDesc')),
+              ),
+            ),
+            h(MaskRuleEditor, { scope: 'workspace', t }),
+          ),
+        );
+      }
+
       function PromptManager({ ctx }) {
         const prompts = usePrompts();
         const [, forceLocale] = useState(0);
@@ -8094,7 +8653,8 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         }, []);
         useEffect(() => {
           if (settings.workspacePrompts === false && tab === 'prompts') setTab('features');
-        }, [settings.workspacePrompts, tab]);
+          if (settings.contentRendering === false && tab === 'mask') setTab('features');
+        }, [settings.workspacePrompts, settings.contentRendering, tab]);
         const t = (key, params) => translateCurrent(key, params);
         const actions = [
           { id: 'copy', icon: CopyIcon, name: t('action.copy'), hint: t('action.copyHint') },
@@ -8176,6 +8736,15 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             className: 'dsh-powerup-tab' + (tab === 'features' ? ' on' : ''),
             onClick: () => setTab('features'),
           }, t('prompts.tabFeatures')),
+          settings.contentRendering !== false
+            ? h('button', {
+              type: 'button',
+              role: 'tab',
+              'aria-selected': tab === 'mask' ? 'true' : 'false',
+              className: 'dsh-powerup-tab' + (tab === 'mask' ? ' on' : ''),
+              onClick: () => setTab('mask'),
+            }, t('mask.tab'))
+            : null,
           settings.workspacePrompts !== false
             ? h('button', {
               type: 'button',
@@ -8197,6 +8766,8 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           featureCard('sessionSwitch', QuickIcon, 'page.sessionSwitchTitle', 'page.sessionSwitchDesc', 'page.sessionSwitchHow'),
           featureCard('locateSession', LocateIcon, 'page.locateTitle', 'page.locateDesc', 'page.locateHow'),
           featureCard('scrollToTop', ScrollTopIcon, 'page.scrollToTopTitle', 'page.scrollToTopDesc', 'page.scrollToTopHow'),
+          featureCard('contentRendering', PowerUpLineIcon, 'page.renderingTitle', 'page.renderingDesc', 'page.renderingHow'),
+          featureCard('dualSend', LauncherIcon, 'page.dualSendTitle', 'page.dualSendDesc', 'page.dualSendHow'),
           featureCard('workspacePrompts', TagIcon, 'page.promptsTitle', 'page.promptsDesc', 'page.promptsHow'),
           featureCard('jobStop', StopIcon, 'page.jobStopTitle', 'page.jobStopDesc', 'page.jobStopHow'),
           featureCard('update', UpdateIcon, 'page.updateTitle', 'page.updateDesc', 'page.updateHow', oneClickDetail),
@@ -8212,9 +8783,11 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
               ),
             ),
             tabs,
-            tab === 'prompts' && settings.workspacePrompts !== false
-              ? h(PromptManager, { ctx })
-              : featuresContent,
+            tab === 'mask' && settings.contentRendering !== false
+              ? h(MaskRuleEditor, { scope: 'global', t })
+              : tab === 'prompts' && settings.workspacePrompts !== false
+                ? h(PromptManager, { ctx })
+                : featuresContent,
             h('footer', { className: 'dsh-powerup-foot' },
               h('span', null, format(t('page.footer'), { version: VERSION })),
               h('span', { className: 'dsh-powerup-dot' }),
@@ -8262,6 +8835,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         installSessionSwitcher(ctx);
         installLocateSession(ctx);
         installScrollToTop(ctx);
+        installReplyMask(ctx);
 
         const slots = ctx.get('slots');
         if (slots === undefined || typeof slots.inject !== 'function' || typeof slots.register !== 'function') {
@@ -8302,6 +8876,26 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           id: 'powerup-prompts',
           order: 60,
         }, HeroPromptsControl, 'dsh-powerup: prompt picker');
+
+        // Session-scope composer controls. These receive sessionId/useInput/
+        // inputActions from the host's conversation slot wiring; the t() locale
+        // seat is provided by the slot, so we wrap to use the plugin dictionary.
+        register('conversation.input.right', {
+          id: 'powerup-dual-send',
+          order: 80,
+        }, (props) => h(DualSendButtons, {
+          ...props,
+          ctx,
+          t: (key, params) => translateCurrent(key, params),
+        }), 'dsh-powerup: dual send buttons');
+
+        // Per-workspace Power-Up settings as a Conversation View tab, ordered
+        // after the host's Trajectory view (order 10).
+        register('conversation.view', {
+          id: 'powerup-settings',
+          order: 20,
+          label: () => translateCurrent('mask.sessionTitle'),
+        }, (props) => h(WorkspaceSettingsView, { ...props, ctx }), 'dsh-powerup: workspace settings view');
 
         // The update control drives the built-in plugin manager through its
         // `remote.pluginManager` namespace. Register it in a nested inject scope
@@ -8361,6 +8955,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           SESSION_SWITCH_CSS,
           LOCATE_CSS,
           SCROLL_TOP_CSS,
+          RENDERING_CSS,
           PROMPTS_CSS,
           PROMPTS_LAST_KEY,
           promptCreateDraft,
@@ -8441,6 +9036,18 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           operationReason,
           restorePreviousBundle,
           runOneClickUpdate,
+          MASK_RULES_KEY,
+          MASK_PLACEHOLDER,
+          readGlobalMaskRules,
+          writeGlobalMaskRules,
+          normalizeMaskRule,
+          activeMaskRules,
+          compileMaskRules,
+          applyMaskRules,
+          createReplyMaskCore,
+          DualSendButtons,
+          MaskRuleEditor,
+          WorkspaceSettingsView,
         },
       };
     },

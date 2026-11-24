@@ -224,11 +224,13 @@ assert.equal(typeof moduleExports.apply, 'function');
 assert.deepEqual(moduleExports.inject, ['slots', 'locale']);
 moduleExports.apply(ctx);
 
-assert.equal(registrations.length, 7, 'seven slot registrations');
+assert.equal(registrations.length, 9, 'nine slot registrations');
 const bySlot = new Map(registrations.map((entry) => [entry.options.name, entry]));
-for (const slot of ['sidebar.panellist', 'main', 'shell.overlay', 'conversation.session.header.utilities', 'conversation.hero.options']) {
+for (const slot of ['sidebar.panellist', 'main', 'shell.overlay', 'conversation.session.header.utilities', 'conversation.hero.options', 'conversation.input.right', 'conversation.view']) {
   assert.ok(bySlot.has(slot), `registered ${slot}`);
 }
+assert.equal(bySlot.get('conversation.input.right').options.id, 'powerup-dual-send');
+assert.equal(bySlot.get('conversation.view').options.id, 'powerup-settings');
 assert.equal(bySlot.get('conversation.hero.options').options.id, 'powerup-prompts');
 assert.equal(bySlot.get('sidebar.panellist').options.id, 'powerup');
 assert.equal(bySlot.get('main').options.key, 'powerup');
@@ -1220,7 +1222,7 @@ const update = moduleExports.__test;
 // switches) wins. The legacy `enabled` flag migrates to `contextMenu`.
 const ALL_ON_SETTINGS = {
   contextMenu: true, launcher: true, sessionSwitch: true, jobStop: true,
-  update: true, locateSession: true, scrollToTop: true, workspacePrompts: true,
+  update: true, locateSession: true, scrollToTop: true, contentRendering: true, dualSend: false, workspacePrompts: true,
   oneClickEnable: true, oneClickRestart: true,
 };
 const savedGetItem = globalThis.localStorage.getItem;
@@ -1230,12 +1232,12 @@ globalThis.localStorage.getItem = () => '{"enabled":false}';
 assert.deepEqual(update.readSettings(), { ...ALL_ON_SETTINGS, contextMenu: false }, 'the legacy enabled flag migrates to contextMenu');
 globalThis.localStorage.getItem = () => JSON.stringify({
   contextMenu: false, launcher: false, sessionSwitch: false, jobStop: false,
-  update: false, locateSession: false, scrollToTop: false, workspacePrompts: false,
+  update: false, locateSession: false, scrollToTop: false, contentRendering: false, dualSend: true, workspacePrompts: false,
   oneClickEnable: false, oneClickRestart: false,
 });
 assert.deepEqual(update.readSettings(), {
   contextMenu: false, launcher: false, sessionSwitch: false, jobStop: false,
-  update: false, locateSession: false, scrollToTop: false, workspacePrompts: false,
+  update: false, locateSession: false, scrollToTop: false, contentRendering: false, dualSend: true, workspacePrompts: false,
   oneClickEnable: false, oneClickRestart: false,
 });
 globalThis.localStorage.getItem = savedGetItem;
@@ -1268,6 +1270,60 @@ globalThis.localStorage.getItem = savedGetItem;
   assert.equal(store.resolveWorkspaceIdFromSnapshot(snapshot, 'unknown'), '');
   globalThis.localStorage.getItem = savedGet;
   globalThis.localStorage.setItem = savedSetItem;
+}
+
+// Mask rules: normalization, global storage, regex compilation and application.
+{
+  const store = update;
+  const savedGet = globalThis.localStorage.getItem;
+  const savedSet = globalThis.localStorage.setItem;
+  globalThis.localStorage.getItem = () => null;
+  assert.deepEqual(store.readGlobalMaskRules(), [], 'mask rules default to an empty list');
+  const rule = store.normalizeMaskRule({ pattern: '\\[内部\\d+\\]', replacement: '', enabled: true });
+  assert.ok(rule.id.length > 0, 'mask rule gets an id');
+  assert.equal(rule.scope, 'global', 'mask rule defaults to global scope');
+  let storedRules = null;
+  globalThis.localStorage.setItem = (key, value) => { assert.equal(key, store.MASK_RULES_KEY); storedRules = value; };
+  globalThis.localStorage.getItem = () => storedRules;
+  store.writeGlobalMaskRules([rule, { pattern: '(', enabled: true }, { pattern: 'x', enabled: false }]);
+  const compiled = store.compileMaskRules(store.readGlobalMaskRules());
+  assert.equal(compiled.length, 1, 'invalid regex and disabled rules are skipped');
+  assert.equal(store.applyMaskRules('前面[内部123]后面', compiled), '前面' + store.MASK_PLACEHOLDER + '后面');
+  assert.equal(store.applyMaskRules('没有标记', compiled), '没有标记', 'no match leaves text unchanged');
+  const custom = store.compileMaskRules([{ pattern: 'foo', replacement: 'BAR', enabled: true }]);
+  assert.equal(store.applyMaskRules('foo foo', custom), 'BAR BAR', 'replacement and global flag work');
+  globalThis.localStorage.getItem = savedGet;
+  globalThis.localStorage.setItem = savedSet;
+}
+
+// Reply mask core: applies rules only to assistant response rows.
+{
+  const core = update.createReplyMaskCore({
+    isEnabled: () => true,
+    rules: () => [{ pattern: '\\[内部[^\\]]*\\]', replacement: '', enabled: true, scope: 'global' }],
+  });
+  const textNode = { nodeType: 3, nodeValue: '你好 [内部提示] 世界' };
+  const body = { querySelector: () => null };
+  const doc = globalThis.document;
+  globalThis.document = {
+    ...doc,
+    createTreeWalker: () => ({ nextNode: (() => { let done = false; return () => { if (done) return null; done = true; return textNode; }; })() }),
+    querySelectorAll: () => [],
+  };
+  core.start();
+  // Directly exercise the mask on a fake assistant row.
+  const row = { getAttribute: (name) => ({ 'data-chat-flow-kind': 'assistant-step', 'data-chat-group-part': 'response' })[name] ?? null, querySelector: () => body };
+  core.refreshRules();
+  core.maskRow(row);
+  assert.equal(textNode.nodeValue, '你好 ' + update.MASK_PLACEHOLDER + ' 世界', 'reply text is masked in place');
+  // A reasoning row must be left untouched.
+  const reasoningText = { nodeType: 3, nodeValue: '[内部提示] 思考' };
+  globalThis.document.createTreeWalker = () => ({ nextNode: (() => { let done = false; return () => { if (done) return null; done = true; return reasoningText; }; })() });
+  const reasoningRow = { getAttribute: (name) => ({ 'data-chat-flow-kind': 'assistant-step', 'data-chat-group-part': 'reasoning' })[name] ?? null, querySelector: () => body };
+  core.maskRow(reasoningRow);
+  assert.equal(reasoningText.nodeValue, '[内部提示] 思考', 'reasoning rows are never masked');
+  core.stop();
+  globalThis.document = doc;
 }
 
 // Both install paths use the version in the dialog input, so reinstall and
@@ -1923,7 +1979,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.8.19');
+assert.equal(host.__test.SELF_VERSION, '0.9.0');
 
 const installFailSpecs = [];
 const installFailManager = {

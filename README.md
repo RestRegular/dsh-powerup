@@ -371,6 +371,33 @@ fiber is unloaded. The panel closes; refresh the page when the install finishes.
   fixed-position popovers anchored to their triggers, so they never grow the
   dialog or get clipped by its scroll area.
 
+### Conversation rendering enhancements
+
+A feature set for more readable conversations, toggled as a whole on the
+Power-Up page. Its first sub-feature is **reply masking**: each rule is a regular
+expression; matching fragments in Agent reply prose are replaced with a
+placeholder (`[已屏蔽]` by default, or a custom replacement). Reasoning blocks,
+tool calls and user messages are never touched — only the assistant's answer
+text, including the final task summary.
+
+Global rules are managed on the Power-Up page's **Masking** tab. Workspace rules
+are managed from the **Power-Up settings** tab in any conversation header (it
+appears after Trajectory), and are stored in the workspace's
+`.dsh/dsh-powerup/mask-rules.json` through a local Host route.
+
+### Dual send buttons
+
+When enabled on the Power-Up page, two compact controls appear at the right of
+the composer: a queued send and an interrupt (steer) send. They bypass the
+system "busy Enter" preference:
+
+- **Enter** always queues the message as a next turn.
+- **Ctrl+Shift+Enter** (Cmd+Shift+Enter on macOS) always interrupts the running
+  turn with the message.
+
+Plain Shift+Enter still inserts a newline, IME composition and slash/mention
+menus are left to the host, and an empty draft keeps the host's retry behavior.
+
 ## Development
 
 ```bash

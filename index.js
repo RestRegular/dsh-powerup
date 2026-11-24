@@ -50,9 +50,11 @@ const SELF_UPDATE_DELAY_MS = 600;
 /** Request body bound for the small JSON commands. */
 const BODY_LIMIT = 16 * 1024;
 
-/** Per-workspace prompts live under the workspace's own .dsh directory. */
+/** Per-workspace state files live under the workspace's own .dsh directory. */
 const PROMPTS_DIR = join('.dsh', 'dsh-powerup');
 const PROMPTS_FILE = 'prompts.json';
+/** Per-workspace mask rules used by the content-rendering enhancement. */
+const MASK_RULES_FILE = 'mask-rules.json';
 
 /** The moment this Host process started; a profile file newer than it may await a restart. */
 const HOST_STARTED_AT = Date.now() - process.uptime() * 1000;
@@ -348,14 +350,15 @@ export async function performSelfUpdate(ctx, version, registry, options = {}) {
 }
 
 /**
- * Absolute path of one workspace's prompt store. The workspace path is
+ * Absolute path of one workspace's state file. The workspace path is
  * canonical (realpath) and the id is a uuid, so a stray id can never escape
  * into an arbitrary directory.
  * @param {import('@deepseek-ai/cordis').Context} ctx
  * @param {string} workspaceId
+ * @param {string} fileName
  * @returns {string | undefined}
  */
-function promptStorePath(ctx, workspaceId) {
+function workspaceStorePath(ctx, workspaceId, fileName) {
   if (typeof workspaceId !== 'string' || workspaceId === '') return undefined;
   const registry = ctx?.get?.('workspaceRegistry');
   const workspace = registry?.get?.(workspaceId);
@@ -363,15 +366,20 @@ function promptStorePath(ctx, workspaceId) {
     return undefined;
   }
   const root = resolvePath(workspace.path);
-  const target = resolvePath(root, PROMPTS_DIR, PROMPTS_FILE);
+  const target = resolvePath(root, PROMPTS_DIR, fileName);
   // The store must stay inside the workspace, whatever the registry returned.
   const prefix = root.endsWith(sep) ? root : root + sep;
   if (!target.startsWith(prefix)) return undefined;
   return target;
 }
 
-/** Read one workspace's prompts from disk; a missing file is an empty list. */
-function readPromptStore(filePath) {
+/** One workspace's prompt store path. */
+function promptStorePath(ctx, workspaceId) {
+  return workspaceStorePath(ctx, workspaceId, PROMPTS_FILE);
+}
+
+/** Read one workspace's JSON list from disk; a missing file is an empty list. */
+function readJsonStore(filePath) {
   try {
     const parsed = JSON.parse(readFileSync(filePath, 'utf8'));
     return Array.isArray(parsed) ? parsed : [];
@@ -379,6 +387,11 @@ function readPromptStore(filePath) {
     if (error?.code === 'ENOENT') return [];
     throw error;
   }
+}
+
+/** Read one workspace's prompts from disk; a missing file is an empty list. */
+function readPromptStore(filePath) {
+  return readJsonStore(filePath);
 }
 
 /**
@@ -394,8 +407,48 @@ async function handle(req, res, ctx) {
 
   const url = new URL(req.url ?? ROUTE, 'http://localhost');
   const op = url.pathname.slice(ROUTE.length).replace(/^\/+/u, '') || url.searchParams.get('op') || '';
-  if (op !== '' && op !== 'restart' && op !== 'close' && op !== 'self-update' && op !== 'audit' && op !== 'job-kill' && op !== 'prompts') {
+  if (op !== '' && op !== 'restart' && op !== 'close' && op !== 'self-update' && op !== 'audit' && op !== 'job-kill' && op !== 'prompts' && op !== 'mask-rules') {
     sendJson(res, { ok: false, error: 'not-found' }, 404);
+    return;
+  }
+
+  if (op === 'mask-rules') {
+    const targetId = req.method === 'GET'
+      ? (url.searchParams.get('workspaceId') ?? '')
+      : '';
+    let workspaceId = targetId;
+    if (req.method === 'POST') {
+      try {
+        const body = await readJsonBody(req);
+        workspaceId = typeof body?.workspaceId === 'string' ? body.workspaceId.trim() : '';
+        const filePath = workspaceStorePath(ctx, workspaceId, MASK_RULES_FILE);
+        if (filePath === undefined) {
+          sendJson(res, { ok: false, code: 'workspace-not-found', error: 'workspace not found' }, 404);
+          return;
+        }
+        const rules = Array.isArray(body?.rules) ? body.rules : [];
+        mkdirSync(dirname(filePath), { recursive: true });
+        writeFileSync(filePath, JSON.stringify(rules, null, 2) + '\n', 'utf8');
+        sendJson(res, { ok: true, workspaceId, rules });
+      } catch (error) {
+        sendJson(res, { ok: false, error: String(error?.message ?? error) }, 500);
+      }
+      return;
+    }
+    if (req.method !== 'GET') {
+      sendJson(res, { ok: false, error: 'method-not-allowed' }, 405);
+      return;
+    }
+    try {
+      const filePath = workspaceStorePath(ctx, workspaceId, MASK_RULES_FILE);
+      if (filePath === undefined) {
+        sendJson(res, { ok: false, code: 'workspace-not-found', error: 'workspace not found' }, 404);
+        return;
+      }
+      sendJson(res, { ok: true, workspaceId, rules: readJsonStore(filePath) });
+    } catch (error) {
+      sendJson(res, { ok: false, error: String(error?.message ?? error) }, 500);
+    }
     return;
   }
 
@@ -591,6 +644,9 @@ export const __test = {
   profileDirectory,
   promptStorePath,
   readPromptStore,
+  workspaceStorePath,
+  readJsonStore,
+  MASK_RULES_FILE,
   HOST_STARTED_AT,
   SELF_VERSION,
   ROUTE,
