@@ -3006,6 +3006,22 @@
         const [text, setText] = useState(promptCreateDraft.text);
         const [scope, setScope] = useState(promptCreateDraft.scope);
         const titleRef = useRef(null);
+        // Close plays an exit animation first, so the dialog does not vanish
+        // abruptly; the draft is already persisted by the effect below.
+        const [closing, setClosing] = useState(false);
+        const closingRef = useRef(false);
+        const requestClose = () => {
+          if (closingRef.current) return;
+          closingRef.current = true;
+          setClosing(true);
+          setTimeout(() => {
+            try {
+              onClose();
+            } catch {
+              /* The parent owns unmounting. */
+            }
+          }, 140);
+        };
         useEffect(() => {
           promptCreateDraft.title = title;
           promptCreateDraft.text = text;
@@ -3013,7 +3029,8 @@
         }, [title, text, scope]);
         useEffect(() => {
           try {
-            titleRef.current?.focus?.();
+            // preventScroll keeps the focus from scrolling the page mid-animation.
+            titleRef.current?.focus?.({ preventScroll: true });
           } catch {
             /* Focus is a nicety. */
           }
@@ -3022,12 +3039,12 @@
           const onKey = (event) => {
             if (event.key === 'Escape') {
               event.preventDefault();
-              onClose();
+              requestClose();
             }
           };
           document.addEventListener('keydown', onKey, true);
           return () => document.removeEventListener('keydown', onKey, true);
-        }, [onClose]);
+        }, []);
         const save = () => {
           const body = typeof text === 'string' ? text.trim() : '';
           if (body === '') return;
@@ -3044,20 +3061,31 @@
           promptCreateDraft.title = '';
           promptCreateDraft.text = '';
           promptCreateDraft.scope = fixedScope ? 'all' : 'current';
-          onCreated(record);
+          // Play the exit animation before telling the parent to unmount.
+          if (!closingRef.current) {
+            closingRef.current = true;
+            setClosing(true);
+          }
+          setTimeout(() => {
+            try {
+              onCreated(record);
+            } catch {
+              /* The parent owns unmounting. */
+            }
+          }, 140);
         };
         const fieldClass = 'dsh-powerup-prompt-input';
         const labelClass = 'dsh-powerup-prompt-field-label';
         return renderInBody(h('div', {
-          className: 'dsh-powerup-prompt-modal-mask',
+          className: 'dsh-powerup-prompt-modal-mask' + (closing ? ' is-closing' : ''),
           role: 'presentation',
           'data-powerup-prompt-modal-mask': '',
           onPointerDown: (event) => {
-            if (event.target === event.currentTarget) onClose();
+            if (event.target === event.currentTarget) requestClose();
           },
         },
           h('div', {
-            className: 'dsh-powerup-prompt-modal',
+            className: 'dsh-powerup-prompt-modal' + (closing ? ' is-closing' : ''),
             role: 'dialog',
             'aria-modal': 'true',
             'aria-label': t('prompts.createTitle'),
@@ -3072,7 +3100,7 @@
                 type: 'button',
                 className: 'dsh-powerup-prompt-modal-close',
                 'aria-label': t('prompts.cancel'),
-                onClick: onClose,
+                onClick: requestClose,
               }, '\u00d7'),
             ),
             h('div', { className: 'dsh-powerup-prompt-modal-body' },
@@ -3115,7 +3143,7 @@
               h('button', {
                 type: 'button',
                 className: 'dsh-powerup-prompt-modal-cancel',
-                onClick: onClose,
+                onClick: requestClose,
               }, t('prompts.cancel')),
               h('button', {
                 type: 'button',
@@ -4015,8 +4043,17 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-prompt-form-actions .dsh-powerup-prompt-new:hover{background:var(--dsw-alias-button-primary-hover,var(--dsw-alias-brand-primary));color:var(--dsw-alias-label-primary-foreground)}
 .dsh-powerup-prompt-empty{padding:18px 12px;border:1px dashed var(--dsw-alias-border-l2);border-radius:12px;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:1.6;text-align:center}
 /* In-conversation create-prompt dialog. */
-.dsh-powerup-prompt-modal-mask{position:fixed;inset:0;z-index:1500;display:flex;align-items:center;justify-content:center;padding:24px;background:var(--dsw-alias-bg-mask-1);backdrop-filter:var(--dsw-mask-blur,blur(3px));pointer-events:auto;animation:dsh-powerup-toast-in .14s ease-out}
-.dsh-powerup-prompt-modal{box-sizing:border-box;display:flex;flex-direction:column;width:min(460px,100%);max-height:min(680px,calc(100vh - 48px));max-height:min(680px,calc(100dvh - 48px));border-radius:var(--dsw-radius-panel,14px);background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);color:var(--dsw-alias-label-primary);font-size:13px;line-height:20px;overflow:hidden}
+/* Mask fades in place; the dialog itself rises. Never reuse the toast
+   keyframes here: they carry translate(-50%) for centered toasts and would
+   drag the whole full-screen mask sideways. */
+@keyframes dsh-powerup-prompt-mask-in{from{opacity:0}to{opacity:1}}
+@keyframes dsh-powerup-prompt-rise{from{opacity:0;transform:translateY(6px) scale(.995)}to{opacity:1;transform:none}}
+.dsh-powerup-prompt-modal-mask{position:fixed;inset:0;z-index:1500;display:flex;align-items:center;justify-content:center;padding:24px;background:var(--dsw-alias-bg-mask-1);backdrop-filter:var(--dsw-mask-blur,blur(3px));pointer-events:auto;animation:dsh-powerup-prompt-mask-in .16s ease-out}
+.dsh-powerup-prompt-modal{box-sizing:border-box;display:flex;flex-direction:column;width:min(460px,100%);max-height:min(680px,calc(100vh - 48px));max-height:min(680px,calc(100dvh - 48px));border-radius:var(--dsw-radius-panel,14px);background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);color:var(--dsw-alias-label-primary);font-size:13px;line-height:20px;overflow:hidden;animation:dsh-powerup-prompt-rise .18s cubic-bezier(.2,.8,.3,1)}
+@keyframes dsh-powerup-prompt-mask-out{from{opacity:1}to{opacity:0}}
+@keyframes dsh-powerup-prompt-sink{from{opacity:1;transform:none}to{opacity:0;transform:translateY(4px) scale(.995)}}
+.dsh-powerup-prompt-modal-mask.is-closing{animation:dsh-powerup-prompt-mask-out .14s ease-in forwards}
+.dsh-powerup-prompt-modal.is-closing{animation:dsh-powerup-prompt-sink .14s ease-in forwards}
 .dsh-powerup-prompt-modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 14px 8px 22px}
 .dsh-powerup-prompt-modal-heading{font-size:16px;line-height:24px;font-weight:500}
 .dsh-powerup-prompt-modal-sub{margin:2px 0 0;color:var(--dsw-alias-label-tertiary);font-size:11.5px;line-height:17px}
@@ -4030,7 +4067,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-prompt-modal-save:disabled{opacity:.4;cursor:not-allowed}
 .dsh-powerup-prompt-modal-close:focus-visible,.dsh-powerup-prompt-modal-cancel:focus-visible,.dsh-powerup-prompt-modal-save:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:1px}
 @media (max-width:560px){.dsh-powerup-prompt-modal-mask{padding:12px}.dsh-powerup-prompt-modal-head{padding:16px 12px 8px 16px}.dsh-powerup-prompt-modal-body{padding:0 16px 4px}.dsh-powerup-prompt-modal-foot{padding:12px 16px 16px}}
-@media (prefers-reduced-motion:reduce){.dsh-powerup-prompt-pop,.dsh-powerup-prompt-trigger-chevron,.dsh-powerup-prompt-modal-mask{transition:none;animation:none}}
+@media (prefers-reduced-motion:reduce){.dsh-powerup-prompt-pop,.dsh-powerup-prompt-trigger-chevron,.dsh-powerup-prompt-modal-mask,.dsh-powerup-prompt-modal,.dsh-powerup-prompt-modal-mask.is-closing,.dsh-powerup-prompt-modal.is-closing{transition:none;animation:none}}
 `;
 
       /** Max display length of a session option, in Unicode code points. */

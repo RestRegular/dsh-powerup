@@ -1279,6 +1279,13 @@ globalThis.localStorage.getItem = savedGetItem;
   assert.ok(/\.dsh-powerup-prompt-pop-list\{[^}]*flex:1 1 auto[^}]*min-height:0[^}]*overflow-y:auto[^}]*overflow-x:hidden/.test(css), 'prompt list flexes and scrolls vertically only');
   assert.ok(/\.dsh-powerup-prompt-pop-create\{flex:none;/.test(css), 'new-prompt button never shrinks');
   assert.ok(/\.dsh-powerup-prompt-pop-list\{[^}]*gap:4px/.test(css), 'prompt options have visible spacing between them');
+  // The create dialog must not borrow the toast keyframes: those carry
+  // translate(-50%) and would drag the full-screen mask sideways.
+  assert.ok(!/dsh-powerup-prompt-modal-mask\{[^}]*animation:dsh-powerup-toast-in/.test(css), 'create dialog mask never reuses toast keyframes');
+  assert.ok(/\.dsh-powerup-prompt-modal\{[^}]*animation:dsh-powerup-prompt-rise/.test(css), 'create dialog has an entrance animation');
+  assert.ok(/\.dsh-powerup-prompt-modal-mask\.is-closing\{animation:dsh-powerup-prompt-mask-out/.test(css), 'create dialog mask has an exit animation');
+  assert.ok(/\.dsh-powerup-prompt-modal\.is-closing\{animation:dsh-powerup-prompt-sink/.test(css), 'create dialog has an exit animation');
+  assert.ok(/\.dsh-powerup-prompt-pop-send\{[^}]*width:26px/.test(css), 'direct-send control is an icon button');
   assert.ok(/\.dsh-powerup-prompt-pop\{[^}]*overflow-x:hidden/.test(css), 'popover forbids horizontal overflow');
   // Coordinated radii: both dropdowns use a 10px outer shell and 8px inner controls.
   assert.ok(/\.dsh-powerup-prompt-pop\{[^}]*border-radius:10px/.test(css), 'prompt dropdown shell uses 10px radius');
