@@ -1270,6 +1270,16 @@ globalThis.localStorage.getItem = savedGetItem;
   assert.equal(store.resolveWorkspaceIdFromSnapshot(snapshot, 'unknown'), '');
   globalThis.localStorage.getItem = savedGet;
   globalThis.localStorage.setItem = savedSetItem;
+
+  // The prompt dropdown must scroll its list vertically only, never sideways,
+  // and keep the New-prompt button pinned (flex-none) so it is never clipped.
+  const css = store.PROMPTS_CSS;
+  assert.ok(/\.dsh-powerup-prompt-pop-list\{[^}]*flex:1 1 auto[^}]*min-height:0[^}]*overflow-y:auto[^}]*overflow-x:hidden/.test(css), 'prompt list flexes and scrolls vertically only');
+  assert.ok(/\.dsh-powerup-prompt-pop-create\{flex:none;/.test(css), 'new-prompt button never shrinks');
+  assert.ok(/\.dsh-powerup-prompt-pop\{[^}]*overflow-x:hidden/.test(css), 'popover forbids horizontal overflow');
+  // Coordinated radii: both dropdowns use a 10px outer shell and 8px inner controls.
+  assert.ok(/\.dsh-powerup-prompt-pop\{[^}]*border-radius:10px/.test(css), 'prompt dropdown shell uses 10px radius');
+  assert.ok(/\.dsh-powerup-ws-menu\{[^}]*border-radius:10px/.test(css), 'scope dropdown shell uses 10px radius');
 }
 
 // Mask rules: normalization, global storage, regex compilation and application.
@@ -1888,25 +1898,14 @@ await host.__test.handle(
 assert.equal(failedKillResponse.status, 404);
 assert.equal(JSON.parse(failedKillResponse.body).code, 'kill-failed');
 
-// Prompts live under each workspace's .dsh/dsh-powerup directory, never in the
-// browser. The host resolves a workspace id to that path through the registry.
+// Prompts and mask rules live in one central ~/.dsh/dsh-powerup file holding
+// every workspace's records; no per-workspace path lookup is needed.
 {
-  const { promptStorePath } = host.__test;
-  const ctx = {
-    get(name) {
-      if (name !== 'workspaceRegistry') return undefined;
-      return {
-        get(id) {
-          if (id !== 'ws-1') return undefined;
-          return { id, path: 'D:/workspaces/alpha' };
-        },
-      };
-    },
-  };
-  const path = promptStorePath(ctx, 'ws-1');
-  assert.ok(path.endsWith('.dsh\\dsh-powerup\\prompts.json') || path.endsWith('.dsh/dsh-powerup/prompts.json'), 'prompt store path uses .dsh/dsh-powerup');
-  assert.equal(promptStorePath(ctx, 'missing'), undefined, 'unknown workspace has no store');
-  assert.equal(promptStorePath(ctx, ''), undefined, 'empty id has no store');
+  const { promptStorePath, storePath, PROMPTS_FILE, MASK_RULES_FILE, STORE_DIR_NAME } = host.__test;
+  const path = promptStorePath();
+  assert.ok(path.endsWith(STORE_DIR_NAME + '\\prompts.json') || path.endsWith(STORE_DIR_NAME + '/prompts.json'), 'prompt store is under ~/.dsh/dsh-powerup');
+  assert.equal(path, storePath(PROMPTS_FILE), 'promptStorePath delegates to the central storePath');
+  assert.ok(storePath(MASK_RULES_FILE).endsWith('mask-rules.json'), 'mask rules use the same central directory');
 }
 
 assert.equal(host.__test.normalizeStopReason('  a\nb\tc  '), 'a b c');
@@ -1992,7 +1991,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.9.1');
+assert.equal(host.__test.SELF_VERSION, '0.9.2');
 
 const installFailSpecs = [];
 const installFailManager = {

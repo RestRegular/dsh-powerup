@@ -83,7 +83,7 @@
       const promptCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.9.1';
+      const VERSION = '0.9.2';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -786,14 +786,15 @@
       }
 
       // ------------------------------------------------------------------
-      // Workspace prompts store. Prompts live in the active workspace's own
-      // directory (`.dsh/dsh-powerup/prompts.json`) through a Host route; the
-      // browser keeps only an in-memory cache so both the hero dropdown and the
-      // management tab see the same list.
+      // Workspace prompts store. All workspaces' prompts live in ONE central
+      // file (~/.dsh/dsh-powerup/prompts.json) through a Host route; each
+      // record carries its own workspaceId ('' = global). The browser keeps an
+      // in-memory cache of the whole list so the hero dropdown and the
+      // management tab see every workspace together.
       // ------------------------------------------------------------------
       const PROMPTS_API = '/dsh-powerup/api/prompts';
       let promptsCache = [];
-      let promptStoreWorkspace = '';
+      let promptsLoaded = false;
 
       /** Normalize an arbitrary value into a clean prompt record. */
       function normalizePrompt(item) {
@@ -812,17 +813,14 @@
       }
 
       /**
-       * Load the store from the active workspace's directory. The list is
-       * workspace-independent in shape, so whichever workspace is currently
-       * open provides the file; a missing file is simply an empty store.
+       * Load the whole central store once. The list includes every workspace's
+       * prompts; callers filter by workspaceId through `promptsForWorkspace`.
        */
-      async function loadPrompts(workspaceId) {
-        const id = typeof workspaceId === 'string' ? workspaceId : '';
-        promptStoreWorkspace = id;
+      async function loadPrompts() {
+        if (promptsLoaded) return promptsCache;
+        promptsLoaded = true;
         try {
-          const response = await fetch(PROMPTS_API + '?workspaceId=' + encodeURIComponent(id), {
-            headers: { accept: 'application/json' },
-          });
+          const response = await fetch(PROMPTS_API, { headers: { accept: 'application/json' } });
           const data = response.ok ? await response.json() : null;
           const list = data !== null && Array.isArray(data.prompts) ? data.prompts : [];
           promptsCache = list.map(normalizePrompt).filter(Boolean);
@@ -836,12 +834,12 @@
       function writePrompts(list) {
         const next = (Array.isArray(list) ? list : []).map(normalizePrompt).filter(Boolean);
         promptsCache = next;
+        promptsLoaded = true;
         emitPrompts();
-        const id = promptStoreWorkspace;
         fetch(PROMPTS_API, {
           method: 'POST',
           headers: { 'content-type': 'application/json', accept: 'application/json' },
-          body: JSON.stringify({ workspaceId: id, prompts: next }),
+          body: JSON.stringify({ prompts: next }),
         }).catch(() => {
           /* The in-memory list still works for this page. */
         });
@@ -874,15 +872,18 @@
 
       // ------------------------------------------------------------------
       // Mask rules for the content-rendering enhancement.
-      // Global rules live in localStorage; workspace rules live in the
-      // workspace's `.dsh/dsh-powerup/mask-rules.json` via a Host route, exactly
-      // like prompts. Both lists share one normalize/compile helper.
+      // Global rules live in localStorage (already shared by every workspace
+      // in this browser). Workspace rules live in ONE central file
+      // (~/.dsh/dsh-powerup/mask-rules.json) via a Host route, together with
+      // every other workspace's rules; the client filters by workspaceId.
+      // Both lists share one normalize/compile helper.
       // ------------------------------------------------------------------
       const MASK_RULES_KEY = 'dsh-powerup:mask-rules:v1';
       const MASK_RULES_API = '/dsh-powerup/api/mask-rules';
       const MASK_PLACEHOLDER = '[已屏蔽]';
       let globalMaskRules = readGlobalMaskRules();
-      let workspaceMaskRules = [];
+      let allWorkspaceMaskRules = [];
+      let maskRulesLoaded = false;
       let maskRulesWorkspace = '';
       const maskRulesListeners = new Set();
 
@@ -896,6 +897,7 @@
           enabled: item.enabled !== false,
           // Existing rules predate this flag and were regexes, so default true.
           regex: item.regex !== false,
+          workspaceId: typeof item.workspaceId === 'string' ? item.workspaceId : '',
           scope: item.scope === 'workspace' ? 'workspace' : 'global',
         };
       }
@@ -919,32 +921,44 @@
         emitMaskRules();
       }
 
-      async function loadWorkspaceMaskRules(workspaceId) {
-        const id = typeof workspaceId === 'string' ? workspaceId : '';
-        maskRulesWorkspace = id;
+      /** Workspace rules belonging to one workspace id. */
+      function workspaceRulesFor(id) {
+        const ws = typeof id === 'string' ? id : '';
+        return allWorkspaceMaskRules.filter((rule) => rule.workspaceId === ws);
+      }
+
+      /** Load the whole central rules file once (all workspaces). */
+      async function loadWorkspaceMaskRules() {
+        if (maskRulesLoaded) return allWorkspaceMaskRules;
+        maskRulesLoaded = true;
         try {
-          const response = await fetch(MASK_RULES_API + '?workspaceId=' + encodeURIComponent(id), {
-            headers: { accept: 'application/json' },
-          });
+          const response = await fetch(MASK_RULES_API, { headers: { accept: 'application/json' } });
           const data = response.ok ? await response.json() : null;
           const rules = data !== null && Array.isArray(data.rules) ? data.rules : [];
-          workspaceMaskRules = rules.map(normalizeMaskRule).filter(Boolean)
-            .map((rule) => ({ ...rule, scope: 'workspace' }));
+          allWorkspaceMaskRules = rules.map(normalizeMaskRule).filter(Boolean)
+            .map((rule) => ({ ...rule, scope: 'workspace', workspaceId: rule.workspaceId ?? '' }));
         } catch {
           /* Host unavailable: keep the last known list. */
         }
         emitMaskRules();
-        return workspaceMaskRules;
+        return allWorkspaceMaskRules;
       }
 
-      function writeWorkspaceMaskRules(list) {
-        workspaceMaskRules = (Array.isArray(list) ? list : []).map(normalizeMaskRule).filter(Boolean)
-          .map((rule) => ({ ...rule, scope: 'workspace' }));
+      /** Replace the rules of one workspace, leaving other workspaces intact. */
+      function writeWorkspaceMaskRules(list, workspaceId) {
+        const ws = typeof workspaceId === 'string' ? workspaceId : maskRulesWorkspace;
+        const next = (Array.isArray(list) ? list : []).map(normalizeMaskRule).filter(Boolean)
+          .map((rule) => ({ ...rule, scope: 'workspace', workspaceId: ws }));
+        allWorkspaceMaskRules = [
+          ...allWorkspaceMaskRules.filter((rule) => rule.workspaceId !== ws),
+          ...next,
+        ];
+        maskRulesLoaded = true;
         emitMaskRules();
         fetch(MASK_RULES_API, {
           method: 'POST',
           headers: { 'content-type': 'application/json', accept: 'application/json' },
-          body: JSON.stringify({ workspaceId: maskRulesWorkspace, rules: workspaceMaskRules }),
+          body: JSON.stringify({ rules: allWorkspaceMaskRules }),
         }).catch(() => {
           /* The in-memory list still works this page. */
         });
@@ -962,7 +976,9 @@
 
       /** Rules that apply to the current workspace: global plus its own. */
       function activeMaskRules() {
-        return [...globalMaskRules, ...workspaceMaskRules].filter((rule) => rule.enabled && rule.pattern !== '');
+        const ws = typeof maskRulesWorkspace === 'string' ? maskRulesWorkspace : '';
+        return [...globalMaskRules, ...workspaceRulesFor(ws)]
+          .filter((rule) => rule.enabled && rule.pattern !== '');
       }
 
       /** Escape a literal string so it can be used as an exact regex source. */
@@ -1022,14 +1038,10 @@
         return t('prompts.summaryFallback');
       }
 
-      function usePrompts(workspaceId) {
+      function usePrompts() {
         const [value, setValue] = useState(readPrompts);
         useEffect(() => subscribePrompts(() => setValue(readPrompts())), []);
-        useEffect(() => {
-          if (typeof workspaceId === 'string' && workspaceId !== '') {
-            void loadPrompts(workspaceId);
-          }
-        }, [workspaceId]);
+        useEffect(() => { void loadPrompts(); }, []);
         return value;
       }
 
@@ -2741,7 +2753,8 @@
               ? resolveWorkspaceIdFromSnapshot(workspaces.list.getSnapshot(), sessionId)
               : '';
             if (typeof wsId === 'string' && wsId !== '' && wsId !== maskRulesWorkspace) {
-              void loadWorkspaceMaskRules(wsId);
+              maskRulesWorkspace = wsId;
+              void loadWorkspaceMaskRules();
             }
           }
           return () => {
@@ -3906,20 +3919,20 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-prompt-trigger-label{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dsh-powerup-prompt-trigger-chevron{flex:none;display:inline-flex;color:var(--dsw-alias-label-tertiary);transition:transform .15s ease}
 .dsh-powerup-prompt-trigger[aria-expanded=true] .dsh-powerup-prompt-trigger-chevron{transform:rotate(180deg)}
-.dsh-powerup-prompt-pop{position:fixed;z-index:1600;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;border:0;border-radius:var(--dsw-radius-panel,14px);background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);font-size:12.5px;line-height:1.5;opacity:0;transform:translateY(-4px);transition:opacity .12s ease,transform .12s ease;pointer-events:auto;--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2)}
+.dsh-powerup-prompt-pop{position:fixed;z-index:1600;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;overflow-x:hidden;border:0;border-radius:10px;background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);font-size:12.5px;line-height:1.5;opacity:0;transform:translateY(-4px);transition:opacity .12s ease,transform .12s ease;pointer-events:auto;--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2)}
 .dsh-powerup-prompt-pop.is-open{opacity:1;transform:none}
-.dsh-powerup-prompt-pop-head{display:flex;align-items:center;gap:6px;padding:8px 11px 7px;color:var(--dsw-alias-label-tertiary);font-size:10.5px;font-weight:600;letter-spacing:.03em}
-.dsh-powerup-prompt-pop-list{display:flex;flex-direction:column;gap:1px;padding:4px;overflow-y:auto}
-.dsh-powerup-prompt-pop-item{display:flex;align-items:center;gap:4px;width:100%;min-height:34px;padding:2px 4px 2px 7px;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;text-align:left}
+.dsh-powerup-prompt-pop-head{flex:none;display:flex;align-items:center;gap:6px;padding:8px 11px 7px;color:var(--dsw-alias-label-tertiary);font-size:10.5px;font-weight:600;letter-spacing:.03em}
+.dsh-powerup-prompt-pop-list{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:1px;padding:4px;overflow-y:auto;overflow-x:hidden}
+.dsh-powerup-prompt-pop-item{display:flex;align-items:center;gap:4px;width:100%;min-width:0;min-height:34px;padding:2px 4px 2px 7px;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;text-align:left}
 .dsh-powerup-prompt-pop-item:hover{background:var(--dsw-alias-interactive-bg-hover)}
 .dsh-powerup-prompt-pop-main{flex:1 1 auto;display:flex;flex-direction:column;gap:1px;min-width:0;padding:3px 0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
 .dsh-powerup-prompt-pop-name{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;line-height:18px}
 .dsh-powerup-prompt-pop-preview{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-tertiary);font-size:10.5px;line-height:15px}
-.dsh-powerup-prompt-pop-send{flex:none;display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 7px;border:.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-secondary);font:inherit;font-size:10.5px;line-height:16px;white-space:nowrap;cursor:pointer;transition:background .12s ease,color .12s ease,border-color .12s ease}
+.dsh-powerup-prompt-pop-send{flex:none;display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 7px;border:.5px solid var(--dsw-alias-border-l2);border-radius:8px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-secondary);font:inherit;font-size:10.5px;line-height:16px;white-space:nowrap;cursor:pointer;transition:background .12s ease,color .12s ease,border-color .12s ease}
 .dsh-powerup-prompt-pop-send:hover{border-color:var(--dsw-alias-state-business-primary);background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-brand-primary)}
 .dsh-powerup-prompt-pop-send:focus-visible,.dsh-powerup-prompt-pop-main:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:-1px}
-.dsh-powerup-prompt-pop-sep{height:1px;margin:4px 6px;background:var(--dsw-alias-border-l1)}
-.dsh-powerup-prompt-pop-create{display:flex;align-items:center;gap:7px;width:100%;min-height:32px;padding:0 10px;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-brand-primary);font:inherit;font-size:12px;line-height:18px;cursor:pointer}
+.dsh-powerup-prompt-pop-sep{flex:none;height:1px;margin:4px 6px;background:var(--dsw-alias-border-l1)}
+.dsh-powerup-prompt-pop-create{flex:none;display:flex;align-items:center;gap:7px;width:100%;min-height:32px;padding:0 10px;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-brand-primary);font:inherit;font-size:12px;line-height:18px;cursor:pointer}
 .dsh-powerup-prompt-pop-create:hover{background:var(--dsw-alias-interactive-bg-hover)}
 .dsh-powerup-prompt-pop-empty{padding:12px 10px;color:var(--dsw-alias-label-tertiary);font-size:11.5px;line-height:1.55;text-align:center}
 /* DSH-memory-style tab bar: inline segmented control. */
@@ -3965,7 +3978,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-ws-value{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dsh-powerup-ws-chevron{flex:none;display:inline-flex;color:var(--dsw-alias-label-tertiary);transition:transform .15s ease}
 .dsh-powerup-ws-trigger[aria-expanded=true] .dsh-powerup-ws-chevron{transform:rotate(180deg)}
-.dsh-powerup-ws-menu{position:fixed;z-index:1600;box-sizing:border-box;min-width:180px;max-width:min(360px,calc(100vw - 24px));max-height:min(320px,50vh);overflow-y:auto;padding:4px;border:0;border-radius:var(--dsw-radius-panel,14px);background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);font-size:12.5px;line-height:1.5;--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2)}
+.dsh-powerup-ws-menu{position:fixed;z-index:1600;box-sizing:border-box;min-width:180px;max-width:min(360px,calc(100vw - 24px));max-height:min(320px,50vh);overflow-y:auto;padding:4px;border:0;border-radius:10px;background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);font-size:12.5px;line-height:1.5;--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2)}
 .dsh-powerup-ws-option{display:flex;align-items:center;gap:8px;width:100%;min-height:30px;padding:0 9px;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;text-align:left;cursor:pointer}
 .dsh-powerup-ws-option:hover{background:var(--dsw-alias-interactive-bg-hover)}
 .dsh-powerup-ws-option[aria-selected=true]{background:var(--dsw-alias-interactive-bg-active)}
@@ -8224,11 +8237,16 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
        * Shared editor for a list of mask rules. `scope` is 'global' or
        * 'workspace'; writes go through the matching store functions.
        */
-      function MaskRuleEditor({ scope, t }) {
+      function MaskRuleEditor({ scope, t, workspaceId }) {
         const rules = useMaskRules();
-        const visible = rules.filter((rule) => (rule.scope || 'global') === scope);
+        const ws = typeof workspaceId === 'string' ? workspaceId : maskRulesWorkspace;
+        const visible = rules.filter((rule) => {
+          const ruleScope = rule.scope || 'global';
+          if (ruleScope !== scope) return false;
+          return scope === 'workspace' ? (rule.workspaceId ?? '') === ws : true;
+        });
         const commit = (next) => {
-          if (scope === 'workspace') writeWorkspaceMaskRules(next);
+          if (scope === 'workspace') writeWorkspaceMaskRules(next, ws);
           else writeGlobalMaskRules(next);
         };
         const update = (id, patch) => {
@@ -8238,7 +8256,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           commit(visible.filter((rule) => rule.id !== id));
         };
         const add = () => {
-          commit([...visible, { id: newId(), pattern: '', replacement: '', enabled: true, scope }]);
+          commit([...visible, { id: newId(), pattern: '', replacement: '', enabled: true, scope, workspaceId: scope === 'workspace' ? ws : '' }]);
         };
         const title = scope === 'workspace' ? t('mask.workspaceTitle') : t('mask.globalTitle');
         return h('div', { className: 'dsh-powerup-mask-editor' },
@@ -8313,8 +8331,9 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
       function useMaskRules() {
         const [revision, setRevision] = useState(0);
         useEffect(() => subscribeMaskRules(() => setRevision((v) => v + 1)), []);
+        useEffect(() => { void loadWorkspaceMaskRules(); }, []);
         void revision;
-        return [...globalMaskRules, ...workspaceMaskRules];
+        return [...globalMaskRules, ...allWorkspaceMaskRules];
       }
 
       /**
@@ -8443,7 +8462,8 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         const workspaceSelector = useMemo(() => (snapshot) => resolveWorkspaceIdFromSnapshot(snapshot, ownerId), [ownerId]);
         const workspaceId = typeof useWorkspaces === 'function' ? useWorkspaces(workspaceSelector) ?? '' : '';
         useEffect(() => {
-          if (typeof workspaceId === 'string' && workspaceId !== '') void loadWorkspaceMaskRules(workspaceId);
+          if (typeof workspaceId === 'string' && workspaceId !== '') maskRulesWorkspace = workspaceId;
+          void loadWorkspaceMaskRules();
         }, [workspaceId]);
         void rules; void settings;
         return h('div', { className: 'dsh-powerup-page' },
@@ -8454,7 +8474,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
                 h('p', null, t('mask.sessionDesc')),
               ),
             ),
-            h(MaskRuleEditor, { scope: 'workspace', t }),
+            h(MaskRuleEditor, { scope: 'workspace', t, workspaceId }),
           ),
         );
       }

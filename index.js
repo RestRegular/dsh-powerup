@@ -31,7 +31,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { appendFileSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve as resolvePath, sep } from 'node:path';
 import { homedir } from 'node:os';
 import { defineTool } from '@deepseek-ai/dsh-tools';
@@ -50,11 +50,18 @@ const SELF_UPDATE_DELAY_MS = 600;
 /** Request body bound for the small JSON commands. */
 const BODY_LIMIT = 16 * 1024;
 
-/** Per-workspace state files live under the workspace's own .dsh directory. */
-const PROMPTS_DIR = join('.dsh', 'dsh-powerup');
+/**
+ * Central state lives under ~/.dsh/dsh-powerup so one file holds every
+ * workspace's records (each record carries its own workspaceId). This lets the
+ * Power-Up settings page manage all workspaces in one place. Older releases
+ * kept these files in each workspace's own `.dsh/dsh-powerup`, migrated once
+ * on first access by `migrateLegacyStore`.
+ */
+const STORE_DIR_NAME = 'dsh-powerup';
 const PROMPTS_FILE = 'prompts.json';
-/** Per-workspace mask rules used by the content-rendering enhancement. */
 const MASK_RULES_FILE = 'mask-rules.json';
+/** Legacy relative location inside a workspace, used only for migration. */
+const LEGACY_STORE_DIR = join('.dsh', 'dsh-powerup');
 
 /** The moment this Host process started; a profile file newer than it may await a restart. */
 const HOST_STARTED_AT = Date.now() - process.uptime() * 1000;
@@ -350,35 +357,23 @@ export async function performSelfUpdate(ctx, version, registry, options = {}) {
 }
 
 /**
- * Absolute path of one workspace's state file. The workspace path is
- * canonical (realpath) and the id is a uuid, so a stray id can never escape
- * into an arbitrary directory.
- * @param {import('@deepseek-ai/cordis').Context} ctx
- * @param {string} workspaceId
+ * Absolute path of the central state file under ~/.dsh/dsh-powerup. One file
+ * holds every workspace's records; no workspace registry lookup is needed, so
+ * the store works even for workspaces not currently registered.
  * @param {string} fileName
- * @returns {string | undefined}
+ * @returns {string}
  */
-function workspaceStorePath(ctx, workspaceId, fileName) {
-  if (typeof workspaceId !== 'string' || workspaceId === '') return undefined;
-  const registry = ctx?.get?.('workspaceRegistry');
-  const workspace = registry?.get?.(workspaceId);
-  if (workspace === null || workspace === undefined || typeof workspace.path !== 'string' || workspace.path === '') {
-    return undefined;
-  }
-  const root = resolvePath(workspace.path);
-  const target = resolvePath(root, PROMPTS_DIR, fileName);
-  // The store must stay inside the workspace, whatever the registry returned.
-  const prefix = root.endsWith(sep) ? root : root + sep;
-  if (!target.startsWith(prefix)) return undefined;
-  return target;
+function storePath(fileName) {
+  const home = process.env.DSH_HOME?.trim() || join(homedir(), '.dsh');
+  return join(home, STORE_DIR_NAME, fileName);
 }
 
-/** One workspace's prompt store path. */
-function promptStorePath(ctx, workspaceId) {
-  return workspaceStorePath(ctx, workspaceId, PROMPTS_FILE);
+/** The central prompts file path (kept for callers/tests). */
+function promptStorePath() {
+  return storePath(PROMPTS_FILE);
 }
 
-/** Read one workspace's JSON list from disk; a missing file is an empty list. */
+/** Read one JSON list from disk; a missing file is an empty list. */
 function readJsonStore(filePath) {
   try {
     const parsed = JSON.parse(readFileSync(filePath, 'utf8'));
@@ -387,6 +382,38 @@ function readJsonStore(filePath) {
     if (error?.code === 'ENOENT') return [];
     throw error;
   }
+}
+
+/**
+ * One-time migration of the old per-workspace files into the central store.
+ * Records from every registered workspace are merged by identity (prompt id /
+ * rule id), tagging each with its source workspaceId. A marker file prevents
+ * re-merging on later writes. Legacy files are left in place (never deleted).
+ * @param {string} fileName
+ * @param {'prompts'|'rules'} kind
+ */
+function migrateLegacyStore(ctx, fileName) {
+  const target = storePath(fileName);
+  const marker = target + '.migrated';
+  if (existsSync(marker)) return;
+  const registry = ctx?.get?.('workspaceRegistry');
+  const workspaces = typeof registry?.list === 'function' ? registry.list() : [];
+  const merged = readJsonStore(target);
+  const seen = new Set(merged.map((r) => r?.id).filter(Boolean));
+  for (const ws of workspaces) {
+    if (typeof ws?.path !== 'string' || ws.path === '') continue;
+    const legacy = resolvePath(resolvePath(ws.path), LEGACY_STORE_DIR, fileName);
+    const rows = readJsonStore(legacy);
+    if (rows.length === 0) continue;
+    for (const row of rows) {
+      if (row === null || typeof row !== 'object' || seen.has(row.id)) continue;
+      merged.push({ ...row, workspaceId: row.workspaceId ?? ws.id });
+      if (row.id) seen.add(row.id);
+    }
+  }
+  mkdirSync(dirname(target), { recursive: true });
+  writeFileSync(target, JSON.stringify(merged, null, 2) + '\n', 'utf8');
+  writeFileSync(marker, new Date().toISOString() + '\n', 'utf8');
 }
 
 /** Read one workspace's prompts from disk; a missing file is an empty list. */
@@ -413,23 +440,14 @@ async function handle(req, res, ctx) {
   }
 
   if (op === 'mask-rules') {
-    const targetId = req.method === 'GET'
-      ? (url.searchParams.get('workspaceId') ?? '')
-      : '';
-    let workspaceId = targetId;
+    const filePath = storePath(MASK_RULES_FILE);
     if (req.method === 'POST') {
       try {
         const body = await readJsonBody(req);
-        workspaceId = typeof body?.workspaceId === 'string' ? body.workspaceId.trim() : '';
-        const filePath = workspaceStorePath(ctx, workspaceId, MASK_RULES_FILE);
-        if (filePath === undefined) {
-          sendJson(res, { ok: false, code: 'workspace-not-found', error: 'workspace not found' }, 404);
-          return;
-        }
         const rules = Array.isArray(body?.rules) ? body.rules : [];
         mkdirSync(dirname(filePath), { recursive: true });
         writeFileSync(filePath, JSON.stringify(rules, null, 2) + '\n', 'utf8');
-        sendJson(res, { ok: true, workspaceId, rules });
+        sendJson(res, { ok: true, rules });
       } catch (error) {
         sendJson(res, { ok: false, error: String(error?.message ?? error) }, 500);
       }
@@ -440,12 +458,8 @@ async function handle(req, res, ctx) {
       return;
     }
     try {
-      const filePath = workspaceStorePath(ctx, workspaceId, MASK_RULES_FILE);
-      if (filePath === undefined) {
-        sendJson(res, { ok: false, code: 'workspace-not-found', error: 'workspace not found' }, 404);
-        return;
-      }
-      sendJson(res, { ok: true, workspaceId, rules: readJsonStore(filePath) });
+      migrateLegacyStore(ctx, MASK_RULES_FILE);
+      sendJson(res, { ok: true, rules: readJsonStore(filePath) });
     } catch (error) {
       sendJson(res, { ok: false, error: String(error?.message ?? error) }, 500);
     }
@@ -453,25 +467,16 @@ async function handle(req, res, ctx) {
   }
 
   if (op === 'prompts') {
-    // The active workspace's directory holds the whole prompt store, including
-    // prompts scoped to other workspaces and the "all workspaces" ones.
-    const targetId = req.method === 'GET'
-      ? (url.searchParams.get('workspaceId') ?? '')
-      : '';
-    let workspaceId = targetId;
+    // One central file holds prompts for every workspace; each record carries
+    // its own workspaceId ('' means all workspaces). The client filters by scope.
+    const filePath = promptStorePath();
     if (req.method === 'POST') {
       try {
         const body = await readJsonBody(req);
-        workspaceId = typeof body?.workspaceId === 'string' ? body.workspaceId.trim() : '';
-        const filePath = promptStorePath(ctx, workspaceId);
-        if (filePath === undefined) {
-          sendJson(res, { ok: false, code: 'workspace-not-found', error: 'workspace not found' }, 404);
-          return;
-        }
         const prompts = Array.isArray(body?.prompts) ? body.prompts : [];
         mkdirSync(dirname(filePath), { recursive: true });
         writeFileSync(filePath, JSON.stringify(prompts, null, 2) + '\n', 'utf8');
-        sendJson(res, { ok: true, workspaceId, prompts });
+        sendJson(res, { ok: true, prompts });
       } catch (error) {
         sendJson(res, { ok: false, error: String(error?.message ?? error) }, 500);
       }
@@ -482,12 +487,8 @@ async function handle(req, res, ctx) {
       return;
     }
     try {
-      const filePath = promptStorePath(ctx, workspaceId);
-      if (filePath === undefined) {
-        sendJson(res, { ok: false, code: 'workspace-not-found', error: 'workspace not found' }, 404);
-        return;
-      }
-      sendJson(res, { ok: true, workspaceId, prompts: readPromptStore(filePath) });
+      migrateLegacyStore(ctx, PROMPTS_FILE);
+      sendJson(res, { ok: true, prompts: readPromptStore(filePath) });
     } catch (error) {
       sendJson(res, { ok: false, error: String(error?.message ?? error) }, 500);
     }
@@ -644,12 +645,14 @@ export const __test = {
   profileDirectory,
   promptStorePath,
   readPromptStore,
-  workspaceStorePath,
+  storePath,
   readJsonStore,
+  migrateLegacyStore,
+  PROMPTS_FILE,
   MASK_RULES_FILE,
   HOST_STARTED_AT,
   SELF_VERSION,
   ROUTE,
   MODULE_ID,
-  PROMPTS_DIR,
+  STORE_DIR_NAME,
 };

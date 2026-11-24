@@ -389,8 +389,11 @@ Each rule has:
 
 Global rules are managed on the Power-Up page's **Masking** tab. Workspace rules
 are managed from the **PowerUp** tab in any conversation header (it appears
-after Trajectory), and are stored in the workspace's
-`.dsh/dsh-powerup/mask-rules.json` through a local Host route.
+after Trajectory). Both prompts and workspace rules live in ONE central store
+under `~/.dsh/dsh-powerup/` (`prompts.json` / `mask-rules.json`), with each
+record carrying its own workspace id, so the settings page can manage every
+workspace together. Older per-workspace files are migrated automatically on
+first access.
 
 ### Dual send buttons
 
