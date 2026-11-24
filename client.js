@@ -83,7 +83,7 @@
       const promptCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.9.8';
+      const VERSION = '0.9.9';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -3939,6 +3939,9 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-send[data-kind="interrupt"]{color:var(--dsw-alias-state-warn-label,var(--dsw-alias-label-secondary))}
 .dsh-powerup-send svg{width:16px;height:16px}
 .dsh-powerup-dual-send{display:inline-flex;align-items:center;gap:4px}
+/* Our buttons replace the host's primary button while the draft has text. The
+   component marks the host button with data-powerup-send-hidden. */
+[data-powerup-send-hidden]{display:none!important}
 .dsh-powerup-mask-editor{display:flex;flex-direction:column;gap:10px}
 .dsh-powerup-mask-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:8px;border:.5px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-1)}
 .dsh-powerup-mask-default.on{background:var(--dsw-alias-brand-primary);color:var(--dsw-alias-bg-layer-1);border-color:var(--dsw-alias-brand-primary)}
@@ -8473,8 +8476,63 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           return () => document.removeEventListener('keydown', onKeyDown, true);
         }, [settings.dualSend, sessionId, draft, ctx, inputActions]);
         void currentDraft;
-        if (!settings.dualSend) return null;
-        return h('div', { className: 'dsh-powerup-dual-send' },
+        // Replace the host's single primary button with our two only while the
+        // composer actually holds text. An empty draft keeps the native button
+        // (that state is the host's Stop / retry affordance).
+        const active = settings.dualSend && trimmed !== '';
+        const wrapRef = useRef(null);
+        useEffect(() => {
+          if (!settings.dualSend || typeof document === 'undefined' || document === null) return undefined;
+          const clearAll = () => {
+            for (const node of document.querySelectorAll('[data-powerup-send-hidden]')) {
+              node.removeAttribute('data-powerup-send-hidden');
+            }
+          };
+          if (!active) {
+            clearAll();
+            return undefined;
+          }
+          // Walk up from our own slot to the row that directly holds the host's
+          // send buttons, then take its LAST direct button child — that is the
+          // primary send/stop control (the optional interrupt-stop precedes it).
+          const findScope = () => {
+            let node = wrapRef.current;
+            for (let depth = 0; node !== null && depth < 8; depth += 1) {
+              const direct = typeof node.querySelectorAll === 'function'
+                ? node.querySelectorAll(':scope > button')
+                : [];
+              if (direct.length > 0) return node;
+              node = node.parentElement;
+            }
+            return null;
+          };
+          const mark = () => {
+            const scope = findScope();
+            if (scope === null) return;
+            const direct = [...scope.querySelectorAll(':scope > button')];
+            const primary = direct[direct.length - 1];
+            if (primary === undefined) return;
+            primary.setAttribute('data-powerup-send-hidden', '');
+          };
+          mark();
+          let scheduled = false;
+          const schedule = () => {
+            if (scheduled) return;
+            scheduled = true;
+            queueMicrotask(() => {
+              scheduled = false;
+              mark();
+            });
+          };
+          const observer = typeof MutationObserver === 'function' ? new MutationObserver(schedule) : null;
+          observer?.observe(document.body, { childList: true, subtree: true });
+          return () => {
+            observer?.disconnect();
+            clearAll();
+          };
+        }, [settings.dualSend, active]);
+        if (!active) return null;
+        return h('div', { className: 'dsh-powerup-dual-send', ref: wrapRef },
           h('button', {
             type: 'button',
             className: 'dsh-powerup-send',
