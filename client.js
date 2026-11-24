@@ -83,7 +83,7 @@
       const promptCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.10.0';
+      const VERSION = '0.10.1';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -3939,9 +3939,6 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-send[data-kind="interrupt"]{color:var(--dsw-alias-state-warn-label,var(--dsw-alias-label-secondary))}
 .dsh-powerup-send svg{width:16px;height:16px}
 .dsh-powerup-dual-send{display:inline-flex;align-items:center;gap:4px}
-/* Our buttons replace the host's primary button while the draft has text. The
-   component marks the host button with data-powerup-send-hidden. */
-[data-powerup-send-hidden]{display:none!important}
 .dsh-powerup-mask-editor{display:flex;flex-direction:column;gap:10px}
 .dsh-powerup-mask-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:8px;border:.5px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-1)}
 .dsh-powerup-mask-default.on{background:var(--dsw-alias-brand-primary);color:var(--dsw-alias-bg-layer-1);border-color:var(--dsw-alias-brand-primary)}
@@ -8437,6 +8434,55 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         return running;
       }
 
+      /**
+       * The host's live "busy Enter" preference: 'queue' or 'steer'. The host
+       * composer resolves plain Enter (and its single Send button) with this
+       * value, so knowing it tells us which delivery mode the native button
+       * already covers. Reads the Host config form for the ui-conversation
+       * namespace and subscribes, so a Settings change applies immediately.
+       */
+      function useHostBusyEnter(ctx) {
+        const formOf = useCallback(() => {
+          try {
+            return ctx.get('configForms')?.get?.('ui-conversation');
+          } catch {
+            return undefined;
+          }
+        }, [ctx]);
+        const read = useCallback(() => {
+          try {
+            const value = formOf()?.getSnapshot?.()?.value;
+            const behavior = value !== null && typeof value === 'object' ? value.busyEnter : undefined;
+            return behavior === 'steer' ? 'steer' : 'queue';
+          } catch {
+            return 'queue';
+          }
+        }, [formOf]);
+        const [behavior, setBehavior] = useState(read);
+        useEffect(() => {
+          setBehavior(read());
+          let off;
+          let timer;
+          // The settings service may be provided after this plugin applies;
+          // keep looking briefly instead of latching onto a missing service.
+          const attach = (attempt) => {
+            const form = formOf();
+            if (form !== undefined && typeof form.subscribe === 'function') {
+              off = form.subscribe(() => setBehavior(read()));
+              return;
+            }
+            if (attempt >= 20) return;
+            timer = setTimeout(() => attach(attempt + 1), 500);
+          };
+          attach(0);
+          return () => {
+            if (timer !== undefined) clearTimeout(timer);
+            if (typeof off === 'function') off();
+          };
+        }, [read, formOf]);
+        return behavior;
+      }
+
       function DualSendButtons({ sessionId, useInput, inputActions, ctx, t }) {
         const settings = useSettings();
         const draft = typeof useInput === 'function' ? useInput((s) => s.draft) : '';
@@ -8457,6 +8503,8 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         // "queue" vs "interrupt" is meaningless on an idle session, where the
         // host's single Send button is the correct affordance.
         const sessionRunning = useSessionRunning(ctx, sessionId);
+        // Which strategy the host's own Send button already covers while busy.
+        const busyEnter = useHostBusyEnter(ctx);
         const currentDraft = { trimmed, sessionId, inputActions, ctx };
         const send = (mode, text) => {
           const value = typeof text === 'string' ? text.trim() : trimmed;
@@ -8476,10 +8524,10 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             console.warn('[dsh-powerup] dual send failed:', error?.message ?? error);
           }
         };
-        // Capture-phase keymap overrides the host's busy-time send behavior:
-        // Enter always queues, Ctrl/Cmd+Shift+Enter always interrupts. Plain
-        // Shift+Enter (newline), IME composition, and an open command listbox
-        // are left to the host.
+        // Accelerated Enter (Ctrl/Cmd+Shift+Enter) delivers the strategy the
+        // host's plain Enter does NOT use — the same split as the button pair.
+        // Plain Enter and Shift+Enter stay entirely with the host so the
+        // "busy Enter" setting keeps its meaning.
         useEffect(() => {
           if (!settings.dualSend || typeof document === 'undefined' || document === null) return undefined;
           const onKeyDown = (event) => {
@@ -8500,95 +8548,51 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             if (openMenu !== null && openMenu !== undefined) return;
             if (editor.hasAttribute('data-composer-chip-selected')) return;
             const interrupt = event.shiftKey && (event.ctrlKey || event.metaKey);
-            if (event.shiftKey && !interrupt) return; // plain Shift+Enter = newline
-            if (!interrupt && (event.ctrlKey || event.metaKey || event.altKey)) return;
+            if (!interrupt) return; // plain Enter / Shift+Enter belong to the host
+            if (!sessionRunning) return;
             event.preventDefault();
             event.stopPropagation();
-            send(interrupt ? 'steer' : 'queue');
+            send(busyEnter === 'steer' ? 'queue' : 'steer');
           };
           document.addEventListener('keydown', onKeyDown, true);
           return () => document.removeEventListener('keydown', onKeyDown, true);
-        }, [settings.dualSend, sessionId, draft, ctx, inputActions]);
+        }, [settings.dualSend, sessionId, draft, ctx, inputActions, sessionRunning, busyEnter]);
         void currentDraft;
-        // Replace the host's single primary button with our two only while the
-        // composer holds text AND the session is working. An idle session (or
-        // an empty draft) keeps the native button, where it is Send or Stop.
+        // Our extra button only appears while the session is actually working and
+        // the draft has text: that is when queue-vs-steer is a real choice. An
+        // idle session (or an empty draft) keeps just the native button.
         const active = settings.dualSend && trimmed !== '' && sessionRunning;
         const wrapRef = useRef(null);
-        useEffect(() => {
-          if (!settings.dualSend || typeof document === 'undefined' || document === null) return undefined;
-          const clearAll = () => {
-            for (const node of document.querySelectorAll('[data-powerup-send-hidden]')) {
-              node.removeAttribute('data-powerup-send-hidden');
-            }
-          };
-          if (!active) {
-            clearAll();
-            return undefined;
-          }
-          // Walk up from our own slot to the row that directly holds the host's
-          // send buttons, then take its LAST direct button child — that is the
-          // primary send/stop control (the optional interrupt-stop precedes it).
-          const findScope = () => {
-            let node = wrapRef.current;
-            for (let depth = 0; node !== null && depth < 8; depth += 1) {
-              const direct = typeof node.querySelectorAll === 'function'
-                ? node.querySelectorAll(':scope > button')
-                : [];
-              if (direct.length > 0) return node;
-              node = node.parentElement;
-            }
-            return null;
-          };
-          const mark = () => {
-            const scope = findScope();
-            if (scope === null) return;
-            const direct = [...scope.querySelectorAll(':scope > button')];
-            const primary = direct[direct.length - 1];
-            if (primary === undefined) return;
-            primary.setAttribute('data-powerup-send-hidden', '');
-          };
-          mark();
-          let scheduled = false;
-          const schedule = () => {
-            if (scheduled) return;
-            scheduled = true;
-            queueMicrotask(() => {
-              scheduled = false;
-              mark();
-            });
-          };
-          const observer = typeof MutationObserver === 'function' ? new MutationObserver(schedule) : null;
-          observer?.observe(document.body, { childList: true, subtree: true });
-          return () => {
-            observer?.disconnect();
-            clearAll();
-          };
-        }, [settings.dualSend, active]);
         if (!active) return null;
+        // The host's own Send button already delivers `busyEnter` (that is the
+        // value plain Enter resolves to while busy). So we only contribute the
+        // OTHER strategy — one button, never both, and never a duplicate of what
+        // the native button does.
+        const ours = busyEnter === 'steer' ? 'queue' : 'steer';
         return h('div', { className: 'dsh-powerup-dual-send', ref: wrapRef },
-          h('button', {
-            type: 'button',
-            className: 'dsh-powerup-send',
-            'data-kind': 'wait',
-            'aria-label': t('send.waitHint'),
-            title: t('send.waitHint'),
-            disabled: trimmed === '',
-            onMouseDown: (event) => event.preventDefault(),
-            onClick: () => send('queue'),
-          }, h('svg', { viewBox: '0 0 16 16', width: 16, height: 16, 'aria-hidden': 'true' },
-            h('path', { d: 'M3 8h9M8.5 4.5 12 8l-3.5 3.5', fill: 'none', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round', strokeLinejoin: 'round' }))),
-          h('button', {
-            type: 'button',
-            className: 'dsh-powerup-send',
-            'data-kind': 'interrupt',
-            'aria-label': t('send.interruptHint'),
-            title: t('send.interruptHint'),
-            disabled: trimmed === '',
-            onMouseDown: (event) => event.preventDefault(),
-            onClick: () => send('steer'),
-          }, h('svg', { viewBox: '0 0 16 16', width: 16, height: 16, 'aria-hidden': 'true' },
-            h('path', { d: 'M8 2v12M3 6l5-4 5 4', fill: 'none', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round', strokeLinejoin: 'round' }))),
+          ours === 'queue'
+            ? h('button', {
+              type: 'button',
+              className: 'dsh-powerup-send',
+              'data-kind': 'wait',
+              'aria-label': t('send.waitHint'),
+              title: t('send.waitHint'),
+              disabled: trimmed === '',
+              onMouseDown: (event) => event.preventDefault(),
+              onClick: () => send('queue'),
+            }, h('svg', { viewBox: '0 0 16 16', width: 16, height: 16, 'aria-hidden': 'true' },
+              h('path', { d: 'M3 8h9M8.5 4.5 12 8l-3.5 3.5', fill: 'none', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round', strokeLinejoin: 'round' })))
+            : h('button', {
+              type: 'button',
+              className: 'dsh-powerup-send',
+              'data-kind': 'interrupt',
+              'aria-label': t('send.interruptHint'),
+              title: t('send.interruptHint'),
+              disabled: trimmed === '',
+              onMouseDown: (event) => event.preventDefault(),
+              onClick: () => send('steer'),
+            }, h('svg', { viewBox: '0 0 16 16', width: 16, height: 16, 'aria-hidden': 'true' },
+              h('path', { d: 'M8 2v12M3 6l5-4 5 4', fill: 'none', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round', strokeLinejoin: 'round' }))),
         );
       }
 
@@ -9177,6 +9181,10 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
       }
 
       return {
+        // `configForms` is optional: it carries the Host "busy Enter" preference.
+        // Read through ctx.get with a defensive fallback instead of a hard
+        // inject dependency, so a deployment without the settings service still
+        // gets every other Power-Up feature.
         inject: ['slots', 'locale'],
         apply,
         // Exported for smoke tests only; the host never reads this.

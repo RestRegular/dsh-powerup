@@ -1289,11 +1289,17 @@ globalThis.localStorage.getItem = savedGetItem;
   // The row carries width:100% plus horizontal padding: without border-box the
   // row overflows the list and the send button on the right gets clipped.
   assert.ok(/\.dsh-powerup-prompt-pop-item\{box-sizing:border-box/.test(css), 'prompt row does not overflow the list');
-  // Dual send replaces the host button only while the draft has text.
-  assert.ok(source.includes('[data-powerup-send-hidden]{display:none!important}'), 'host primary button can be hidden');
-  assert.ok(/const active = settings\.dualSend && trimmed !== '' && sessionRunning/.test(source), 'dual buttons need a non-empty draft and a running session');
+  // Dual send contributes only the strategy the host's busy-Enter button does
+  // not already cover, and only while a session is running with a draft.
+  assert.ok(/const active = settings\.dualSend && trimmed !== '' && sessionRunning/.test(source), 'dual send needs a draft and a running session');
   assert.ok(/function useSessionRunning\(ctx, sessionId\)/.test(source), 'session running state is read from the host store');
-  assert.ok(/list\.subscribe\(\(\) => setRunning\(read\(\)\)\)/.test(source), 'dual buttons follow the running state live');
+  assert.ok(/list\.subscribe\(\(\) => setRunning\(read\(\)\)\)/.test(source), 'running state is followed live');
+  assert.ok(/function useHostBusyEnter\(ctx\)/.test(source), 'busy Enter preference is read from the host config form');
+  assert.ok(/ctx\.get\('configForms'\)\?\.get\?\.\('ui-conversation'\)/.test(source), 'busy Enter comes from the ui-conversation namespace');
+  assert.ok(/value\.busyEnter/.test(source), 'the busyEnter field is read from the host section');
+  assert.ok(/setBusyEnter|'steer' \? 'steer' : 'queue'/.test(source), 'busyEnter falls back to queue');
+  assert.ok(/const ours = busyEnter === 'steer' \? 'queue' : 'steer'/.test(source), 'only the uncovered strategy is offered');
+  assert.ok(!source.includes('[data-powerup-send-hidden]'), 'the host Send button is never hidden');
   assert.ok(/\.dsh-powerup-prompt-pop\{[^}]*overflow-x:hidden/.test(css), 'popover forbids horizontal overflow');
   // Coordinated radii: both dropdowns use a 10px outer shell and 8px inner controls.
   assert.ok(/\.dsh-powerup-prompt-pop\{[^}]*border-radius:10px/.test(css), 'prompt dropdown shell uses 10px radius');
@@ -2013,7 +2019,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.10.0');
+assert.equal(host.__test.SELF_VERSION, '0.10.1');
 
 const installFailSpecs = [];
 const installFailManager = {
