@@ -173,6 +173,24 @@ entries other plugins add) become an icon grid instead of a one-per-row list:
 - The grid can be switched off on the Power-Up page; order and folders survive
   the switch and are kept in `localStorage`.
 
+### Workspace prompts
+
+Save reusable prompts and drop one into a new session without retyping it.
+
+- Open the sidebar **Power-Up** page, switch on **Workspace prompts**, then open
+  the **Workspace prompts** tab. Create a prompt with an optional title, an
+  optional workspace scope, and the prompt body. Without a title the dropdown
+  shows the first few characters of the body. A blank workspace scope makes the
+  prompt available in every workspace; otherwise it appears only in that one.
+- In the New Session row, to the right of the Agent preset, a dropdown lists the
+  prompts available in the current workspace. **Clicking a prompt fills the
+  composer** so you can keep editing before sending. Each row also has a
+  **Send now** button that fills and submits immediately.
+- **Create a new prompt…** in the dropdown opens the management tab on the
+  create form. The tab is styled after dsh-memory's segmented controls and
+  cards; prompts, the last pick per workspace, and the on/off setting are all
+  stored in this browser's `localStorage`.
+
 ## Install a plugin
 
 Open the built-in **Plugins** page. Every third-party card under **Installed

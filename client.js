@@ -69,7 +69,13 @@
 
       const NS = 'dsh-powerup';
       const SETTINGS_KEY = 'dsh-powerup:settings:v1';
-      const VERSION = '0.8.14';
+      /** Reusable prompts. Shape: [{id,title,text,workspaceId}] (workspaceId '' = all workspaces). */
+      const PROMPTS_KEY = 'dsh-powerup:prompts:v1';
+      /** Last prompt used per workspace, for the dropdown button label. */
+      const PROMPTS_LAST_KEY = 'dsh-powerup:prompts:last:v1';
+      /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
+      const UNSCOPED_WORKSPACE = '__unscoped__';
+      const VERSION = '0.8.15';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -290,6 +296,43 @@
           'update.invalidVersion': '请输入有效版本号（例如 1.2.3）',
           'update.stopProfile': '当前 profile 不能热卸载该插件，请重启 DSH 后再试。',
           'update.unsupportedTitle': '无法自动安装',
+          'page.promptsTitle': '工作区提示词',
+          'page.promptsDesc': '为每个工作区保存可复用的提示词。开启后，新会话行的 Agent 预设右侧会出现一个下拉列表，选择即可把提示词填入输入框（可继续编辑），或点提示词右侧的发送按钮直接发出。',
+          'page.promptsHow': '先启用本功能，再切到「工作区提示词」标签页创建提示词；提示词按工作区隔离，没有标题时显示开头几个字。',
+          'prompts.tabFeatures': '功能',
+          'prompts.tabManage': '工作区提示词',
+          'prompts.sectionTitle': '统一管理各工作区的提示词',
+          'prompts.sectionSub': '提示词保存在当前浏览器，仅你可见；选择后填入输入框，可继续编辑再发送。',
+          'prompts.new': '新建提示词',
+          'prompts.cancel': '取消',
+          'prompts.save': '保存',
+          'prompts.create': '创建',
+          'prompts.edit': '编辑',
+          'prompts.delete': '删除',
+          'prompts.confirmDelete': '确认删除？',
+          'prompts.titleLabel': '标题（可选）',
+          'prompts.titlePlaceholder': '给它起个名字，留空则显示开头文字',
+          'prompts.textLabel': '提示词正文',
+          'prompts.textPlaceholder': '粘贴或输入一段可复用的提示词…',
+          'prompts.empty': '还没有提示词，点「新建提示词」创建第一个吧。',
+          'prompts.workspaceLabel': '工作区',
+          'prompts.workspacePlaceholder': '例如：默认工作区；留空则对所有工作区显示',
+          'prompts.anyWorkspace': '所有工作区',
+          'prompts.summaryFallback': '未命名提示词',
+          'prompts.saved': '提示词已保存',
+          'prompts.deleted': '提示词已删除',
+          'prompts.filled': '已填入输入框',
+          'prompts.sent': '已发送提示词',
+          'prompts.fillFailed': '填入输入框失败：{message}',
+          'prompts.sendFailed': '发送失败：{message}',
+          'prompts.requireText': '请输入提示词正文',
+          'prompts.untitled': '未命名',
+          'prompts.itemsCount': '{count} 条提示词',
+          'prompts.pick': '提示词',
+          'prompts.pickHint': '选择要填入输入框的提示词',
+          'prompts.sendDirect': '直接发送',
+          'prompts.createNew': '创建新的提示词…',
+          'prompts.noPrompts': '这个工作区还没有提示词',
         },
         en: {
           'panel.title': 'Power-Up',
@@ -500,6 +543,43 @@
           'update.invalidVersion': 'Enter a valid version, for example 1.2.3.',
           'update.stopProfile': 'This profile cannot hot-remove the plugin; restart DSH and try again.',
           'update.unsupportedTitle': 'Cannot install automatically',
+          'page.promptsTitle': 'Workspace prompts',
+          'page.promptsDesc': 'Save reusable prompts per workspace. When enabled, a dropdown appears next to the Agent preset in the New Session row: pick a prompt to fill the composer (still editable), or click its send button to send it right away.',
+          'page.promptsHow': 'Enable this feature, then open the "Workspace prompts" tab to create prompts. Prompts are scoped per workspace; without a title the first few characters are shown.',
+          'prompts.tabFeatures': 'Features',
+          'prompts.tabManage': 'Workspace prompts',
+          'prompts.sectionTitle': 'Manage prompts for every workspace',
+          'prompts.sectionSub': 'Prompts live in this browser and are only visible to you. Picking one fills the composer so you can edit before sending.',
+          'prompts.new': 'New prompt',
+          'prompts.cancel': 'Cancel',
+          'prompts.save': 'Save',
+          'prompts.create': 'Create',
+          'prompts.edit': 'Edit',
+          'prompts.delete': 'Delete',
+          'prompts.confirmDelete': 'Delete this prompt?',
+          'prompts.titleLabel': 'Title (optional)',
+          'prompts.titlePlaceholder': 'Give it a name; leave blank to show the first words',
+          'prompts.textLabel': 'Prompt text',
+          'prompts.textPlaceholder': 'Paste or type a reusable prompt…',
+          'prompts.empty': 'No prompts yet. Click "New prompt" to create one.',
+          'prompts.workspaceLabel': 'Workspace',
+          'prompts.workspacePlaceholder': 'e.g. Default workspace; leave blank for all workspaces',
+          'prompts.anyWorkspace': 'All workspaces',
+          'prompts.summaryFallback': 'Untitled prompt',
+          'prompts.saved': 'Prompt saved',
+          'prompts.deleted': 'Prompt deleted',
+          'prompts.filled': 'Filled into the composer',
+          'prompts.sent': 'Prompt sent',
+          'prompts.fillFailed': 'Could not fill the composer: {message}',
+          'prompts.sendFailed': 'Could not send: {message}',
+          'prompts.requireText': 'Enter some prompt text',
+          'prompts.untitled': 'Untitled',
+          'prompts.itemsCount': '{count} prompts',
+          'prompts.pick': 'Prompt',
+          'prompts.pickHint': 'Pick a prompt to fill the composer',
+          'prompts.sendDirect': 'Send now',
+          'prompts.createNew': 'Create a new prompt…',
+          'prompts.noPrompts': 'No prompts for this workspace yet',
         },
       };
 
@@ -537,6 +617,7 @@
         jobStop: true,
         update: true,
         locateSession: true,
+        workspacePrompts: true,
         oneClickEnable: true,
         oneClickRestart: true,
       };
@@ -555,6 +636,7 @@
               jobStop: parsed.jobStop !== false,
               update: parsed.update !== false,
               locateSession: parsed.locateSession !== false,
+              workspacePrompts: parsed.workspacePrompts !== false,
               oneClickEnable: parsed.oneClickEnable !== false,
               oneClickRestart: parsed.oneClickRestart !== false,
             };
@@ -596,6 +678,88 @@
       function useSettings() {
         const [value, setValue] = useState(getSettings);
         useEffect(() => subscribeSettings(() => setValue(getSettings())), []);
+        return value;
+      }
+
+      // ------------------------------------------------------------------
+      // Workspace prompts store (localStorage, shared by the hero dropdown and
+      // the management tab of the Power-Up page).
+      // ------------------------------------------------------------------
+      /** @returns {Array<{id:string,title:string,text:string,workspaceId:string}>} */
+      function readPrompts() {
+        try {
+          const parsed = JSON.parse(localStorage.getItem(PROMPTS_KEY) || '[]');
+          if (Array.isArray(parsed)) {
+            return parsed.filter((item) => item !== null && typeof item === 'object')
+              .map((item) => ({
+                id: typeof item.id === 'string' && item.id !== '' ? item.id : newId(),
+                title: typeof item.title === 'string' ? item.title : '',
+                text: typeof item.text === 'string' ? item.text : '',
+                workspaceId: typeof item.workspaceId === 'string' ? item.workspaceId : '',
+              }));
+          }
+        } catch {
+          /* Private mode or a corrupted value: start from an empty list. */
+        }
+        return [];
+      }
+
+      function writePrompts(list) {
+        try {
+          localStorage.setItem(PROMPTS_KEY, JSON.stringify(Array.isArray(list) ? list : []));
+        } catch {
+          /* The in-memory list still works for this page. */
+        }
+        emitPrompts();
+      }
+
+      const promptsListeners = new Set();
+      function subscribePrompts(listener) {
+        promptsListeners.add(listener);
+        return () => promptsListeners.delete(listener);
+      }
+      function emitPrompts() {
+        for (const listener of [...promptsListeners]) {
+          try {
+            listener();
+          } catch {
+            /* A listener must not break the write. */
+          }
+        }
+      }
+
+      function newId() {
+        try {
+          return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : `p-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+        } catch {
+          return `p-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+        }
+      }
+
+      /**
+       * A prompt is visible in a workspace when it is global ('') or scoped to
+       * that exact workspace. The dropdown never shows prompts of other workspaces.
+       */
+      function promptsForWorkspace(list, workspaceId) {
+        const id = typeof workspaceId === 'string' ? workspaceId : '';
+        return (Array.isArray(list) ? list : []).filter((item) => item.workspaceId === '' || item.workspaceId === id);
+      }
+
+      /** Title, else the first characters of the body, else a localized fallback. */
+      function promptLabel(prompt, t) {
+        if (prompt === null || typeof prompt !== 'object') return '';
+        const title = typeof prompt.title === 'string' ? prompt.title.trim() : '';
+        if (title !== '') return title;
+        const text = typeof prompt.text === 'string' ? prompt.text.trim() : '';
+        if (text !== '') return [...text].slice(0, 18).join('') + (text.length > 18 ? '…' : '');
+        return t('prompts.summaryFallback');
+      }
+
+      function usePrompts() {
+        const [value, setValue] = useState(readPrompts);
+        useEffect(() => subscribePrompts(() => setValue(readPrompts())), []);
         return value;
       }
 
@@ -2312,6 +2476,337 @@
       }
 
       // ------------------------------------------------------------------
+      // Workspace prompts: hero dropdown
+      // ------------------------------------------------------------------
+      /**
+       * Module-level channel used by the hero's "create a new prompt" action to
+       * open the Power-Up page on the prompt-management tab.
+       */
+      const promptUi = { listeners: new Set(), pendingCreateAt: 0 };
+      const CREATE_REQUEST_TTL_MS = 8000;
+      function requestPromptsTab(view) {
+        if (view === 'create') promptUi.pendingCreateAt = Date.now();
+        try {
+          const layout = ctxRef.current?.get?.('layout');
+          if (layout !== undefined && typeof layout.selectPanel === 'function') layout.selectPanel('powerup');
+        } catch {
+          /* Navigation is a convenience; the page is reachable from the sidebar. */
+        }
+        for (const listener of [...promptUi.listeners]) {
+          try {
+            listener(view);
+          } catch {
+            /* A listener must not break the others. */
+          }
+        }
+      }
+      /** Consume a fresh "create prompt" intent from the hero dropdown. */
+      function consumeCreateRequest() {
+        const at = promptUi.pendingCreateAt;
+        if (at === 0 || Date.now() - at > CREATE_REQUEST_TTL_MS) return false;
+        promptUi.pendingCreateAt = 0;
+        return true;
+      }
+      const ctxRef = { current: null };
+      function subscribePromptsTab(listener) {
+        if (typeof listener !== 'function') return () => {};
+        promptUi.listeners.add(listener);
+        return () => {
+          promptUi.listeners.delete(listener);
+        };
+      }
+
+      /** Last-picked prompt id per workspace, for the trigger label. */
+      function readLastPrompt(workspaceId) {
+        try {
+          const parsed = JSON.parse(localStorage.getItem(PROMPTS_LAST_KEY) || '{}');
+          if (parsed !== null && typeof parsed === 'object' && typeof workspaceId === 'string') {
+            return typeof parsed[workspaceId] === 'string' ? parsed[workspaceId] : '';
+          }
+        } catch {
+          /* Fall through. */
+        }
+        return '';
+      }
+      function writeLastPrompt(workspaceId, id) {
+        try {
+          const parsed = JSON.parse(localStorage.getItem(PROMPTS_LAST_KEY) || '{}');
+          const map = parsed !== null && typeof parsed === 'object' ? parsed : {};
+          if (typeof workspaceId === 'string') map[workspaceId] = id;
+          localStorage.setItem(PROMPTS_LAST_KEY, JSON.stringify(map));
+        } catch {
+          /* Non-critical: the label just falls back to the generic hint. */
+        }
+      }
+
+      /**
+       * Resolve the workspace a New Session belongs to from the live workspace
+       * snapshot. The hero renders only with a sessionId; workspaces own it by
+       * `sessionIds`, so that is the authoritative lookup.
+       */
+      function resolveWorkspaceIdFromSnapshot(snapshot, sessionId) {
+        const items = snapshot !== null && typeof snapshot === 'object' && Array.isArray(snapshot.items)
+          ? snapshot.items
+          : [];
+        for (const item of items) {
+          if (item === null || typeof item !== 'object') continue;
+          const ids = Array.isArray(item.sessionIds) ? item.sessionIds : [];
+          if (typeof sessionId === 'string' && ids.indexOf(sessionId) !== -1) {
+            return typeof item.workspaceId === 'string' ? item.workspaceId : '';
+          }
+        }
+        return '';
+      }
+
+      /**
+       * Open the prompt picker next to the hero control. Returns a disposer.
+       * DOM-based like the session switcher so it survives host re-renders.
+       */
+      function openPromptPopover({ anchor, t, items, onPick, onSend, onCreate, onDispose, placement }) {
+        if (anchor === null || anchor === undefined || typeof document === 'undefined') return () => {};
+        const element = document.createElement('div');
+        element.className = 'dsh-powerup-prompt-pop';
+        element.setAttribute('role', 'dialog');
+        element.setAttribute('data-powerup-prompt-pop', '');
+        document.body.appendChild(element);
+        const place = () => {
+          try {
+            const pos = (typeof placement === 'function' ? placement : popoverPlacement)(anchor, 260, 340);
+            element.style.width = pos.width + 'px';
+            element.style.maxHeight = pos.maxHeight + 'px';
+            element.style.left = pos.left + 'px';
+            if (typeof pos.bottom === 'number') {
+              element.style.bottom = pos.bottom + 'px';
+              element.style.top = 'auto';
+            } else {
+              element.style.top = typeof pos.top === 'number' ? pos.top + 'px' : '0px';
+              element.style.bottom = 'auto';
+            }
+          } catch {
+            /* The popover still renders at its CSS default position. */
+          }
+        };
+        const head = document.createElement('div');
+        head.className = 'dsh-powerup-prompt-pop-head';
+        head.textContent = t('prompts.pick');
+        element.appendChild(head);
+        const list = document.createElement('div');
+        list.className = 'dsh-powerup-prompt-pop-list';
+        if (items.length === 0) {
+          const empty = document.createElement('div');
+          empty.className = 'dsh-powerup-prompt-pop-empty';
+          empty.textContent = t('prompts.noPrompts');
+          element.appendChild(empty);
+        } else {
+          for (const prompt of items) {
+            const row = document.createElement('div');
+            row.className = 'dsh-powerup-prompt-pop-item';
+            const main = document.createElement('button');
+            main.type = 'button';
+            main.className = 'dsh-powerup-prompt-pop-main';
+            main.setAttribute('data-prompt-id', prompt.id);
+            const name = document.createElement('span');
+            name.className = 'dsh-powerup-prompt-pop-name';
+            name.textContent = promptLabel(prompt, t);
+            const preview = document.createElement('span');
+            preview.className = 'dsh-powerup-prompt-pop-preview';
+            preview.textContent = [...(prompt.text || '').trim()].slice(0, 40).join('');
+            main.append(name, preview);
+            main.addEventListener('click', (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              dispose();
+              onPick(prompt);
+            });
+            const send = document.createElement('button');
+            send.type = 'button';
+            send.className = 'dsh-powerup-prompt-pop-send';
+            send.setAttribute('data-prompt-send', prompt.id);
+            send.textContent = t('prompts.sendDirect');
+            send.addEventListener('click', (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              dispose();
+              onSend(prompt);
+            });
+            row.append(main, send);
+            list.appendChild(row);
+          }
+          element.appendChild(list);
+          const sep = document.createElement('div');
+          sep.className = 'dsh-powerup-prompt-pop-sep';
+          element.appendChild(sep);
+        }
+        const create = document.createElement('button');
+        create.type = 'button';
+        create.className = 'dsh-powerup-prompt-pop-create';
+        create.textContent = t('prompts.createNew');
+        create.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          dispose();
+          onCreate();
+        });
+        element.appendChild(create);
+        place();
+        const reveal = () => element.classList.add('is-open');
+        if (typeof requestAnimationFrame === 'function') requestAnimationFrame(reveal);
+        else reveal();
+
+        const onOutside = (event) => {
+          if (element.contains(event.target)) return;
+          if (anchor !== null && typeof anchor.contains === 'function' && anchor.contains(event.target)) return;
+          dispose();
+        };
+        const onKey = (event) => {
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            dispose();
+          }
+        };
+        const onResize = () => place();
+        const onScroll = (event) => {
+          if (element.contains(event.target)) return;
+          place();
+        };
+        let disposed = false;
+        function dispose() {
+          if (disposed) return;
+          disposed = true;
+          document.removeEventListener('pointerdown', onOutside, true);
+          document.removeEventListener('keydown', onKey, true);
+          window.removeEventListener?.('resize', onResize, true);
+          window.removeEventListener?.('scroll', onScroll, true);
+          element.classList.remove('is-open');
+          element.remove();
+          if (typeof onDispose === 'function') onDispose();
+        }
+        document.addEventListener('pointerdown', onOutside, true);
+        document.addEventListener('keydown', onKey, true);
+        window.addEventListener?.('resize', onResize, true);
+        window.addEventListener?.('scroll', onScroll, true);
+        return dispose;
+      }
+
+      /**
+       * Slot occupant for `conversation.hero.options`. Choosing a prompt fills
+       * the composer so the user can keep editing; the per-row send button
+       * submits immediately.
+       */
+      function HeroPromptsControl({ sessionId, inputActions, useWorkspaces, useInput }) {
+        const settings = useSettings();
+        const prompts = usePrompts();
+        const [, forceLocale] = useState(0);
+        const anchorRef = useRef(null);
+        const disposeRef = useRef(null);
+        const t = (key, params) => translateCurrent(key, params);
+        useEffect(() => {
+          const locale = ctxRef.current?.get?.('locale');
+          if (locale === undefined || typeof locale.subscribe !== 'function') return undefined;
+          return locale.subscribe(() => forceLocale((value) => value + 1));
+        }, []);
+        useEffect(() => () => {
+          if (typeof disposeRef.current === 'function') disposeRef.current();
+        }, []);
+
+        const workspaceSelector = useMemo(() => (snapshot) => resolveWorkspaceIdFromSnapshot(snapshot, sessionId), [sessionId]);
+        const workspaceId = typeof useWorkspaces === 'function'
+          ? useWorkspaces(workspaceSelector) ?? ''
+          : '';
+        if (!settings.workspacePrompts) return null;
+
+        const visible = promptsForWorkspace(prompts, workspaceId);
+        const lastId = readLastPrompt(workspaceId);
+        const last = visible.find((p) => p.id === lastId);
+        const label = last !== undefined ? promptLabel(last, t) : t('prompts.pick');
+
+        const apply = (prompt, send) => {
+          const actions = inputActions;
+          if (actions === null || actions === undefined || typeof actions.setDraft !== 'function') {
+            console.warn('[dsh-powerup] no input actions on this session');
+            return;
+          }
+          try {
+            const text = prompt.text || '';
+            // Filling should not throw away a draft the user is already typing.
+            // Use a revision-guarded insertion to append as one undo step; fall
+            // back to setDraft when there is no insertion face or the draft
+            // changed between capture and insert.
+            let inserted = false;
+            if (!send && typeof actions.captureInsertion === 'function' && typeof actions.insertText === 'function') {
+              try {
+                const span = actions.captureInsertion();
+                inserted = actions.insertText(text, span) === true;
+              } catch {
+                inserted = false;
+              }
+            }
+            if (!inserted) actions.setDraft(text);
+            writeLastPrompt(workspaceId, prompt.id);
+            if (send) {
+              if (typeof actions.submit === 'function') actions.submit();
+            } else {
+              if (typeof actions.persistDraft === 'function') actions.persistDraft();
+              if (typeof actions.focus === 'function') actions.focus();
+            }
+          } catch (error) {
+            console.warn('[dsh-powerup] prompt apply failed:', error?.message ?? error);
+          }
+        };
+
+        return h('button', {
+          type: 'button',
+          ref: anchorRef,
+          className: 'dsh-powerup-prompt-trigger',
+          'data-powerup-prompts': '',
+          'aria-haspopup': 'menu',
+          'aria-expanded': 'false',
+          title: t('prompts.pickHint'),
+          onClick: (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (typeof disposeRef.current === 'function') {
+              disposeRef.current();
+              return;
+            }
+            const anchor = anchorRef.current;
+            if (anchor === null || anchor === undefined) return;
+            anchor.setAttribute('aria-expanded', 'true');
+            const dispose = openPromptPopover({
+              anchor,
+              t,
+              items: visible,
+              placement: (node) => popoverPlacement(node, 260, 340),
+              onPick: (prompt) => apply(prompt, false),
+              onSend: (prompt) => apply(prompt, true),
+              onCreate: () => requestPromptsTab('create'),
+              onDispose: () => {
+                disposeRef.current = null;
+                try {
+                  anchor.setAttribute('aria-expanded', 'false');
+                } catch {
+                  /* The host may have replaced the anchor. */
+                }
+              },
+            });
+            disposeRef.current = dispose;
+          },
+        },
+          h('span', { className: 'dsh-powerup-prompt-trigger-icon', 'aria-hidden': 'true' },
+            h('svg', { width: 14, height: 14, viewBox: '0 0 16 16', fill: 'none' },
+              h('path', { d: 'M3 4.5h10M3 8h10M3 11.5h6', stroke: 'currentColor', strokeWidth: 1.3, strokeLinecap: 'round' }),
+            ),
+          ),
+          h('span', { className: 'dsh-powerup-prompt-trigger-label' }, label),
+          h('span', { className: 'dsh-powerup-prompt-trigger-chevron', 'aria-hidden': 'true' },
+            h('svg', { width: 10, height: 10, viewBox: '0 0 16 16', fill: 'none' },
+              h('path', { d: 'm4 6 4 4 4-4', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round', strokeLinejoin: 'round' }),
+            ),
+          ),
+        );
+      }
+
+      // ------------------------------------------------------------------
       // Icons (16-grid, currentColor, host stroke convention)
       // ------------------------------------------------------------------
       const ICON_VIEW_BOX = '0 0 16 16';
@@ -2899,6 +3394,72 @@ marker is only present while our button is mounted, and the host's
 [data-sidebar-workspace-header] .dsh-powerup-locate:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
 [data-sidebar-workspace-header] .dsh-powerup-locate:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:1px}
 [data-sidebar-workspace-header] .dsh-powerup-locate svg{width:16px;height:16px}
+`;
+
+      const PROMPTS_CSS = `
+/* New Session hero: dropdown trigger, portaled popover, and per-row send. */
+.dsh-powerup-prompt-trigger{display:inline-flex;align-items:center;gap:5px;max-width:190px;height:28px;padding:0 9px;border:.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;line-height:18px;cursor:pointer;transition:background .12s ease,color .12s ease,border-color .12s ease}
+.dsh-powerup-prompt-trigger:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-border-l3)}
+.dsh-powerup-prompt-trigger[aria-expanded=true]{border-color:var(--dsw-alias-state-business-primary);color:var(--dsw-alias-label-primary)}
+.dsh-powerup-prompt-trigger:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:1px}
+.dsh-powerup-prompt-trigger-icon{flex:none;display:inline-flex;align-items:center;color:var(--dsw-alias-label-tertiary)}
+.dsh-powerup-prompt-trigger-label{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dsh-powerup-prompt-trigger-chevron{flex:none;display:inline-flex;color:var(--dsw-alias-label-tertiary);transition:transform .15s ease}
+.dsh-powerup-prompt-trigger[aria-expanded=true] .dsh-powerup-prompt-trigger-chevron{transform:rotate(180deg)}
+.dsh-powerup-prompt-pop{position:fixed;z-index:1600;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;border:0;border-radius:var(--dsw-radius-panel,14px);background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);font-size:12.5px;line-height:1.5;opacity:0;transform:translateY(-4px);transition:opacity .12s ease,transform .12s ease;pointer-events:auto;--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2)}
+.dsh-powerup-prompt-pop.is-open{opacity:1;transform:none}
+.dsh-powerup-prompt-pop-head{display:flex;align-items:center;gap:6px;padding:8px 11px 7px;color:var(--dsw-alias-label-tertiary);font-size:10.5px;font-weight:600;letter-spacing:.03em}
+.dsh-powerup-prompt-pop-list{display:flex;flex-direction:column;gap:1px;padding:4px;overflow-y:auto}
+.dsh-powerup-prompt-pop-item{display:flex;align-items:center;gap:4px;width:100%;min-height:34px;padding:2px 4px 2px 7px;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;text-align:left}
+.dsh-powerup-prompt-pop-item:hover{background:var(--dsw-alias-interactive-bg-hover)}
+.dsh-powerup-prompt-pop-main{flex:1 1 auto;display:flex;flex-direction:column;gap:1px;min-width:0;padding:3px 0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.dsh-powerup-prompt-pop-name{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;line-height:18px}
+.dsh-powerup-prompt-pop-preview{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-tertiary);font-size:10.5px;line-height:15px}
+.dsh-powerup-prompt-pop-send{flex:none;display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 7px;border:.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-secondary);font:inherit;font-size:10.5px;line-height:16px;white-space:nowrap;cursor:pointer;transition:background .12s ease,color .12s ease,border-color .12s ease}
+.dsh-powerup-prompt-pop-send:hover{border-color:var(--dsw-alias-state-business-primary);background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-brand-primary)}
+.dsh-powerup-prompt-pop-send:focus-visible,.dsh-powerup-prompt-pop-main:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:-1px}
+.dsh-powerup-prompt-pop-sep{height:1px;margin:4px 6px;background:var(--dsw-alias-border-l1)}
+.dsh-powerup-prompt-pop-create{display:flex;align-items:center;gap:7px;width:100%;min-height:32px;padding:0 10px;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-brand-primary);font:inherit;font-size:12px;line-height:18px;cursor:pointer}
+.dsh-powerup-prompt-pop-create:hover{background:var(--dsw-alias-interactive-bg-hover)}
+.dsh-powerup-prompt-pop-empty{padding:12px 10px;color:var(--dsw-alias-label-tertiary);font-size:11.5px;line-height:1.55;text-align:center}
+/* DSH-memory-style tab bar: inline segmented control. */
+.dsh-powerup-tabs{display:inline-flex;gap:2px;padding:2px;margin-bottom:16px;border:1px solid var(--dsw-alias-border-l1);border-radius:9px;background:var(--dsw-alias-bg-layer-2)}
+.dsh-powerup-tab{padding:4px 14px;border:0;border-radius:7px;background:none;color:var(--dsw-alias-label-secondary);font:inherit;font-size:13px;line-height:1.6;cursor:pointer;transition:background .12s ease,color .12s ease}
+.dsh-powerup-tab:hover{color:var(--dsw-alias-label-primary)}
+.dsh-powerup-tab.on{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-brand-primary);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.10)}
+.dsh-powerup-tab:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:1px}
+/* Prompt management: head + cards + fields, styled after dsh-memory setcard/hook-card. */
+.dsh-powerup-prompt-head{display:flex;align-items:flex-end;gap:12px;padding:0 2px 2px}
+.dsh-powerup-prompt-head-title{font-size:14px;font-weight:600;line-height:1.35}
+.dsh-powerup-prompt-head-sub{font-size:11.5px;color:var(--dsw-alias-label-secondary);line-height:1.5;margin-top:2px}
+.dsh-powerup-prompt-head .dsh-powerup-prompt-new{margin-left:auto}
+.dsh-powerup-prompt-new{height:30px;padding:0 12px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font:inherit;font-size:12.5px;line-height:1.5;cursor:pointer;transition:border-color .12s ease,color .12s ease}
+.dsh-powerup-prompt-new:hover{border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-brand-primary)}
+.dsh-powerup-prompt-new:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:1px}
+.dsh-powerup-prompt-list{display:flex;flex-direction:column;gap:9px;margin-top:12px}
+.dsh-powerup-prompt-card{border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1);overflow:hidden}
+.dsh-powerup-prompt-card-head{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--dsw-alias-border-l1);background:linear-gradient(120deg,color-mix(in srgb,var(--dsw-alias-brand-primary) 5%,var(--dsw-alias-bg-layer-1)),var(--dsw-alias-bg-layer-1) 62%);flex-wrap:wrap}
+.dsh-powerup-prompt-card.folded .dsh-powerup-prompt-card-head{border-bottom:0}
+.dsh-powerup-prompt-name{font-size:13px;font-weight:600;line-height:1.4;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dsh-powerup-prompt-scope{flex:none;padding:0 7px;border:1px solid var(--dsw-alias-border-l1);border-radius:999px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font-size:10px;line-height:1.7}
+.dsh-powerup-prompt-card-actions{display:flex;align-items:center;gap:4px;margin-left:auto;flex-wrap:wrap}
+.dsh-powerup-linkbtn{background:none;border:0;padding:2px 4px;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;line-height:1.7;cursor:pointer;border-radius:5px}
+.dsh-powerup-linkbtn:hover{color:var(--dsw-alias-brand-primary);background:var(--dsw-alias-interactive-bg-hover)}
+.dsh-powerup-linkbtn.danger:hover{color:var(--dsw-alias-state-error-primary,#d33)}
+.dsh-powerup-prompt-card-body{padding:11px 13px}
+.dsh-powerup-prompt-preview{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--dsw-alias-label-secondary);font-size:11.5px;line-height:1.55}
+.dsh-powerup-prompt-form{display:flex;flex-direction:column;gap:10px;padding:11px 13px;border-top:1px solid var(--dsw-alias-border-l1)}
+.dsh-powerup-prompt-field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.dsh-powerup-prompt-field-label{color:var(--dsw-alias-label-secondary);font-size:11.5px;line-height:1.5}
+.dsh-powerup-prompt-input{box-sizing:border-box;width:100%;min-height:32px;padding:6px 9px;border:.5px solid var(--dsw-alias-border-l4);border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font:inherit;font-size:12.5px;line-height:1.5;outline:none;transition:border-color .12s ease}
+.dsh-powerup-prompt-input:focus{border-color:var(--dsw-alias-state-business-primary)}
+.dsh-powerup-prompt-input::placeholder{color:var(--dsw-alias-label-caption)}
+.dsh-powerup-prompt-textarea{min-height:110px;resize:vertical;font-family:var(--dsw-font-family-code,ui-monospace,SFMono-Regular,Consolas,monospace);font-size:11.5px;line-height:1.6}
+.dsh-powerup-prompt-form-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px}
+.dsh-powerup-prompt-form-actions .dsh-powerup-prompt-new{background:var(--dsw-alias-button-primary-fill,var(--dsw-alias-brand-primary));color:var(--dsw-alias-label-primary-foreground);border-color:transparent}
+.dsh-powerup-prompt-form-actions .dsh-powerup-prompt-new:hover{background:var(--dsw-alias-button-primary-hover,var(--dsw-alias-brand-primary));color:var(--dsw-alias-label-primary-foreground)}
+.dsh-powerup-prompt-empty{padding:18px 12px;border:1px dashed var(--dsw-alias-border-l2);border-radius:12px;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:1.6;text-align:center}
+@media (prefers-reduced-motion:reduce){.dsh-powerup-prompt-pop,.dsh-powerup-prompt-trigger-chevron{transition:none}}
 `;
 
       /** Max display length of a session option, in Unicode code points. */
@@ -3747,7 +4308,7 @@ marker is only present while our button is mounted, and the host's
         try {
           const style = document.createElement('style');
           style.setAttribute('data-dsh-powerup', '');
-          style.textContent = CSS + '\n' + LAUNCHER_CSS + '\n' + SESSION_SWITCH_CSS + '\n' + LOCATE_CSS;
+          style.textContent = CSS + '\n' + LAUNCHER_CSS + '\n' + SESSION_SWITCH_CSS + '\n' + LOCATE_CSS + '\n' + PROMPTS_CSS;
           document.head.appendChild(style);
           ctx.effect(() => () => style.remove(), 'dsh-powerup: styles');
         } catch (error) {
@@ -6648,16 +7209,191 @@ marker is only present while our button is mounted, and the host's
       }
 
       // ------------------------------------------------------------------
-      // Sidebar page
+      // Prompt management tab (dsh-memory-style cards)
       // ------------------------------------------------------------------
-      function PowerUpPage({ ctx }) {
-        const settings = useSettings();
+      function PromptManager({ ctx }) {
+        const prompts = usePrompts();
         const [, forceLocale] = useState(0);
+        const [expanded, setExpanded] = useState(null);
+        const [draft, setDraft] = useState(null);
+        const t = (key, params) => translateCurrent(key, params);
         useEffect(() => {
           const locale = ctx.get('locale');
           if (locale === undefined || typeof locale.subscribe !== 'function') return undefined;
           return locale.subscribe(() => forceLocale((value) => value + 1));
         }, [ctx]);
+        const workspaces = (() => {
+          try {
+            const service = ctx.get('workspaces');
+            const snapshot = service?.list?.getSnapshot?.();
+            return Array.isArray(snapshot?.items) ? snapshot.items : [];
+          } catch {
+            return [];
+          }
+        })();
+        useEffect(() => {
+          if (consumeCreateRequest()) {
+            setDraft({ id: '', title: '', text: '', workspaceId: '' });
+            setExpanded('new');
+          }
+          return subscribePromptsTab((view) => {
+            if (view === 'create') {
+              setDraft({ id: '', title: '', text: '', workspaceId: '' });
+              setExpanded('new');
+            }
+          });
+        }, []);
+
+        const beginCreate = () => {
+          setDraft({ id: '', title: '', text: '', workspaceId: '' });
+          setExpanded('new');
+        };
+        const beginEdit = (prompt) => {
+          setDraft({ ...prompt });
+          setExpanded(prompt.id);
+        };
+        const cancelEdit = () => {
+          setDraft(null);
+          setExpanded(null);
+        };
+        const save = () => {
+          if (draft === null) return;
+          const text = typeof draft.text === 'string' ? draft.text.trim() : '';
+          if (text === '') {
+            console.warn('[dsh-powerup] empty prompt text ignored');
+            return;
+          }
+          const record = {
+            id: draft.id || newId(),
+            title: typeof draft.title === 'string' ? draft.title.trim() : '',
+            text,
+            workspaceId: typeof draft.workspaceId === 'string' ? draft.workspaceId.trim() : '',
+          };
+          const next = prompts.filter((p) => p.id !== record.id);
+          next.push(record);
+          writePrompts(next);
+          cancelEdit();
+        };
+        const remove = (prompt) => {
+          if (typeof window !== 'undefined' && typeof window.confirm === 'function'
+            && !window.confirm(t('prompts.confirmDelete'))) return;
+          writePrompts(prompts.filter((p) => p.id !== prompt.id));
+        };
+        const field = (label, key, placeholder, className) => h('label', { className: 'dsh-powerup-prompt-field' },
+          h('span', { className: 'dsh-powerup-prompt-field-label' }, label),
+          key === 'text'
+            ? h('textarea', {
+              className: 'dsh-powerup-prompt-input dsh-powerup-prompt-textarea',
+              value: draft?.[key] ?? '',
+              placeholder,
+              onChange: (event) => setDraft((current) => ({ ...current, [key]: event.target.value })),
+            })
+            : h('input', {
+              className: 'dsh-powerup-prompt-input',
+              type: 'text',
+              value: draft?.[key] ?? '',
+              placeholder,
+              onChange: (event) => setDraft((current) => ({ ...current, [key]: event.target.value })),
+            }),
+        );
+
+        const form = h('div', { className: 'dsh-powerup-prompt-form' },
+          field(t('prompts.titleLabel'), 'title', t('prompts.titlePlaceholder')),
+          h('label', { className: 'dsh-powerup-prompt-field' },
+            h('span', { className: 'dsh-powerup-prompt-field-label' }, t('prompts.workspaceLabel')),
+            h('select', {
+              className: 'dsh-powerup-prompt-input',
+              value: draft?.workspaceId ?? '',
+              onChange: (event) => setDraft((current) => ({ ...current, workspaceId: event.target.value })),
+            },
+              h('option', { value: '' }, t('prompts.anyWorkspace')),
+              workspaces.map((ws) => h('option', {
+                key: ws.workspaceId,
+                value: ws.workspaceId,
+              }, ws.title || ws.path || ws.workspaceId)),
+            ),
+          ),
+          field(t('prompts.textLabel'), 'text', t('prompts.textPlaceholder')),
+          h('div', { className: 'dsh-powerup-prompt-form-actions' },
+            h('button', { type: 'button', className: 'dsh-powerup-prompt-new', onClick: cancelEdit }, t('prompts.cancel')),
+            h('button', { type: 'button', className: 'dsh-powerup-prompt-new', onClick: save }, t('prompts.save')),
+          ),
+        );
+
+        const cards = prompts.length === 0
+          ? h('div', { className: 'dsh-powerup-prompt-empty' }, t('prompts.empty'))
+          : h('div', { className: 'dsh-powerup-prompt-list' }, prompts.map((prompt) => {
+            const isExpanded = expanded === prompt.id;
+            const preview = [...(prompt.text || '').trim()].slice(0, 80).join('');
+            return h('section', {
+              key: prompt.id,
+              className: 'dsh-powerup-prompt-card' + (isExpanded ? '' : ' folded'),
+            },
+              h('div', { className: 'dsh-powerup-prompt-card-head' },
+                h('span', { className: 'dsh-powerup-prompt-name' }, promptLabel(prompt, t)),
+                h('span', { className: 'dsh-powerup-prompt-scope' },
+                  prompt.workspaceId === ''
+                    ? t('prompts.anyWorkspace')
+                    : (workspaces.find((ws) => ws.workspaceId === prompt.workspaceId)?.title
+                      || prompt.workspaceId)),
+                h('div', { className: 'dsh-powerup-prompt-card-actions' },
+                  h('button', {
+                    type: 'button',
+                    className: 'dsh-powerup-linkbtn',
+                    onClick: () => (isExpanded ? cancelEdit() : beginEdit(prompt)),
+                  }, isExpanded ? t('prompts.cancel') : t('prompts.edit')),
+                  h('button', {
+                    type: 'button',
+                    className: 'dsh-powerup-linkbtn danger',
+                    onClick: () => remove(prompt),
+                  }, t('prompts.delete')),
+                ),
+              ),
+              isExpanded ? form : (preview !== ''
+                ? h('div', { className: 'dsh-powerup-prompt-card-body' },
+                  h('p', { className: 'dsh-powerup-prompt-preview' }, preview))
+                : null),
+            );
+          }));
+
+        return h('div', null,
+          h('div', { className: 'dsh-powerup-prompt-head' },
+            h('div', null,
+              h('div', { className: 'dsh-powerup-prompt-head-title' }, t('prompts.sectionTitle')),
+              h('div', { className: 'dsh-powerup-prompt-head-sub' }, t('prompts.sectionSub')),
+            ),
+            h('button', {
+              type: 'button',
+              className: 'dsh-powerup-prompt-new',
+              onClick: beginCreate,
+            }, t('prompts.new')),
+          ),
+          expanded === 'new'
+            ? h('section', { className: 'dsh-powerup-prompt-card' }, form)
+            : null,
+          cards,
+        );
+      }
+
+      // ------------------------------------------------------------------
+      // Sidebar page
+      // ------------------------------------------------------------------
+      function PowerUpPage({ ctx }) {
+        const settings = useSettings();
+        const [, forceLocale] = useState(0);
+        const [tab, setTab] = useState('features');
+        useEffect(() => {
+          const locale = ctx.get('locale');
+          if (locale === undefined || typeof locale.subscribe !== 'function') return undefined;
+          return locale.subscribe(() => forceLocale((value) => value + 1));
+        }, [ctx]);
+        useEffect(() => {
+          if (promptUi.pendingCreateAt !== 0) setTab('prompts');
+          return subscribePromptsTab(() => setTab('prompts'));
+        }, []);
+        useEffect(() => {
+          if (settings.workspacePrompts === false && tab === 'prompts') setTab('features');
+        }, [settings.workspacePrompts, tab]);
         const t = (key, params) => translateCurrent(key, params);
         const actions = [
           { id: 'copy', icon: CopyIcon, name: t('action.copy'), hint: t('action.copyHint') },
@@ -6731,6 +7467,56 @@ marker is only present while our button is mounted, and the host's
           settingRow('oneClickRestart', settings.oneClickRestart !== false, t('page.oneClickRestart'), t('page.oneClickRestartHint')),
         );
 
+        const tabs = h('div', { className: 'dsh-powerup-tabs', role: 'tablist' },
+          h('button', {
+            type: 'button',
+            role: 'tab',
+            'aria-selected': tab === 'features' ? 'true' : 'false',
+            className: 'dsh-powerup-tab' + (tab === 'features' ? ' on' : ''),
+            onClick: () => setTab('features'),
+          }, t('prompts.tabFeatures')),
+          settings.workspacePrompts !== false
+            ? h('button', {
+              type: 'button',
+              role: 'tab',
+              'aria-selected': tab === 'prompts' ? 'true' : 'false',
+              className: 'dsh-powerup-tab' + (tab === 'prompts' ? ' on' : ''),
+              onClick: () => setTab('prompts'),
+            }, t('prompts.tabManage'))
+            : null,
+        );
+
+        const featuresContent = h('div', null,
+          featureCard('contextMenu', PowerUpLineIcon, 'page.featureTitle', 'page.featureDesc', undefined, actionsDetail),
+          featureCard('launcher', LauncherIcon, 'page.launcherTitle', 'page.launcherDesc', undefined,
+            h('div', { className: 'dsh-powerup-card-detail' },
+              settingRow('launcher', settings.launcher !== false, t('page.launcherToggle'), t('page.launcherToggleHint')),
+            ),
+          ),
+          featureCard('sessionSwitch', QuickIcon, 'page.sessionSwitchTitle', 'page.sessionSwitchDesc', 'page.sessionSwitchHow'),
+          featureCard('locateSession', LocateIcon, 'page.locateTitle', 'page.locateDesc', 'page.locateHow'),
+          featureCard('workspacePrompts', TagIcon, 'page.promptsTitle', 'page.promptsDesc', 'page.promptsHow'),
+          featureCard('jobStop', StopIcon, 'page.jobStopTitle', 'page.jobStopDesc', 'page.jobStopHow'),
+          featureCard('update', UpdateIcon, 'page.updateTitle', 'page.updateDesc', 'page.updateHow', oneClickDetail),
+          h('section', { className: 'dsh-powerup-card dsh-powerup-how-card' },
+            h('h2', { className: 'dsh-powerup-section-title', style: { marginBottom: '10px' } }, t('page.howTitle')),
+            h('ol', { className: 'dsh-powerup-steps' },
+              h('li', { className: 'dsh-powerup-step' },
+                h('span', { className: 'dsh-powerup-step-num' }, '1'),
+                h('span', null, t('page.how1')),
+              ),
+              h('li', { className: 'dsh-powerup-step' },
+                h('span', { className: 'dsh-powerup-step-num' }, '2'),
+                h('span', null, t('page.how2')),
+              ),
+              h('li', { className: 'dsh-powerup-step' },
+                h('span', { className: 'dsh-powerup-step-num' }, '3'),
+                h('span', null, t('page.how3')),
+              ),
+            ),
+          ),
+        );
+
         return h('div', { className: 'dsh-powerup-page' },
           h('div', { className: 'dsh-powerup-shell' },
             h('header', { className: 'dsh-powerup-hero' },
@@ -6740,33 +7526,10 @@ marker is only present while our button is mounted, and the host's
                 h('p', null, t('page.subtitle')),
               ),
             ),
-            featureCard('contextMenu', PowerUpLineIcon, 'page.featureTitle', 'page.featureDesc', undefined, actionsDetail),
-            featureCard('launcher', LauncherIcon, 'page.launcherTitle', 'page.launcherDesc', undefined,
-              h('div', { className: 'dsh-powerup-card-detail' },
-                settingRow('launcher', settings.launcher !== false, t('page.launcherToggle'), t('page.launcherToggleHint')),
-              ),
-            ),
-            featureCard('sessionSwitch', QuickIcon, 'page.sessionSwitchTitle', 'page.sessionSwitchDesc', 'page.sessionSwitchHow'),
-            featureCard('locateSession', LocateIcon, 'page.locateTitle', 'page.locateDesc', 'page.locateHow'),
-            featureCard('jobStop', StopIcon, 'page.jobStopTitle', 'page.jobStopDesc', 'page.jobStopHow'),
-            featureCard('update', UpdateIcon, 'page.updateTitle', 'page.updateDesc', 'page.updateHow', oneClickDetail),
-            h('section', { className: 'dsh-powerup-card dsh-powerup-how-card' },
-              h('h2', { className: 'dsh-powerup-section-title', style: { marginBottom: '10px' } }, t('page.howTitle')),
-              h('ol', { className: 'dsh-powerup-steps' },
-                h('li', { className: 'dsh-powerup-step' },
-                  h('span', { className: 'dsh-powerup-step-num' }, '1'),
-                  h('span', null, t('page.how1')),
-                ),
-                h('li', { className: 'dsh-powerup-step' },
-                  h('span', { className: 'dsh-powerup-step-num' }, '2'),
-                  h('span', null, t('page.how2')),
-                ),
-                h('li', { className: 'dsh-powerup-step' },
-                  h('span', { className: 'dsh-powerup-step-num' }, '3'),
-                  h('span', null, t('page.how3')),
-                ),
-              ),
-            ),
+            tabs,
+            tab === 'prompts' && settings.workspacePrompts !== false
+              ? h(PromptManager, { ctx })
+              : featuresContent,
             h('footer', { className: 'dsh-powerup-foot' },
               h('span', null, format(t('page.footer'), { version: VERSION })),
               h('span', { className: 'dsh-powerup-dot' }),
@@ -6804,6 +7567,10 @@ marker is only present while our button is mounted, and the host's
       // Plugin body
       // ------------------------------------------------------------------
       function apply(ctx) {
+        ctxRef.current = ctx;
+        ctx.effect(() => () => {
+          if (ctxRef.current === ctx) ctxRef.current = null;
+        }, 'dsh-powerup: client context');
         bindLocale(ctx);
         installStyles(ctx);
         installLauncher(ctx);
@@ -6844,6 +7611,11 @@ marker is only present while our button is mounted, and the host's
           id: 'powerup-bridge',
           order: 50,
         }, PowerUpBridge, 'dsh-powerup: session bridge');
+
+        register('conversation.hero.options', {
+          id: 'powerup-prompts',
+          order: 60,
+        }, HeroPromptsControl, 'dsh-powerup: prompt picker');
 
         // The update control drives the built-in plugin manager through its
         // `remote.pluginManager` namespace. Register it in a nested inject scope
@@ -6902,6 +7674,18 @@ marker is only present while our button is mounted, and the host's
           CSS,
           SESSION_SWITCH_CSS,
           LOCATE_CSS,
+          PROMPTS_CSS,
+          PROMPTS_KEY,
+          PROMPTS_LAST_KEY,
+          readPrompts,
+          writePrompts,
+          promptsForWorkspace,
+          promptLabel,
+          readLastPrompt,
+          writeLastPrompt,
+          resolveWorkspaceIdFromSnapshot,
+          HeroPromptsControl,
+          PromptManager,
           runningSessionRows,
           buildWorkspaceIndex,
           createSessionSwitcherCore,

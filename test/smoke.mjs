@@ -224,11 +224,12 @@ assert.equal(typeof moduleExports.apply, 'function');
 assert.deepEqual(moduleExports.inject, ['slots', 'locale']);
 moduleExports.apply(ctx);
 
-assert.equal(registrations.length, 6, 'six slot registrations');
+assert.equal(registrations.length, 7, 'seven slot registrations');
 const bySlot = new Map(registrations.map((entry) => [entry.options.name, entry]));
-for (const slot of ['sidebar.panellist', 'main', 'shell.overlay', 'conversation.session.header.utilities']) {
+for (const slot of ['sidebar.panellist', 'main', 'shell.overlay', 'conversation.session.header.utilities', 'conversation.hero.options']) {
   assert.ok(bySlot.has(slot), `registered ${slot}`);
 }
+assert.equal(bySlot.get('conversation.hero.options').options.id, 'powerup-prompts');
 assert.equal(bySlot.get('sidebar.panellist').options.id, 'powerup');
 assert.equal(bySlot.get('main').options.key, 'powerup');
 const overlayIds = registrations.filter((entry) => entry.options.name === 'shell.overlay').map((entry) => entry.options.id).sort();
@@ -273,6 +274,21 @@ const bridge = moduleExports.__test.PowerUpBridge({
   inputActions: {},
 });
 assert.equal(bridge, null);
+
+// Hero prompt picker: renders a trigger, resolves the workspace, and fills or
+// sends the prompt through the slot's inputActions. The management tab renders
+// cards and a create form.
+resetHooks();
+const hero = moduleExports.__test.HeroPromptsControl({
+  sessionId: 'session-1',
+  inputActions: { setDraft() {}, submit() {}, persistDraft() {}, focus() {} },
+  useWorkspaces: (selector) => selector({ items: [{ workspaceId: 'ws-1', sessionIds: ['session-1'] }] }),
+});
+assert.ok(hero !== null && hero.props.className.includes('dsh-powerup-prompt-trigger'), 'hero renders the trigger');
+assert.ok(JSON.stringify(hero).includes('dsh-powerup-prompt-trigger-label'));
+resetHooks();
+const manager = moduleExports.__test.PromptManager({ ctx });
+assert.ok(manager.type === 'div' || manager.type === undefined, 'manager renders a tree');
 
 // ---------------------------------------------------------------------------
 // Pure helpers
@@ -1095,7 +1111,8 @@ const update = moduleExports.__test;
 // switches) wins. The legacy `enabled` flag migrates to `contextMenu`.
 const ALL_ON_SETTINGS = {
   contextMenu: true, launcher: true, sessionSwitch: true, jobStop: true,
-  update: true, locateSession: true, oneClickEnable: true, oneClickRestart: true,
+  update: true, locateSession: true, workspacePrompts: true,
+  oneClickEnable: true, oneClickRestart: true,
 };
 const savedGetItem = globalThis.localStorage.getItem;
 globalThis.localStorage.getItem = () => null;
@@ -1104,13 +1121,50 @@ globalThis.localStorage.getItem = () => '{"enabled":false}';
 assert.deepEqual(update.readSettings(), { ...ALL_ON_SETTINGS, contextMenu: false }, 'the legacy enabled flag migrates to contextMenu');
 globalThis.localStorage.getItem = () => JSON.stringify({
   contextMenu: false, launcher: false, sessionSwitch: false, jobStop: false,
-  update: false, locateSession: false, oneClickEnable: false, oneClickRestart: false,
+  update: false, locateSession: false, workspacePrompts: false,
+  oneClickEnable: false, oneClickRestart: false,
 });
 assert.deepEqual(update.readSettings(), {
   contextMenu: false, launcher: false, sessionSwitch: false, jobStop: false,
-  update: false, locateSession: false, oneClickEnable: false, oneClickRestart: false,
+  update: false, locateSession: false, workspacePrompts: false,
+  oneClickEnable: false, oneClickRestart: false,
 });
 globalThis.localStorage.getItem = savedGetItem;
+
+// Workspace prompts: storage shape, scoping, label fallback, and workspace
+// resolution from the live workspace snapshot.
+{
+  const store = update;
+  const savedSetItem = globalThis.localStorage.setItem;
+  const savedGet = globalThis.localStorage.getItem;
+  let stored = '[]';
+  globalThis.localStorage.getItem = (key) => (key === store.PROMPTS_KEY ? stored : null);
+  globalThis.localStorage.setItem = (key, value) => { if (key === store.PROMPTS_KEY) stored = value; };
+  assert.deepEqual(store.readPrompts(), [], 'prompts default to an empty list');
+  const list = [
+    { id: 'a', title: 'Build', text: 'do the build', workspaceId: 'ws-1' },
+    { id: 'b', title: '', text: 'a fairly long reusable prompt body', workspaceId: '' },
+    { id: 'c', title: 'Other', text: 'other workspace', workspaceId: 'ws-2' },
+    { id: '', title: 'Missing id', text: 'x', workspaceId: 'ws-1' },
+  ];
+  globalThis.localStorage.getItem = (key) => (key === store.PROMPTS_KEY ? JSON.stringify(list) : null);
+  const parsed = store.readPrompts();
+  assert.equal(parsed.length, 4, 'malformed ids are regenerated, records retained');
+  assert.ok(parsed[3].id.length > 0);
+  assert.deepEqual(store.promptsForWorkspace(parsed, 'ws-1').map((p) => p.id), ['a', 'b', parsed[3].id], 'global + matching workspace only');
+  assert.deepEqual(store.promptsForWorkspace(parsed, 'ws-3').map((p) => p.id), ['b'], 'global prompt visible everywhere');
+  const t = (key) => ({ 'prompts.summaryFallback': 'Untitled prompt' })[key] ?? key;
+  assert.equal(store.promptLabel(parsed[0], t), 'Build', 'title wins');
+  assert.equal(store.promptLabel(parsed[1], t), 'a fairly long reus…', 'body is truncated to first characters');
+  assert.equal(store.promptLabel({ title: '', text: '' }, t), 'Untitled prompt', 'fallback label');
+  const snapshot = { items: [{ workspaceId: 'ws-9', sessionIds: ['s-1'] }, { workspaceId: 'ws-2', sessionIds: ['s-2'] }] };
+  assert.equal(store.resolveWorkspaceIdFromSnapshot(snapshot, 's-1'), 'ws-9');
+  assert.equal(store.resolveWorkspaceIdFromSnapshot(snapshot, 'unknown'), '');
+  store.writePrompts([list[0]]);
+  assert.equal(JSON.parse(stored).length, 1, 'writePrompts persists');
+  globalThis.localStorage.getItem = savedGet;
+  globalThis.localStorage.setItem = savedSetItem;
+}
 
 // Both install paths use the version in the dialog input, so reinstall and
 // downgrade are allowed; only a concrete version enables the action.
@@ -1744,7 +1798,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.8.14');
+assert.equal(host.__test.SELF_VERSION, '0.8.15');
 
 const installFailSpecs = [];
 const installFailManager = {
@@ -1837,4 +1891,4 @@ const iconSvg = fs.readFileSync(path.join(root, 'icon.svg'), 'utf8');
 assert.ok(iconSvg.includes('viewBox="0 0 256 256"'));
 assert.ok(!iconSvg.includes('<script'));
 
-console.log('smoke ok: 6 slots, icons, page, overlays, job stop reason, install flow, bridge, helpers, theme tokens, manifest, host routes');
+console.log('smoke ok: 7 slots, icons, page, overlays, job stop reason, prompt store, install flow, bridge, helpers, theme tokens, manifest, host routes');
