@@ -83,7 +83,7 @@
       const promptCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.10.1';
+      const VERSION = '0.10.2';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -382,6 +382,8 @@
           'prompts.createNew': '创建新的提示词…',
           'prompts.noPrompts': '这个工作区还没有提示词',
           'prompts.createTitle': '新建提示词',
+          'prompts.editTitle': '编辑提示词',
+          'prompts.editHint': '修改这条提示词的标题、可见范围与正文。',
           'prompts.createScopeHint': '这个提示词会自动归属到当前工作区；你也可以改为「所有工作区」。',
           'prompts.createFailed': '创建失败：{message}',
           'prompts.workspaceCurrent': '当前工作区',
@@ -674,6 +676,8 @@
           'prompts.createNew': 'Create a new prompt…',
           'prompts.noPrompts': 'No prompts for this workspace yet',
           'prompts.createTitle': 'New prompt',
+          'prompts.editTitle': 'Edit prompt',
+          'prompts.editHint': 'Change this prompt\'s title, scope and text.',
           'prompts.createScopeHint': 'This prompt will belong to the current workspace automatically; you can also choose "All workspaces".',
           'prompts.createFailed': 'Could not create: {message}',
           'prompts.workspaceCurrent': 'Current workspace',
@@ -2856,7 +2860,7 @@
        * Open the prompt picker next to the hero control. Returns a disposer.
        * DOM-based like the session switcher so it survives host re-renders.
        */
-      function openPromptPopover({ anchor, t, items, onPick, onSend, onCreate, onDispose, placement }) {
+      function openPromptPopover({ anchor, t, items, onPick, onSend, onEdit, onCreate, onDispose, placement }) {
         if (anchor === null || anchor === undefined || typeof document === 'undefined') return () => {};
         const element = document.createElement('div');
         element.className = 'dsh-powerup-prompt-pop';
@@ -2926,7 +2930,25 @@
               dispose();
               onSend(prompt);
             });
-            row.append(main, send);
+            row.append(main);
+            if (typeof onEdit === 'function') {
+              const edit = document.createElement('button');
+              edit.type = 'button';
+              edit.className = 'dsh-powerup-prompt-pop-edit';
+              edit.setAttribute('data-prompt-edit', prompt.id);
+              edit.setAttribute('aria-label', t('prompts.edit'));
+              edit.setAttribute('title', t('prompts.edit'));
+              // Icon-only edit action; label moved to title/aria-label above.
+              edit.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M11.2 2.6a1.3 1.3 0 0 1 1.8 1.8L6 11.4l-2.4.6.6-2.4 7-7Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M3 14h10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>';
+              edit.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                dispose();
+                onEdit(prompt);
+              });
+              row.append(edit);
+            }
+            row.append(send);
             list.appendChild(row);
           }
           element.appendChild(list);
@@ -2986,28 +3008,34 @@
       }
 
       /**
-       * In-conversation create dialog. The workspace is pinned to the session's
-       * own workspace: the user may only keep it or switch to "all workspaces",
-       * never pick another workspace.
+       * In-conversation prompt dialog: creates a new prompt, or edits an
+       * existing one when `prompt` is passed. For creation the workspace is
+       * pinned to the session's own workspace: the user may only keep it or
+       * switch to "all workspaces", never pick another workspace.
        */
-      function PromptCreateModal({ workspaceId, workspaceTitle, onClose, onCreated }) {
+      function PromptCreateModal({ workspaceId, workspaceTitle, onClose, onCreated, prompt, onUpdated }) {
         const t = (key, params) => translateCurrent(key, params);
-        const fixedScope = typeof workspaceId !== 'string' || workspaceId === '';
-        // Reopening the dialog for the same workspace restores the previous
-        // draft; switching to another workspace starts from a clean slate.
-        const sameWorkspace = promptCreateDraft.workspaceId === (fixedScope ? '' : workspaceId);
-        if (!sameWorkspace) {
-          promptCreateDraft.workspaceId = fixedScope ? '' : workspaceId;
-          promptCreateDraft.title = '';
-          promptCreateDraft.text = '';
-          promptCreateDraft.scope = fixedScope ? 'all' : 'current';
+        const editing = prompt !== null && prompt !== undefined && typeof prompt === 'object';
+        const fixedScope = !editing && (typeof workspaceId !== 'string' || workspaceId === '');
+        if (!editing) {
+          // Reopening the dialog for the same workspace restores the previous
+          // draft; switching to another workspace starts from a clean slate.
+          const sameWorkspace = promptCreateDraft.workspaceId === (fixedScope ? '' : workspaceId);
+          if (!sameWorkspace) {
+            promptCreateDraft.workspaceId = fixedScope ? '' : workspaceId;
+            promptCreateDraft.title = '';
+            promptCreateDraft.text = '';
+            promptCreateDraft.scope = fixedScope ? 'all' : 'current';
+          }
         }
-        const [title, setTitle] = useState(promptCreateDraft.title);
-        const [text, setText] = useState(promptCreateDraft.text);
-        const [scope, setScope] = useState(promptCreateDraft.scope);
+        const [title, setTitle] = useState(editing ? (prompt.title || '') : promptCreateDraft.title);
+        const [text, setText] = useState(editing ? (prompt.text || '') : promptCreateDraft.text);
+        const [scope, setScope] = useState(editing
+          ? (prompt.workspaceId && prompt.workspaceId === workspaceId ? 'current' : 'all')
+          : promptCreateDraft.scope);
         const titleRef = useRef(null);
         // Close plays an exit animation first, so the dialog does not vanish
-        // abruptly; the draft is already persisted by the effect below.
+        // abruptly; the create draft is already persisted by the effect below.
         const [closing, setClosing] = useState(false);
         const closingRef = useRef(false);
         const requestClose = () => {
@@ -3023,10 +3051,11 @@
           }, 140);
         };
         useEffect(() => {
+          if (editing) return;
           promptCreateDraft.title = title;
           promptCreateDraft.text = text;
           promptCreateDraft.scope = scope;
-        }, [title, text, scope]);
+        }, [title, text, scope, editing]);
         useEffect(() => {
           try {
             // preventScroll keeps the focus from scrolling the page mid-animation.
@@ -3048,19 +3077,34 @@
         const save = () => {
           const body = typeof text === 'string' ? text.trim() : '';
           if (body === '') return;
-          const record = {
-            id: newId(),
-            title: typeof title === 'string' ? title.trim() : '',
-            text: body,
-            workspaceId: scope === 'current' && typeof workspaceId === 'string' ? workspaceId : '',
-          };
           const list = readPrompts();
-          list.push(record);
+          let record;
+          if (editing) {
+            record = {
+              id: prompt.id,
+              title: typeof title === 'string' ? title.trim() : '',
+              text: body,
+              workspaceId: scope === 'current' && typeof workspaceId === 'string' ? workspaceId : '',
+            };
+            const index = list.findIndex((p) => p.id === record.id);
+            if (index === -1) list.push(record);
+            else list[index] = record;
+          } else {
+            record = {
+              id: newId(),
+              title: typeof title === 'string' ? title.trim() : '',
+              text: body,
+              workspaceId: scope === 'current' && typeof workspaceId === 'string' ? workspaceId : '',
+            };
+            list.push(record);
+          }
           writePrompts(list);
-          // The draft became a real prompt: the next dialog starts empty.
-          promptCreateDraft.title = '';
-          promptCreateDraft.text = '';
-          promptCreateDraft.scope = fixedScope ? 'all' : 'current';
+          if (!editing) {
+            // The draft became a real prompt: the next dialog starts empty.
+            promptCreateDraft.title = '';
+            promptCreateDraft.text = '';
+            promptCreateDraft.scope = fixedScope ? 'all' : 'current';
+          }
           // Play the exit animation before telling the parent to unmount.
           if (!closingRef.current) {
             closingRef.current = true;
@@ -3068,7 +3112,11 @@
           }
           setTimeout(() => {
             try {
-              onCreated(record);
+              if (editing) {
+                if (typeof onUpdated === 'function') onUpdated(record);
+              } else if (typeof onCreated === 'function') {
+                onCreated(record);
+              }
             } catch {
               /* The parent owns unmounting. */
             }
@@ -3088,13 +3136,13 @@
             className: 'dsh-powerup-prompt-modal' + (closing ? ' is-closing' : ''),
             role: 'dialog',
             'aria-modal': 'true',
-            'aria-label': t('prompts.createTitle'),
+            'aria-label': t(editing ? 'prompts.editTitle' : 'prompts.createTitle'),
           },
             h('div', { className: 'dsh-powerup-prompt-modal-head' },
               h('div', null,
-                h('div', { className: 'dsh-powerup-prompt-modal-heading' }, t('prompts.createTitle')),
+                h('div', { className: 'dsh-powerup-prompt-modal-heading' }, t(editing ? 'prompts.editTitle' : 'prompts.createTitle')),
                 h('p', { className: 'dsh-powerup-prompt-modal-sub' },
-                  fixedScope ? t('prompts.workspaceNone') : t('prompts.createScopeHint')),
+                  editing ? t('prompts.editHint') : (fixedScope ? t('prompts.workspaceNone') : t('prompts.createScopeHint'))),
               ),
               h('button', {
                 type: 'button',
@@ -3150,7 +3198,7 @@
                 className: 'dsh-powerup-prompt-modal-save',
                 disabled: text.trim() === '',
                 onClick: save,
-              }, t('prompts.create')),
+              }, t(editing ? 'prompts.save' : 'prompts.create')),
             ),
           ),
         ));
@@ -3174,6 +3222,7 @@
         const prompts = usePrompts(workspaceId);
         const [, forceLocale] = useState(0);
         const [creating, setCreating] = useState(false);
+        const [editing, setEditing] = useState(null);
         const anchorRef = useRef(null);
         const disposeRef = useRef(null);
         const t = (key, params) => translateCurrent(key, params);
@@ -3263,6 +3312,7 @@
               placement: (node) => popoverPlacement(node, 360, 340, { preferUp: compact }),
               onPick: (prompt) => apply(prompt, false),
               onSend: (prompt) => apply(prompt, true),
+              onEdit: (prompt) => setEditing(prompt),
               onCreate: () => setCreating(true),
               onDispose: () => {
                 disposeRef.current = null;
@@ -3297,6 +3347,15 @@
                 setCreating(false);
                 writeLastPrompt(workspaceId, record.id);
               },
+            })
+            : null,
+          editing
+            ? h(PromptCreateModal, {
+              workspaceId,
+              workspaceTitle,
+              prompt: editing,
+              onClose: () => setEditing(null),
+              onUpdated: () => setEditing(null),
             })
             : null,
         );
@@ -3976,10 +4035,10 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-prompt-pop-main{flex:1 1 auto;display:flex;flex-direction:column;gap:1px;min-width:0;padding:3px 0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
 .dsh-powerup-prompt-pop-name{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;line-height:18px}
 .dsh-powerup-prompt-pop-preview{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-tertiary);font-size:10.5px;line-height:15px}
-.dsh-powerup-prompt-pop-send{flex:none;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0;border:.5px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-secondary);font:inherit;line-height:1;cursor:pointer;transition:background .12s ease,color .12s ease,border-color .12s ease}
-.dsh-powerup-prompt-pop-send svg{width:14px;height:14px}
-.dsh-powerup-prompt-pop-send:hover{border-color:var(--dsw-alias-state-business-primary);background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-brand-primary)}
-.dsh-powerup-prompt-pop-send:focus-visible,.dsh-powerup-prompt-pop-main:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:-1px}
+.dsh-powerup-prompt-pop-send,.dsh-powerup-prompt-pop-edit{flex:none;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0;border:.5px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-secondary);font:inherit;line-height:1;cursor:pointer;transition:background .12s ease,color .12s ease,border-color .12s ease}
+.dsh-powerup-prompt-pop-send svg,.dsh-powerup-prompt-pop-edit svg{width:14px;height:14px}
+.dsh-powerup-prompt-pop-send:hover,.dsh-powerup-prompt-pop-edit:hover{border-color:var(--dsw-alias-state-business-primary);background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-brand-primary)}
+.dsh-powerup-prompt-pop-send:focus-visible,.dsh-powerup-prompt-pop-edit:focus-visible,.dsh-powerup-prompt-pop-main:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:-1px}
 .dsh-powerup-prompt-pop-sep{flex:none;height:1px;margin:4px 6px;background:var(--dsw-alias-border-l1)}
 .dsh-powerup-prompt-pop-create{flex:none;display:flex;align-items:center;gap:7px;width:100%;min-height:32px;padding:0 10px;border:0;border-radius:var(--dsw-radius-md,8px);background:transparent;color:var(--dsw-alias-brand-primary);font:inherit;font-size:12px;line-height:18px;cursor:pointer}
 .dsh-powerup-prompt-pop-create:hover{background:var(--dsw-alias-interactive-bg-hover)}
@@ -9205,6 +9264,8 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           readLastPrompt,
           writeLastPrompt,
           resolveWorkspaceIdFromSnapshot,
+          openPromptPopover,
+          PromptCreateModal,
           HeroPromptsControl,
           PromptManager,
           runningSessionRows,

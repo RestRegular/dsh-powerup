@@ -291,6 +291,52 @@ const hero = moduleExports.__test.HeroPromptsControl({
 assert.ok(hero !== null && JSON.stringify(hero).includes('dsh-powerup-prompt-trigger'), 'hero renders the trigger');
 assert.ok(JSON.stringify(hero).includes('dsh-powerup-prompt-trigger-label'));
 resetHooks();
+
+// The dropdown renders an icon-only edit button per row that delegates to
+// onEdit without picking or sending the prompt.
+{
+  const prompt = { id: 'e1', title: '编辑我', text: 'body', workspaceId: '' };
+  const created = [];
+  const makeNode = () => ({
+    className: '', attrs: {}, listeners: {}, innerHTML: '', textContent: '', children: [],
+    setAttribute(name, value) { this.attrs[name] = value; },
+    appendChild(child) { this.children.push(child); },
+    append(...kids) { this.children.push(...kids); },
+    addEventListener(type, fn) { this.listeners[type] = fn; },
+    removeEventListener() {}, contains: () => false, remove() {},
+    classList: { add() {}, remove() {} },
+  });
+  const savedCreate = globalThis.document.createElement;
+  globalThis.document.createElement = () => {
+    const node = makeNode();
+    created.push(node);
+    return node;
+  };
+  let edited = null;
+  let picked = 0;
+  let sent = 0;
+  moduleExports.__test.openPromptPopover({
+    anchor: { setAttribute() {}, contains: () => false },
+    t: (key) => key,
+    items: [prompt],
+    placement: () => ({ left: 0, top: 0, width: 100, maxHeight: 100 }),
+    onPick: () => { picked += 1; },
+    onSend: () => { sent += 1; },
+    onEdit: (p) => { edited = p; },
+    onDispose: () => {},
+  });
+  globalThis.document.createElement = savedCreate;
+  const editBtn = created.find((node) => node.attrs['data-prompt-edit'] === 'e1');
+  assert.ok(editBtn, 'each prompt row has an edit button');
+  assert.ok(editBtn.innerHTML.includes('<svg'), 'the edit action is icon-only');
+  assert.equal(editBtn.attrs['aria-label'], 'prompts.edit', 'edit button is labelled for accessibility');
+  editBtn.listeners.click({ preventDefault() {}, stopPropagation() {} });
+  assert.equal(edited, prompt, 'clicking edit delegates to onEdit');
+  assert.equal(picked, 0, 'editing does not pick the prompt');
+  assert.equal(sent, 0, 'editing does not send the prompt');
+  assert.ok(moduleExports.__test.DICT.zh['prompts.editTitle'], 'edit dialog title is localized');
+}
+resetHooks();
 const manager = moduleExports.__test.PromptManager({ ctx });
 assert.ok(manager.type === 'div' || manager.type === undefined, 'manager renders a tree');
 
@@ -1285,7 +1331,9 @@ globalThis.localStorage.getItem = savedGetItem;
   assert.ok(/\.dsh-powerup-prompt-modal\{[^}]*animation:dsh-powerup-prompt-rise/.test(css), 'create dialog has an entrance animation');
   assert.ok(/\.dsh-powerup-prompt-modal-mask\.is-closing\{animation:dsh-powerup-prompt-mask-out/.test(css), 'create dialog mask has an exit animation');
   assert.ok(/\.dsh-powerup-prompt-modal\.is-closing\{animation:dsh-powerup-prompt-sink/.test(css), 'create dialog has an exit animation');
-  assert.ok(/\.dsh-powerup-prompt-pop-send\{[^}]*width:26px/.test(css), 'direct-send control is an icon button');
+  assert.ok(/\.dsh-powerup-prompt-pop-send,\.dsh-powerup-prompt-pop-edit\{[^}]*width:26px/.test(css), 'direct-send and edit controls are icon buttons');
+  assert.ok(/'data-prompt-edit'/.test(source), 'each prompt row carries an edit control');
+  assert.ok(/onEdit:\s*\(prompt\) => setEditing\(prompt\)/.test(source), 'the edit action opens the edit dialog');
   // The row carries width:100% plus horizontal padding: without border-box the
   // row overflows the list and the send button on the right gets clipped.
   assert.ok(/\.dsh-powerup-prompt-pop-item\{box-sizing:border-box/.test(css), 'prompt row does not overflow the list');
@@ -2019,7 +2067,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.10.1');
+assert.equal(host.__test.SELF_VERSION, '0.10.2');
 
 const installFailSpecs = [];
 const installFailManager = {

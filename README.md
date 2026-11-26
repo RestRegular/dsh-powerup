@@ -189,7 +189,8 @@ Save reusable prompts and drop one into a new session without retyping it.
   picker also appears in the composer's bottom tool row, just right of the
   permission dropdown; there its menu opens **upward**. **Clicking a prompt
   fills the composer** so you can keep editing before sending. Each row also has
-  a **Send now** button that fills and submits immediately.
+  a **Send now** button that fills and submits immediately, and an **Edit** icon
+  button that opens the prompt dialog to change its title, scope and text.
 - **Create a new prompt…** in the dropdown opens an in-conversation dialog. A
   prompt created here is pinned to the current workspace — you may only keep
   that scope or switch to **All workspaces**, never pick another workspace.
