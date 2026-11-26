@@ -1367,7 +1367,7 @@ globalThis.localStorage.getItem = savedGetItem;
   const css = store.PROMPTS_CSS;
   assert.ok(/\.dsh-powerup-prompt-pop-list\{[^}]*flex:1 1 auto[^}]*min-height:0[^}]*overflow-y:auto[^}]*overflow-x:hidden/.test(css), 'prompt list flexes and scrolls vertically only');
   assert.ok(/\.dsh-powerup-prompt-pop-create\{flex:none;/.test(css), 'new-prompt button never shrinks');
-  assert.ok(/\.dsh-powerup-prompt-pop-list\{[^}]*gap:4px/.test(css), 'prompt options have visible spacing between them');
+  assert.ok(/\.dsh-powerup-prompt-pop-list\{[^}]*gap:2px/.test(css), 'prompt list uses compact spacing');
   // The create dialog must not borrow the toast keyframes: those carry
   // translate(-50%) and would drag the full-screen mask sideways.
   assert.ok(!/dsh-powerup-prompt-modal-mask\{[^}]*animation:dsh-powerup-toast-in/.test(css), 'create dialog mask never reuses toast keyframes');
@@ -1398,7 +1398,8 @@ globalThis.localStorage.getItem = savedGetItem;
   assert.ok(css.includes('.dsh-powerup-prompt-pop-scope{'), 'the dropdown has scope section headers');
   assert.ok(css.includes('.dsh-powerup-prompt-pop-group{'), 'the dropdown has collapsible group headers');
   assert.ok(css.includes('.dsh-powerup-prompt-pop-group-body{'), 'grouped rows are indented under a boundary rail');
-  assert.ok(css.includes('.dsh-powerup-prompt-pop-ungrouped-label{'), 'ungrouped prompts are labelled, not mixed into folders');
+  assert.ok(!css.includes('.dsh-powerup-prompt-pop-ungrouped-label{'), 'the dropdown no longer renders an Ungrouped title');
+  assert.ok(/popoverPlacement\(node, 360, 480/.test(source), 'the prompt dropdown grows to a taller max height');
   assert.ok(css.includes('.dsh-powerup-prompt-card.drop-target'), 'drop targets highlight on drag');
   assert.ok(/reorderBefore\(/.test(source), 'dropping on a prompt reorders it within the group');
   assert.ok(css.includes('.dsh-powerup-prompt-scopes{'), 'the settings page renders scope sections');
@@ -2118,7 +2119,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.10.5');
+assert.equal(host.__test.SELF_VERSION, '0.10.6');
 
 const installFailSpecs = [];
 const installFailManager = {

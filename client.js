@@ -83,7 +83,7 @@
       const promptCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.10.5';
+      const VERSION = '0.10.6';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -3084,12 +3084,8 @@
               if (isCollapsed) block.classList.add('is-collapsed');
               if (isUngrouped) block.classList.add('is-ungrouped');
               if (isUngrouped) {
-                // Ungrouped prompts sit at the same level as group headers, but
-                // under a plain label so they are clearly not inside a folder.
-                const label = document.createElement('div');
-                label.className = 'dsh-powerup-prompt-pop-ungrouped-label';
-                label.textContent = t('prompts.ungrouped');
-                block.appendChild(label);
+                // Ungrouped prompts sit at the same level as group headers,
+                // without a label, to keep the list compact.
                 for (const prompt of group.items) block.appendChild(renderRow(prompt));
                 list.appendChild(block);
                 continue;
@@ -3503,7 +3499,7 @@
               sections,
               collapsed,
               onToggleGroup: toggleGroup,
-              placement: (node) => popoverPlacement(node, 360, 340, { preferUp: compact }),
+              placement: (node) => popoverPlacement(node, 360, 480, { preferUp: compact }),
               onPick: (prompt) => apply(prompt, false),
               onSend: (prompt) => apply(prompt, true),
               onEdit: (prompt) => setEditing(prompt),
@@ -4224,20 +4220,19 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-prompt-pop.is-open{opacity:1;transform:none}
 .dsh-powerup-prompt-pop-head{flex:none;display:flex;align-items:center;gap:6px;padding:8px 11px 7px;color:var(--dsw-alias-label-tertiary);font-size:10.5px;font-weight:600;letter-spacing:.03em}
 /* Scope dividers: a full-width label with hairline rules on both sides. */
-.dsh-powerup-prompt-pop-scope{flex:none;display:flex;align-items:center;gap:8px;padding:9px 10px 5px;color:var(--dsw-alias-brand-primary);font-size:10.5px;font-weight:700;letter-spacing:.04em}
+.dsh-powerup-prompt-pop-scope{flex:none;display:flex;align-items:center;gap:8px;padding:4px 10px 2px;color:var(--dsw-alias-brand-primary);font-size:10.5px;font-weight:700;letter-spacing:.04em}
 .dsh-powerup-prompt-pop-scope::before,.dsh-powerup-prompt-pop-scope::after{content:'';flex:1 1 auto;height:1px;background:var(--dsw-alias-border-l1)}
-/* One group: a tinted header chip with a clearly indented, rail-joined body. */
-.dsh-powerup-prompt-pop-block{flex:none;display:flex;flex-direction:column;gap:3px;margin:2px 0 4px}
+.dsh-powerup-prompt-pop-block+.dsh-powerup-prompt-pop-scope{margin-top:0}
+/* One group: a tinted header chip with a compact, rail-joined body. */
+.dsh-powerup-prompt-pop-block{flex:none;display:flex;flex-direction:column;gap:2px;margin:0 0 2px}
 .dsh-powerup-prompt-pop-group{flex:none;display:flex;align-items:center;gap:6px;width:100%;min-height:28px;padding:3px 9px;border:.5px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);font:inherit;font-size:11.5px;font-weight:600;line-height:1.5;text-align:left;cursor:pointer;transition:background .12s ease,border-color .12s ease}
 .dsh-powerup-prompt-pop-group svg{flex:none;color:var(--dsw-alias-label-secondary);transition:transform .12s ease}
 .dsh-powerup-prompt-pop-group[aria-expanded=false] svg{transform:rotate(-90deg)}
 .dsh-powerup-prompt-pop-group:hover{border-color:var(--dsw-alias-state-business-primary);background:var(--dsw-alias-interactive-bg-hover)}
 .dsh-powerup-prompt-pop-group-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dsh-powerup-prompt-pop-group-count{margin-left:auto;flex:none;min-width:18px;padding:0 5px;border-radius:9px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);font-size:10px;font-weight:500;line-height:16px;text-align:center;font-variant-numeric:tabular-nums}
-.dsh-powerup-prompt-pop-group-body{flex:none;display:flex;flex-direction:column;gap:4px;margin-left:12px;padding-left:9px;border-left:1px solid var(--dsw-alias-border-l2)}
-.dsh-powerup-prompt-pop-ungrouped-label{flex:none;padding:3px 9px;color:var(--dsw-alias-label-tertiary);font-size:10px;font-weight:600;letter-spacing:.03em}
-.dsh-powerup-prompt-pop-block.is-ungrouped{margin:2px 0 6px}
-.dsh-powerup-prompt-pop-list{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:4px;padding:6px;overflow-y:auto;overflow-x:hidden}
+.dsh-powerup-prompt-pop-group-body{flex:none;display:flex;flex-direction:column;gap:3px;margin-left:10px;padding-left:7px;border-left:1px solid var(--dsw-alias-border-l2)}
+.dsh-powerup-prompt-pop-list{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:2px;padding:4px 6px;overflow-y:auto;overflow-x:hidden}
 .dsh-powerup-prompt-pop-item{box-sizing:border-box;display:flex;align-items:center;gap:6px;width:100%;min-width:0;min-height:38px;padding:4px 5px 4px 9px;border:.5px solid transparent;border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;text-align:left;transition:border-color .12s ease,background .12s ease}
 .dsh-powerup-prompt-pop-item:hover{border-color:var(--dsw-alias-border-l2);background:var(--dsw-alias-interactive-bg-hover)}
 .dsh-powerup-prompt-pop-main{flex:1 1 auto;display:flex;flex-direction:column;gap:1px;min-width:0;padding:3px 0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
