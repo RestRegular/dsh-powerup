@@ -190,7 +190,9 @@ Save reusable prompts and drop one into a new session without retyping it.
   level as the group headers, under **Ungrouped**. In the **Prompts** settings
   tab you can create, rename and delete groups for each scope, and **drag a
   prompt onto a group header to move it** (or onto Ungrouped to take it out of
-  a group). Deleting a group never deletes its prompts — they become ungrouped.
+  a group), and **drop a prompt onto another prompt to reorder them within the
+  same group**. Deleting a group never deletes its prompts — they become
+  ungrouped.
 - In the New Session row, to the right of the Agent preset, a dropdown lists the
   prompts available in the current workspace, grouped the same way. In an
   **ongoing session** the same picker also appears in the composer's bottom

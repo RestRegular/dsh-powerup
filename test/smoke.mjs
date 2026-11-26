@@ -1397,7 +1397,10 @@ globalThis.localStorage.getItem = savedGetItem;
   assert.ok(/\.dsh-powerup-ws-menu\{[^}]*border-radius:10px/.test(css), 'scope dropdown shell uses 10px radius');
   assert.ok(css.includes('.dsh-powerup-prompt-pop-scope{'), 'the dropdown has scope section headers');
   assert.ok(css.includes('.dsh-powerup-prompt-pop-group{'), 'the dropdown has collapsible group headers');
+  assert.ok(css.includes('.dsh-powerup-prompt-pop-group-body{'), 'grouped rows are indented under a boundary rail');
+  assert.ok(css.includes('.dsh-powerup-prompt-pop-ungrouped-label{'), 'ungrouped prompts are labelled, not mixed into folders');
   assert.ok(css.includes('.dsh-powerup-prompt-card.drop-target'), 'drop targets highlight on drag');
+  assert.ok(/reorderBefore\(/.test(source), 'dropping on a prompt reorders it within the group');
   assert.ok(css.includes('.dsh-powerup-prompt-scopes{'), 'the settings page renders scope sections');
   assert.ok(/\.dsh-powerup-group-form \.dsh-powerup-prompt-new\{[^}]*flex:none[^}]*white-space:nowrap/.test(css), 'group form buttons never shrink and overflow their label');
 }
@@ -2115,7 +2118,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.10.4');
+assert.equal(host.__test.SELF_VERSION, '0.10.5');
 
 const installFailSpecs = [];
 const installFailManager = {

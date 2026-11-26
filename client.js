@@ -83,7 +83,7 @@
       const promptCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.10.4';
+      const VERSION = '0.10.5';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -399,7 +399,7 @@
           'prompts.groupConfirmDelete': '删除这个分组？其中的提示词会变为未分组，不会被删除。',
           'prompts.moveToGroup': '移动到分组',
           'prompts.moveUngrouped': '移出分组',
-          'prompts.dropHint': '拖拽提示词到分组标题即可移动；拖到「未分组」可移出分组。',
+          'prompts.dropHint': '拖拽提示词到分组标题即可移动，拖到「未分组」可移出分组；拖到另一条提示词上可调整组内排序。',
         },
         en: {
           'panel.title': 'Power-Up',
@@ -705,7 +705,7 @@
           'prompts.groupConfirmDelete': 'Delete this group? Its prompts stay as ungrouped and are not deleted.',
           'prompts.moveToGroup': 'Move to group',
           'prompts.moveUngrouped': 'Move out of group',
-          'prompts.dropHint': 'Drag a prompt onto a group header to move it; drop on Ungrouped to take it out of a group.',
+          'prompts.dropHint': 'Drag a prompt onto a group header to move it, or onto Ungrouped to take it out; drop on another prompt to reorder within the group.',
         },
       };
 
@@ -3070,16 +3070,28 @@
           for (const section of sectionsList) {
             const scopeHead = document.createElement('div');
             scopeHead.className = 'dsh-powerup-prompt-pop-scope';
-            scopeHead.textContent = section.label;
+            const scopeLabel = document.createElement('span');
+            scopeLabel.textContent = section.label;
+            scopeHead.appendChild(scopeLabel);
             list.appendChild(scopeHead);
             for (const group of section.groups) {
               if (group.items.length === 0 && !group.group) continue;
               const isUngrouped = group.isUngrouped === true;
               const key = section.key + ':' + group.id;
               const isCollapsed = localCollapsed.has(key);
+              const block = document.createElement('div');
+              block.className = 'dsh-powerup-prompt-pop-block';
+              if (isCollapsed) block.classList.add('is-collapsed');
+              if (isUngrouped) block.classList.add('is-ungrouped');
               if (isUngrouped) {
-                // Ungrouped prompts sit at the same level as group headers.
-                for (const prompt of group.items) list.appendChild(renderRow(prompt));
+                // Ungrouped prompts sit at the same level as group headers, but
+                // under a plain label so they are clearly not inside a folder.
+                const label = document.createElement('div');
+                label.className = 'dsh-powerup-prompt-pop-ungrouped-label';
+                label.textContent = t('prompts.ungrouped');
+                block.appendChild(label);
+                for (const prompt of group.items) block.appendChild(renderRow(prompt));
+                list.appendChild(block);
                 continue;
               }
               const head = document.createElement('button');
@@ -3089,6 +3101,7 @@
               head.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
               head.innerHTML = '<svg width="10" height="10" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
               const label = document.createElement('span');
+              label.className = 'dsh-powerup-prompt-pop-group-name';
               label.textContent = group.name || t('prompts.untitled');
               const count = document.createElement('span');
               count.className = 'dsh-powerup-prompt-pop-group-count';
@@ -3102,10 +3115,14 @@
                 if (typeof onToggleGroup === 'function') onToggleGroup(key, !localCollapsed.has(key));
                 renderList();
               });
-              list.appendChild(head);
+              block.appendChild(head);
               if (!isCollapsed) {
-                for (const prompt of group.items) list.appendChild(renderRow(prompt));
+                const body = document.createElement('div');
+                body.className = 'dsh-powerup-prompt-pop-group-body';
+                for (const prompt of group.items) body.appendChild(renderRow(prompt));
+                block.appendChild(body);
               }
+              list.appendChild(block);
             }
           }
         };
@@ -4206,12 +4223,20 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-prompt-pop{position:fixed;z-index:1600;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;overflow-x:hidden;border:0;border-radius:10px;background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);font-size:12.5px;line-height:1.5;opacity:0;transform:translateY(-4px);transition:opacity .12s ease,transform .12s ease;pointer-events:auto;--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2)}
 .dsh-powerup-prompt-pop.is-open{opacity:1;transform:none}
 .dsh-powerup-prompt-pop-head{flex:none;display:flex;align-items:center;gap:6px;padding:8px 11px 7px;color:var(--dsw-alias-label-tertiary);font-size:10.5px;font-weight:600;letter-spacing:.03em}
-.dsh-powerup-prompt-pop-scope{flex:none;padding:5px 9px 3px;color:var(--dsw-alias-label-tertiary);font-size:10px;font-weight:600;letter-spacing:.03em}
-.dsh-powerup-prompt-pop-group{flex:none;display:flex;align-items:center;gap:5px;width:100%;min-height:26px;padding:2px 9px;border:0;border-radius:7px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:11px;font-weight:600;line-height:1.5;text-align:left;cursor:pointer}
-.dsh-powerup-prompt-pop-group svg{flex:none;color:var(--dsw-alias-label-tertiary);transition:transform .12s ease}
+/* Scope dividers: a full-width label with hairline rules on both sides. */
+.dsh-powerup-prompt-pop-scope{flex:none;display:flex;align-items:center;gap:8px;padding:9px 10px 5px;color:var(--dsw-alias-brand-primary);font-size:10.5px;font-weight:700;letter-spacing:.04em}
+.dsh-powerup-prompt-pop-scope::before,.dsh-powerup-prompt-pop-scope::after{content:'';flex:1 1 auto;height:1px;background:var(--dsw-alias-border-l1)}
+/* One group: a tinted header chip with a clearly indented, rail-joined body. */
+.dsh-powerup-prompt-pop-block{flex:none;display:flex;flex-direction:column;gap:3px;margin:2px 0 4px}
+.dsh-powerup-prompt-pop-group{flex:none;display:flex;align-items:center;gap:6px;width:100%;min-height:28px;padding:3px 9px;border:.5px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);font:inherit;font-size:11.5px;font-weight:600;line-height:1.5;text-align:left;cursor:pointer;transition:background .12s ease,border-color .12s ease}
+.dsh-powerup-prompt-pop-group svg{flex:none;color:var(--dsw-alias-label-secondary);transition:transform .12s ease}
 .dsh-powerup-prompt-pop-group[aria-expanded=false] svg{transform:rotate(-90deg)}
-.dsh-powerup-prompt-pop-group:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
-.dsh-powerup-prompt-pop-group-count{margin-left:auto;color:var(--dsw-alias-label-tertiary);font-size:10px;font-weight:400}
+.dsh-powerup-prompt-pop-group:hover{border-color:var(--dsw-alias-state-business-primary);background:var(--dsw-alias-interactive-bg-hover)}
+.dsh-powerup-prompt-pop-group-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dsh-powerup-prompt-pop-group-count{margin-left:auto;flex:none;min-width:18px;padding:0 5px;border-radius:9px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);font-size:10px;font-weight:500;line-height:16px;text-align:center;font-variant-numeric:tabular-nums}
+.dsh-powerup-prompt-pop-group-body{flex:none;display:flex;flex-direction:column;gap:4px;margin-left:12px;padding-left:9px;border-left:1px solid var(--dsw-alias-border-l2)}
+.dsh-powerup-prompt-pop-ungrouped-label{flex:none;padding:3px 9px;color:var(--dsw-alias-label-tertiary);font-size:10px;font-weight:600;letter-spacing:.03em}
+.dsh-powerup-prompt-pop-block.is-ungrouped{margin:2px 0 6px}
 .dsh-powerup-prompt-pop-list{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:4px;padding:6px;overflow-y:auto;overflow-x:hidden}
 .dsh-powerup-prompt-pop-item{box-sizing:border-box;display:flex;align-items:center;gap:6px;width:100%;min-width:0;min-height:38px;padding:4px 5px 4px 9px;border:.5px solid transparent;border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;text-align:left;transition:border-color .12s ease,background .12s ease}
 .dsh-powerup-prompt-pop-item:hover{border-color:var(--dsw-alias-border-l2);background:var(--dsw-alias-interactive-bg-hover)}
@@ -9018,6 +9043,29 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             movePrompt(groupId, scopeId);
           },
         });
+        /**
+         * Drop one prompt onto another to reorder inside that group. The array
+         * order is the display order within a group, so removing and reinserting
+         * before the target card also adopts the target's group/workspace.
+         */
+        const reorderBefore = (targetId) => {
+          const id = dragRef.current;
+          dragRef.current = null;
+          setDragOver(null);
+          if (typeof id !== 'string' || id === '' || id === targetId) return;
+          const moving = prompts.find((p) => p.id === id);
+          const target = prompts.find((p) => p.id === targetId);
+          if (moving === undefined || target === undefined) return;
+          const next = prompts.filter((p) => p.id !== id);
+          const moved = {
+            ...moving,
+            groupId: typeof target.groupId === 'string' ? target.groupId : '',
+            workspaceId: typeof target.workspaceId === 'string' ? target.workspaceId : '',
+          };
+          const idx = next.findIndex((p) => p.id === targetId);
+          next.splice(idx < 0 ? next.length : idx, 0, moved);
+          writeAll([...groups, ...next]);
+        };
         const field = (label, key, placeholder, className) => h('label', { className: 'dsh-powerup-prompt-field' },
           h('span', { className: 'dsh-powerup-prompt-field-label' }, label),
           key === 'text'
@@ -9090,6 +9138,16 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
               try { event.dataTransfer?.setData?.('text/plain', prompt.id); } catch { /* best effort */ }
             },
             onDragEnd: () => { dragRef.current = null; setDragOver(null); },
+            onDragOver: (event) => {
+              event.preventDefault();
+              if (dragOver !== 'card:' + prompt.id) setDragOver('card:' + prompt.id);
+            },
+            onDragLeave: () => setDragOver((current) => (current === 'card:' + prompt.id ? null : current)),
+            onDrop: (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              reorderBefore(prompt.id);
+            },
           },
             h('div', { className: 'dsh-powerup-prompt-card-head' },
               h('span', { className: 'dsh-powerup-prompt-drag-handle', 'aria-hidden': 'true' }, '\u2807'),
