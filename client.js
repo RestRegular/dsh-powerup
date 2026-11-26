@@ -83,7 +83,7 @@
       const promptCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.10.6';
+      const VERSION = '0.10.7';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -8922,9 +8922,11 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         const [collapsedGroups, setCollapsedGroups] = useState(() => new Set());
         // Group create/rename: { scopeId, id:'', name:'' } (id='' => create).
         const [groupDraft, setGroupDraft] = useState(null);
-        // Prompt id currently being dragged, for move-to-group drops.
+        // Prompt id currently being dragged. Hover highlight is applied with
+        // direct DOM classes, never React state: dragover/dragleave fire
+        // continuously and a setState on each one re-renders the whole page,
+        // which makes the drop target flash.
         const dragRef = useRef(null);
-        const [dragOver, setDragOver] = useState(null);
         const t = (key, params) => translateCurrent(key, params);
         useEffect(() => {
           const locale = ctx.get('locale');
@@ -9014,11 +9016,29 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             ...prompts.map((p) => (p.groupId === group.id ? { ...p, groupId: '' } : p)),
           ]);
         };
+        /** Clear every drag highlight without touching React state. */
+        const clearDragHighlight = () => {
+          try {
+            for (const node of document.querySelectorAll('[data-drop-highlight].drop-target')) {
+              node.classList.remove('drop-target');
+            }
+          } catch { /* no document in tests */ }
+        };
+        /** Add the highlight to one node, removing it from all others. */
+        const markDropTarget = (node) => {
+          if (node === null || node === undefined) return;
+          try {
+            for (const other of document.querySelectorAll('[data-drop-highlight].drop-target')) {
+              if (other !== node) other.classList.remove('drop-target');
+            }
+            node.classList.add('drop-target');
+          } catch { /* no document in tests */ }
+        };
         /** Move the dragged prompt into a group ('' = ungrouped) of a scope. */
         const movePrompt = (groupId, scopeId) => {
           const id = dragRef.current;
           dragRef.current = null;
-          setDragOver(null);
+          clearDragHighlight();
           if (typeof id !== 'string' || id === '') return;
           writeAll([
             ...groups,
@@ -9027,14 +9047,27 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
               : p)),
           ]);
         };
-        const dropProps = (key, groupId, scopeId) => ({
+        const dragOverProps = () => ({
           onDragOver: (event) => {
             event.preventDefault();
-            if (dragOver !== key) setDragOver(key);
+            // Cards handle their own reorder hover; let their event bubble here
+            // but keep the highlight on the innermost (card) target.
+            markDropTarget(event.currentTarget);
           },
-          onDragLeave: () => setDragOver((current) => (current === key ? null : current)),
+          onDragLeave: (event) => {
+            // Only clear when the pointer truly leaves this node, not when it
+            // moves into a child (relatedTarget is contained in currentTarget).
+            const next = event.relatedTarget;
+            if (next !== null && typeof event.currentTarget.contains === 'function'
+              && event.currentTarget.contains(next)) return;
+            event.currentTarget.classList.remove('drop-target');
+          },
+        });
+        const dropProps = (groupId, scopeId) => ({
+          ...dragOverProps(),
           onDrop: (event) => {
             event.preventDefault();
+            event.stopPropagation();
             movePrompt(groupId, scopeId);
           },
         });
@@ -9046,7 +9079,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         const reorderBefore = (targetId) => {
           const id = dragRef.current;
           dragRef.current = null;
-          setDragOver(null);
+          clearDragHighlight();
           if (typeof id !== 'string' || id === '' || id === targetId) return;
           const moving = prompts.find((p) => p.id === id);
           const target = prompts.find((p) => p.id === targetId);
@@ -9126,18 +9159,24 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             key: prompt.id,
             draggable: !isExpanded,
             'data-prompt-drag': prompt.id,
-            className: 'dsh-powerup-prompt-card' + (isExpanded ? '' : ' folded')
-              + (dragOver === 'card:' + prompt.id ? ' drop-target' : ''),
+            'data-drop-highlight': '',
+            className: 'dsh-powerup-prompt-card' + (isExpanded ? '' : ' folded'),
             onDragStart: (event) => {
               dragRef.current = prompt.id;
               try { event.dataTransfer?.setData?.('text/plain', prompt.id); } catch { /* best effort */ }
             },
-            onDragEnd: () => { dragRef.current = null; setDragOver(null); },
+            onDragEnd: () => { dragRef.current = null; clearDragHighlight(); },
             onDragOver: (event) => {
               event.preventDefault();
-              if (dragOver !== 'card:' + prompt.id) setDragOver('card:' + prompt.id);
+              event.stopPropagation();
+              markDropTarget(event.currentTarget);
             },
-            onDragLeave: () => setDragOver((current) => (current === 'card:' + prompt.id ? null : current)),
+            onDragLeave: (event) => {
+              const next = event.relatedTarget;
+              if (next !== null && typeof event.currentTarget.contains === 'function'
+                && event.currentTarget.contains(next)) return;
+              event.currentTarget.classList.remove('drop-target');
+            },
             onDrop: (event) => {
               event.preventDefault();
               event.stopPropagation();
@@ -9169,13 +9208,14 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           const key = scopeId + ':' + section.id;
           const collapsed = collapsedGroups.has(key);
           const isUngrouped = section.isUngrouped;
-          const drop = dropProps(key, section.id, scopeId);
+          const drop = dropProps(section.id, scopeId);
           const editingThis = groupDraft !== null && groupDraft.scopeId === scopeId
             && groupDraft.id === (isUngrouped ? '' : section.group.id);
           return h('section', {
             key,
+            'data-drop-highlight': '',
             className: 'dsh-powerup-prompt-group' + (isUngrouped ? ' dsh-powerup-prompt-ungrouped' : '')
-              + (collapsed ? ' is-collapsed' : '') + (dragOver === key ? ' drop-target' : ''),
+              + (collapsed ? ' is-collapsed' : ''),
             ...drop,
           },
             h('div', { className: 'dsh-powerup-prompt-group-head' },

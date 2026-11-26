@@ -1402,6 +1402,8 @@ globalThis.localStorage.getItem = savedGetItem;
   assert.ok(/popoverPlacement\(node, 360, 480/.test(source), 'the prompt dropdown grows to a taller max height');
   assert.ok(css.includes('.dsh-powerup-prompt-card.drop-target'), 'drop targets highlight on drag');
   assert.ok(/reorderBefore\(/.test(source), 'dropping on a prompt reorders it within the group');
+  assert.ok(/clearDragHighlight/.test(source) && /markDropTarget/.test(source), 'drag hover highlight is applied via DOM classes, not React state (no flicker)');
+  assert.ok(!/setDragOver/.test(source), 'no setState on dragover/dragleave that would re-render on every drag event');
   assert.ok(css.includes('.dsh-powerup-prompt-scopes{'), 'the settings page renders scope sections');
   assert.ok(/\.dsh-powerup-group-form \.dsh-powerup-prompt-new\{[^}]*flex:none[^}]*white-space:nowrap/.test(css), 'group form buttons never shrink and overflow their label');
 }
@@ -2119,7 +2121,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.10.6');
+assert.equal(host.__test.SELF_VERSION, '0.10.7');
 
 const installFailSpecs = [];
 const installFailManager = {
