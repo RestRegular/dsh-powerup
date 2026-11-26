@@ -83,7 +83,7 @@
       const promptCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.10.3';
+      const VERSION = '0.10.4';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -4256,8 +4256,9 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-prompt-group-title{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:600;line-height:1.4}
 .dsh-powerup-prompt-group-count{flex:none;color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:1.5;font-variant-numeric:tabular-nums}
 .dsh-powerup-prompt-group-body{display:flex;flex-direction:column;gap:7px;padding:0 8px 8px}
-.dsh-powerup-group-form{display:flex;align-items:center;gap:6px;padding:6px 12px 9px}
-.dsh-powerup-group-form .dsh-powerup-prompt-input{flex:1 1 auto;min-width:0}
+.dsh-powerup-group-form{display:flex;align-items:center;gap:6px;padding:6px 12px 9px;flex-wrap:wrap}
+.dsh-powerup-group-form .dsh-powerup-prompt-input{flex:1 1 120px;min-width:0}
+.dsh-powerup-group-form .dsh-powerup-prompt-new{flex:none;white-space:nowrap;padding:0 10px}
 .dsh-powerup-prompt-card{border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1);overflow:hidden;transition:border-color .12s ease}
 .dsh-powerup-prompt-card.drop-target{border-color:var(--dsw-alias-state-business-primary);background:var(--dsw-alias-interactive-bg-hover)}
 .dsh-powerup-prompt-card[draggable=true]{cursor:grab}

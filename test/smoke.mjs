@@ -1399,6 +1399,7 @@ globalThis.localStorage.getItem = savedGetItem;
   assert.ok(css.includes('.dsh-powerup-prompt-pop-group{'), 'the dropdown has collapsible group headers');
   assert.ok(css.includes('.dsh-powerup-prompt-card.drop-target'), 'drop targets highlight on drag');
   assert.ok(css.includes('.dsh-powerup-prompt-scopes{'), 'the settings page renders scope sections');
+  assert.ok(/\.dsh-powerup-group-form \.dsh-powerup-prompt-new\{[^}]*flex:none[^}]*white-space:nowrap/.test(css), 'group form buttons never shrink and overflow their label');
 }
 
 // Mask rules: normalization, global storage, regex compilation and application.
@@ -2114,7 +2115,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.10.3');
+assert.equal(host.__test.SELF_VERSION, '0.10.4');
 
 const installFailSpecs = [];
 const installFailManager = {
