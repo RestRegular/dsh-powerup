@@ -297,15 +297,28 @@ resetHooks();
 {
   const prompt = { id: 'e1', title: '编辑我', text: 'body', workspaceId: '' };
   const created = [];
-  const makeNode = () => ({
-    className: '', attrs: {}, listeners: {}, innerHTML: '', textContent: '', children: [],
-    setAttribute(name, value) { this.attrs[name] = value; },
-    appendChild(child) { this.children.push(child); },
-    append(...kids) { this.children.push(...kids); },
-    addEventListener(type, fn) { this.listeners[type] = fn; },
-    removeEventListener() {}, contains: () => false, remove() {},
-    classList: { add() {}, remove() {} },
-  });
+  const makeNode = () => {
+    const node = {
+      className: '', attrs: {}, listeners: {}, innerHTML: '', textContent: '', children: [],
+      style: {}, parentNode: null,
+      setAttribute(name, value) { this.attrs[name] = value; },
+      appendChild(child) { child.parentNode = this; this.children.push(child); return child; },
+      insertBefore(child, ref) {
+        child.parentNode = this;
+        const index = ref === null ? this.children.length : this.children.indexOf(ref);
+        this.children.splice(index < 0 ? this.children.length : index, 0, child);
+        return child;
+      },
+      removeChild(child) { this.children = this.children.filter((c) => c !== child); child.parentNode = null; return child; },
+      get firstChild() { return this.children[0] ?? null; },
+      append(...kids) { for (const kid of kids) this.appendChild(kid); },
+      addEventListener(type, fn) { this.listeners[type] = fn; },
+      removeEventListener() {}, contains: () => false,
+      remove() { if (this.parentNode) this.parentNode.removeChild(this); },
+      classList: { add() {}, remove() {} },
+    };
+    return node;
+  };
   const savedCreate = globalThis.document.createElement;
   globalThis.document.createElement = () => {
     const node = makeNode();
@@ -318,7 +331,9 @@ resetHooks();
   moduleExports.__test.openPromptPopover({
     anchor: { setAttribute() {}, contains: () => false },
     t: (key) => key,
-    items: [prompt],
+    sections: [{ key: 'global', label: 'Global', groups: [{ id: '', name: '', items: [prompt], isUngrouped: true }] }],
+    collapsed: new Set(),
+    onToggleGroup: () => {},
     placement: () => ({ left: 0, top: 0, width: 100, maxHeight: 100 }),
     onPick: () => { picked += 1; },
     onSend: () => { sent += 1; },
@@ -351,13 +366,41 @@ assert.ok(manager.type === 'div' || manager.type === undefined, 'manager renders
   resetHooks();
   const tree = moduleExports.__test.PromptManager({ ctx });
   const json = JSON.stringify(tree);
-  assert.ok(json.includes('dsh-powerup-prompt-group'), 'prompts render inside workspace groups');
-  assert.ok(json.includes('dsh-powerup-prompt-group-head'), 'each group has a collapsible header');
-  assert.ok(!json.includes('dsh-powerup-prompt-scope'), 'the per-card scope pill is gone (the group carries it)');
+  assert.ok(json.includes('dsh-powerup-prompt-group'), 'prompts render inside groups');
+  assert.ok(json.includes('dsh-powerup-prompt-group-toggle'), 'each group has a collapsible header');
+  assert.ok(json.includes('dsh-powerup-prompt-scope'), 'prompts are split into workspace/global scope sections');
+  assert.ok(json.includes('dsh-powerup-prompt-ungrouped'), 'the ungrouped pseudo-group exists');
+  assert.ok(json.includes('data-prompt-drag'), 'prompt cards are draggable');
   assert.ok(!json.includes('dsh-powerup-prompt-preview'), 'folded cards no longer show a body preview');
   const folded = (json.match(/dsh-powerup-prompt-card folded/gu) ?? []).length;
   assert.equal(folded, 3, 'every prompt card starts folded');
   moduleExports.__test.writePrompts([]);
+}
+
+// Prompt groups: group records are filtered out of readPrompts, mixed records
+// round-trip through writeAll, and groupPrompts buckets by groupId with an
+// ungrouped pseudo-section last. Orphan groupIds fall back to ungrouped.
+{
+  const store = moduleExports.__test;
+  store.writeAll([
+    { id: 'p1', title: 'Alpha', text: 'a', workspaceId: 'ws-1', groupId: 'g1' },
+    { id: 'p2', title: 'Beta', text: 'b', workspaceId: 'ws-1', groupId: '' },
+    { id: 'p3', title: 'Orphan', text: 'c', workspaceId: 'ws-1', groupId: 'gone' },
+    { id: 'g1', kind: 'group', name: '常用', workspaceId: 'ws-1' },
+    { id: 'gg', kind: 'group', name: '全局组', workspaceId: '' },
+  ]);
+  assert.deepEqual(store.readPrompts().map((p) => p.id), ['p1', 'p2', 'p3'], 'groups are not prompts');
+  assert.deepEqual(store.readGroups().map((g) => g.id), ['g1', 'gg'], 'groups are readable separately');
+  const sections = store.groupPrompts(store.readPrompts(), store.readGroups(), 'ws-1');
+  assert.deepEqual(sections.map((s) => s.id), ['g1', ''], 'custom groups first, ungrouped last');
+  assert.deepEqual(sections[0].items.map((p) => p.id), ['p1'], 'grouped prompt lands in its group');
+  assert.deepEqual(sections[1].items.map((p) => p.id), ['p2', 'p3'], 'ungrouped and orphan stay loose');
+  assert.equal(sections[1].isUngrouped, true, 'the loose section is marked ungrouped');
+  const globalSections = store.groupPrompts(store.readPrompts(), store.readGroups(), '');
+  assert.equal(globalSections[0].group.name, '全局组', 'global groups are scoped to global');
+  store.writePrompts(store.readPrompts());
+  assert.equal(store.readGroups().length, 2, 'writePrompts preserves group records');
+  store.writeAll([]);
 }
 
 // The in-session create dialog keeps whatever was typed when it is closed and
@@ -1352,6 +1395,10 @@ globalThis.localStorage.getItem = savedGetItem;
   // Coordinated radii: both dropdowns use a 10px outer shell and 8px inner controls.
   assert.ok(/\.dsh-powerup-prompt-pop\{[^}]*border-radius:10px/.test(css), 'prompt dropdown shell uses 10px radius');
   assert.ok(/\.dsh-powerup-ws-menu\{[^}]*border-radius:10px/.test(css), 'scope dropdown shell uses 10px radius');
+  assert.ok(css.includes('.dsh-powerup-prompt-pop-scope{'), 'the dropdown has scope section headers');
+  assert.ok(css.includes('.dsh-powerup-prompt-pop-group{'), 'the dropdown has collapsible group headers');
+  assert.ok(css.includes('.dsh-powerup-prompt-card.drop-target'), 'drop targets highlight on drag');
+  assert.ok(css.includes('.dsh-powerup-prompt-scopes{'), 'the settings page renders scope sections');
 }
 
 // Mask rules: normalization, global storage, regex compilation and application.
@@ -2067,7 +2114,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.10.2');
+assert.equal(host.__test.SELF_VERSION, '0.10.3');
 
 const installFailSpecs = [];
 const installFailManager = {

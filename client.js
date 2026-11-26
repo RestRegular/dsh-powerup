@@ -83,7 +83,7 @@
       const promptCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.10.2';
+      const VERSION = '0.10.3';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -350,7 +350,7 @@
           'prompts.tabFeatures': '功能列表',
           'prompts.tabManage': '提示词',
           'prompts.sectionTitle': '统一管理各工作区的提示词',
-          'prompts.sectionSub': '提示词按工作区分组保存在工作区目录的 .dsh/dsh-powerup/prompts.json；选择后填入输入框，可继续编辑再发送。',
+          'prompts.sectionSub': '提示词按「全局 / 当前工作区」分区，区内可自定义分组并折叠展开；未分组提示词与分组同级展示，拖拽提示词到分组标题即可移动。',
           'prompts.new': '新建提示词',
           'prompts.cancel': '取消',
           'prompts.save': '保存',
@@ -388,6 +388,18 @@
           'prompts.createFailed': '创建失败：{message}',
           'prompts.workspaceCurrent': '当前工作区',
           'prompts.workspaceNone': '未识别当前工作区，将保存到所有工作区',
+          'prompts.scopeGlobal': '全局提示词',
+          'prompts.scopeWorkspace': '当前工作区',
+          'prompts.ungrouped': '未分组',
+          'prompts.groupNew': '新建分组',
+          'prompts.groupRename': '重命名',
+          'prompts.groupDelete': '删除分组',
+          'prompts.groupNamePlaceholder': '分组名称',
+          'prompts.groupCreate': '创建分组',
+          'prompts.groupConfirmDelete': '删除这个分组？其中的提示词会变为未分组，不会被删除。',
+          'prompts.moveToGroup': '移动到分组',
+          'prompts.moveUngrouped': '移出分组',
+          'prompts.dropHint': '拖拽提示词到分组标题即可移动；拖到「未分组」可移出分组。',
         },
         en: {
           'panel.title': 'Power-Up',
@@ -644,7 +656,7 @@
           'prompts.tabFeatures': 'Features',
           'prompts.tabManage': 'Prompts',
           'prompts.sectionTitle': 'Manage prompts for every workspace',
-          'prompts.sectionSub': 'Prompts are grouped by workspace and stored in that workspace\'s .dsh/dsh-powerup/prompts.json. Picking one fills the composer so you can edit before sending.',
+          'prompts.sectionSub': 'Prompts are split into Global / This workspace sections. Each section can have custom collapsible groups; ungrouped prompts sit beside groups, and you can drag a prompt onto a group header to move it.',
           'prompts.new': 'New prompt',
           'prompts.cancel': 'Cancel',
           'prompts.save': 'Save',
@@ -682,6 +694,18 @@
           'prompts.createFailed': 'Could not create: {message}',
           'prompts.workspaceCurrent': 'Current workspace',
           'prompts.workspaceNone': 'Current workspace unknown; it will be saved for all workspaces',
+          'prompts.scopeGlobal': 'Global prompts',
+          'prompts.scopeWorkspace': 'This workspace',
+          'prompts.ungrouped': 'Ungrouped',
+          'prompts.groupNew': 'New group',
+          'prompts.groupRename': 'Rename',
+          'prompts.groupDelete': 'Delete group',
+          'prompts.groupNamePlaceholder': 'Group name',
+          'prompts.groupCreate': 'Create group',
+          'prompts.groupConfirmDelete': 'Delete this group? Its prompts stay as ungrouped and are not deleted.',
+          'prompts.moveToGroup': 'Move to group',
+          'prompts.moveUngrouped': 'Move out of group',
+          'prompts.dropHint': 'Drag a prompt onto a group header to move it; drop on Ungrouped to take it out of a group.',
         },
       };
 
@@ -800,20 +824,46 @@
       let promptsCache = [];
       let promptsLoaded = false;
 
-      /** Normalize an arbitrary value into a clean prompt record. */
+      /** A group record is tagged with kind:'group'; everything else is a prompt. */
+      function isGroupRecord(item) {
+        return item !== null && typeof item === 'object' && item.kind === 'group';
+      }
+
+      /** Normalize an arbitrary value into a clean prompt or group record. */
       function normalizePrompt(item) {
         if (item === null || typeof item !== 'object') return null;
+        if (isGroupRecord(item)) {
+          return {
+            id: typeof item.id === 'string' && item.id !== '' ? item.id : newId(),
+            kind: 'group',
+            name: typeof item.name === 'string' ? item.name : '',
+            workspaceId: typeof item.workspaceId === 'string' ? item.workspaceId : '',
+          };
+        }
         return {
           id: typeof item.id === 'string' && item.id !== '' ? item.id : newId(),
           title: typeof item.title === 'string' ? item.title : '',
           text: typeof item.text === 'string' ? item.text : '',
           workspaceId: typeof item.workspaceId === 'string' ? item.workspaceId : '',
+          groupId: typeof item.groupId === 'string' ? item.groupId : '',
         };
       }
 
-      /** @returns {Array<{id:string,title:string,text:string,workspaceId:string}>} */
+      /** @returns {Array<{id:string,title:string,text:string,workspaceId:string,groupId:string}>} */
       function readPrompts() {
-        return promptsCache;
+        return promptsCache.filter((item) => !isGroupRecord(item));
+      }
+
+      /** @returns {Array<{id:string,kind:'group',name:string,workspaceId:string}>} */
+      function readGroups() {
+        return promptsCache.filter(isGroupRecord);
+      }
+
+      /** Groups visible in a workspace: its own plus the global ones. */
+      function groupsForWorkspace(list, workspaceId) {
+        const id = typeof workspaceId === 'string' ? workspaceId : '';
+        return (Array.isArray(list) ? list : []).filter((item) => isGroupRecord(item)
+          && (item.workspaceId === '' || item.workspaceId === id));
       }
 
       /**
@@ -835,8 +885,7 @@
         return promptsCache;
       }
 
-      function writePrompts(list) {
-        const next = (Array.isArray(list) ? list : []).map(normalizePrompt).filter(Boolean);
+      function commitStore(next) {
         promptsCache = next;
         promptsLoaded = true;
         emitPrompts();
@@ -847,6 +896,23 @@
         }).catch(() => {
           /* The in-memory list still works for this page. */
         });
+      }
+
+      /** Replace prompts, keeping the group records already in the cache. */
+      function writePrompts(list) {
+        const prompts = (Array.isArray(list) ? list : []).map(normalizePrompt).filter(Boolean);
+        commitStore([...promptsCache.filter(isGroupRecord), ...prompts]);
+      }
+
+      /** Replace group records, keeping the prompts already in the cache. */
+      function writeGroups(list) {
+        const groups = (Array.isArray(list) ? list : []).map(normalizePrompt).filter(Boolean);
+        commitStore([...groups, ...promptsCache.filter((item) => !isGroupRecord(item))]);
+      }
+
+      /** Replace the whole store (prompts and groups), e.g. after a drag move. */
+      function writeAll(list) {
+        commitStore((Array.isArray(list) ? list : []).map(normalizePrompt).filter(Boolean));
       }
 
       const promptsListeners = new Set();
@@ -1029,7 +1095,34 @@
        */
       function promptsForWorkspace(list, workspaceId) {
         const id = typeof workspaceId === 'string' ? workspaceId : '';
-        return (Array.isArray(list) ? list : []).filter((item) => item.workspaceId === '' || item.workspaceId === id);
+        return (Array.isArray(list) ? list : []).filter((item) => !isGroupRecord(item)
+          && (item.workspaceId === '' || item.workspaceId === id));
+      }
+
+      /**
+       * Build the grouped view for one scope: custom groups first (in store
+       * order), then ungrouped prompts as a peer group with id ''. Only prompts
+       * whose groupId resolves to a group of the same scope are placed; an
+       * orphaned groupId falls back to ungrouped so no prompt disappears.
+       */
+      function groupPrompts(prompts, groups, scopeId) {
+        const scopeGroups = (Array.isArray(groups) ? groups : [])
+          .filter((group) => group.workspaceId === scopeId);
+        const scopePrompts = (Array.isArray(prompts) ? prompts : [])
+          .filter((prompt) => prompt.workspaceId === scopeId);
+        const known = new Set(scopeGroups.map((group) => group.id));
+        const buckets = new Map(scopeGroups.map((group) => [group.id, []]));
+        const loose = [];
+        for (const prompt of scopePrompts) {
+          const gid = typeof prompt.groupId === 'string' ? prompt.groupId : '';
+          if (gid !== '' && buckets.has(gid)) buckets.get(gid).push(prompt);
+          else loose.push(prompt);
+        }
+        const sections = scopeGroups.map((group) => ({
+          id: group.id, name: group.name, group, items: buckets.get(group.id), isUngrouped: false,
+        }));
+        sections.push({ id: '', name: '', items: loose, isUngrouped: true });
+        return sections;
       }
 
       /** Title, else the first characters of the body, else a localized fallback. */
@@ -1045,6 +1138,13 @@
       function usePrompts() {
         const [value, setValue] = useState(readPrompts);
         useEffect(() => subscribePrompts(() => setValue(readPrompts())), []);
+        useEffect(() => { void loadPrompts(); }, []);
+        return value;
+      }
+
+      function usePromptGroups() {
+        const [value, setValue] = useState(readGroups);
+        useEffect(() => subscribePrompts(() => setValue(readGroups())), []);
         useEffect(() => { void loadPrompts(); }, []);
         return value;
       }
@@ -2860,7 +2960,7 @@
        * Open the prompt picker next to the hero control. Returns a disposer.
        * DOM-based like the session switcher so it survives host re-renders.
        */
-      function openPromptPopover({ anchor, t, items, onPick, onSend, onEdit, onCreate, onDispose, placement }) {
+      function openPromptPopover({ anchor, t, sections, collapsed, onToggleGroup, onPick, onSend, onEdit, onCreate, onDispose, placement }) {
         if (anchor === null || anchor === undefined || typeof document === 'undefined') return () => {};
         const element = document.createElement('div');
         element.className = 'dsh-powerup-prompt-pop';
@@ -2890,72 +2990,126 @@
         element.appendChild(head);
         const list = document.createElement('div');
         list.className = 'dsh-powerup-prompt-pop-list';
-        if (items.length === 0) {
-          const empty = document.createElement('div');
-          empty.className = 'dsh-powerup-prompt-pop-empty';
-          empty.textContent = t('prompts.noPrompts');
-          element.appendChild(empty);
-        } else {
-          for (const prompt of items) {
-            const row = document.createElement('div');
-            row.className = 'dsh-powerup-prompt-pop-item';
-            const main = document.createElement('button');
-            main.type = 'button';
-            main.className = 'dsh-powerup-prompt-pop-main';
-            main.setAttribute('data-prompt-id', prompt.id);
-            const name = document.createElement('span');
-            name.className = 'dsh-powerup-prompt-pop-name';
-            name.textContent = promptLabel(prompt, t);
-            const preview = document.createElement('span');
-            preview.className = 'dsh-powerup-prompt-pop-preview';
-            preview.textContent = [...(prompt.text || '').trim()].slice(0, 40).join('');
-            main.append(name, preview);
-            main.addEventListener('click', (event) => {
+        const renderRow = (prompt) => {
+          const row = document.createElement('div');
+          row.className = 'dsh-powerup-prompt-pop-item';
+          const main = document.createElement('button');
+          main.type = 'button';
+          main.className = 'dsh-powerup-prompt-pop-main';
+          main.setAttribute('data-prompt-id', prompt.id);
+          const name = document.createElement('span');
+          name.className = 'dsh-powerup-prompt-pop-name';
+          name.textContent = promptLabel(prompt, t);
+          const preview = document.createElement('span');
+          preview.className = 'dsh-powerup-prompt-pop-preview';
+          preview.textContent = [...(prompt.text || '').trim()].slice(0, 40).join('');
+          main.append(name, preview);
+          main.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            dispose();
+            onPick(prompt);
+          });
+          const send = document.createElement('button');
+          send.type = 'button';
+          send.className = 'dsh-powerup-prompt-pop-send';
+          send.setAttribute('data-prompt-send', prompt.id);
+          send.setAttribute('aria-label', t('prompts.sendDirect'));
+          send.setAttribute('title', t('prompts.sendDirect'));
+          // Icon-only send action; label moved to title/aria-label above.
+          send.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M2 7.5 13.5 3 9 14.5 7.4 9.2 2 7.5Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>';
+          send.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            dispose();
+            onSend(prompt);
+          });
+          row.append(main);
+          if (typeof onEdit === 'function') {
+            const edit = document.createElement('button');
+            edit.type = 'button';
+            edit.className = 'dsh-powerup-prompt-pop-edit';
+            edit.setAttribute('data-prompt-edit', prompt.id);
+            edit.setAttribute('aria-label', t('prompts.edit'));
+            edit.setAttribute('title', t('prompts.edit'));
+            // Icon-only edit action; label moved to title/aria-label above.
+            edit.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M11.2 2.6a1.3 1.3 0 0 1 1.8 1.8L6 11.4l-2.4.6.6-2.4 7-7Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M3 14h10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>';
+            edit.addEventListener('click', (event) => {
               event.preventDefault();
               event.stopPropagation();
               dispose();
-              onPick(prompt);
+              onEdit(prompt);
             });
-            const send = document.createElement('button');
-            send.type = 'button';
-            send.className = 'dsh-powerup-prompt-pop-send';
-            send.setAttribute('data-prompt-send', prompt.id);
-            send.setAttribute('aria-label', t('prompts.sendDirect'));
-            send.setAttribute('title', t('prompts.sendDirect'));
-            // Icon-only send action; label moved to title/aria-label above.
-            send.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M2 7.5 13.5 3 9 14.5 7.4 9.2 2 7.5Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>';
-            send.addEventListener('click', (event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              dispose();
-              onSend(prompt);
-            });
-            row.append(main);
-            if (typeof onEdit === 'function') {
-              const edit = document.createElement('button');
-              edit.type = 'button';
-              edit.className = 'dsh-powerup-prompt-pop-edit';
-              edit.setAttribute('data-prompt-edit', prompt.id);
-              edit.setAttribute('aria-label', t('prompts.edit'));
-              edit.setAttribute('title', t('prompts.edit'));
-              // Icon-only edit action; label moved to title/aria-label above.
-              edit.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M11.2 2.6a1.3 1.3 0 0 1 1.8 1.8L6 11.4l-2.4.6.6-2.4 7-7Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M3 14h10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>';
-              edit.addEventListener('click', (event) => {
+            row.append(edit);
+          }
+          row.append(send);
+          return row;
+        };
+        const sectionsList = Array.isArray(sections) ? sections : [];
+        const emptyNode = document.createElement('div');
+        emptyNode.className = 'dsh-powerup-prompt-pop-empty';
+        emptyNode.textContent = t('prompts.noPrompts');
+        const sep = document.createElement('div');
+        sep.className = 'dsh-powerup-prompt-pop-sep';
+        const localCollapsed = new Set(collapsed instanceof Set ? collapsed : []);
+        const renderList = () => {
+          while (list.firstChild) list.removeChild(list.firstChild);
+          let total = 0;
+          for (const section of sectionsList) {
+            for (const group of section.groups) total += group.items.length;
+          }
+          if (total === 0) {
+            if (emptyNode.parentNode !== element) element.appendChild(emptyNode);
+            if (list.parentNode === element) element.removeChild(list);
+            if (sep.parentNode === element) element.removeChild(sep);
+            return;
+          }
+          if (emptyNode.parentNode === element) element.removeChild(emptyNode);
+          if (list.parentNode !== element) element.insertBefore(list, sep.parentNode === element ? sep : null);
+          if (sep.parentNode !== element) element.appendChild(sep);
+          for (const section of sectionsList) {
+            const scopeHead = document.createElement('div');
+            scopeHead.className = 'dsh-powerup-prompt-pop-scope';
+            scopeHead.textContent = section.label;
+            list.appendChild(scopeHead);
+            for (const group of section.groups) {
+              if (group.items.length === 0 && !group.group) continue;
+              const isUngrouped = group.isUngrouped === true;
+              const key = section.key + ':' + group.id;
+              const isCollapsed = localCollapsed.has(key);
+              if (isUngrouped) {
+                // Ungrouped prompts sit at the same level as group headers.
+                for (const prompt of group.items) list.appendChild(renderRow(prompt));
+                continue;
+              }
+              const head = document.createElement('button');
+              head.type = 'button';
+              head.className = 'dsh-powerup-prompt-pop-group';
+              head.setAttribute('data-prompt-group', key);
+              head.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+              head.innerHTML = '<svg width="10" height="10" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+              const label = document.createElement('span');
+              label.textContent = group.name || t('prompts.untitled');
+              const count = document.createElement('span');
+              count.className = 'dsh-powerup-prompt-pop-group-count';
+              count.textContent = String(group.items.length);
+              head.append(label, count);
+              head.addEventListener('click', (event) => {
                 event.preventDefault();
                 event.stopPropagation();
-                dispose();
-                onEdit(prompt);
+                if (localCollapsed.has(key)) localCollapsed.delete(key);
+                else localCollapsed.add(key);
+                if (typeof onToggleGroup === 'function') onToggleGroup(key, !localCollapsed.has(key));
+                renderList();
               });
-              row.append(edit);
+              list.appendChild(head);
+              if (!isCollapsed) {
+                for (const prompt of group.items) list.appendChild(renderRow(prompt));
+              }
             }
-            row.append(send);
-            list.appendChild(row);
           }
-          element.appendChild(list);
-          const sep = document.createElement('div');
-          sep.className = 'dsh-powerup-prompt-pop-sep';
-          element.appendChild(sep);
-        }
+        };
+        renderList();
         const create = document.createElement('button');
         create.type = 'button';
         create.className = 'dsh-powerup-prompt-pop-create';
@@ -3220,9 +3374,11 @@
           ? useWorkspaces(workspaceSelector) ?? ''
           : '';
         const prompts = usePrompts(workspaceId);
+        const groups = usePromptGroups();
         const [, forceLocale] = useState(0);
         const [creating, setCreating] = useState(false);
         const [editing, setEditing] = useState(null);
+        const [collapsed, setCollapsed] = useState(() => new Set());
         const anchorRef = useRef(null);
         const disposeRef = useRef(null);
         const t = (key, params) => translateCurrent(key, params);
@@ -3247,6 +3403,25 @@
         if (!settings.workspacePrompts) return null;
 
         const visible = promptsForWorkspace(prompts, workspaceId);
+        const sections = [];
+        if (workspaceId !== '') {
+          sections.push({
+            key: 'global',
+            label: t('prompts.scopeGlobal'),
+            groups: groupPrompts(visible, groups, ''),
+          });
+        }
+        sections.push({
+          key: 'workspace',
+          label: workspaceId === '' ? t('prompts.scopeGlobal') : t('prompts.scopeWorkspace'),
+          groups: groupPrompts(visible, groups, workspaceId),
+        });
+        const toggleGroup = (key) => setCollapsed((current) => {
+          const next = new Set(current);
+          if (next.has(key)) next.delete(key);
+          else next.add(key);
+          return next;
+        });
         const lastId = readLastPrompt(workspaceId);
         const last = visible.find((p) => p.id === lastId);
         const label = last !== undefined ? promptLabel(last, t) : t('prompts.pick');
@@ -3308,7 +3483,9 @@
             const dispose = openPromptPopover({
               anchor,
               t,
-              items: visible,
+              sections,
+              collapsed,
+              onToggleGroup: toggleGroup,
               placement: (node) => popoverPlacement(node, 360, 340, { preferUp: compact }),
               onPick: (prompt) => apply(prompt, false),
               onSend: (prompt) => apply(prompt, true),
@@ -4029,6 +4206,12 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-prompt-pop{position:fixed;z-index:1600;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;overflow-x:hidden;border:0;border-radius:10px;background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);font-size:12.5px;line-height:1.5;opacity:0;transform:translateY(-4px);transition:opacity .12s ease,transform .12s ease;pointer-events:auto;--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2)}
 .dsh-powerup-prompt-pop.is-open{opacity:1;transform:none}
 .dsh-powerup-prompt-pop-head{flex:none;display:flex;align-items:center;gap:6px;padding:8px 11px 7px;color:var(--dsw-alias-label-tertiary);font-size:10.5px;font-weight:600;letter-spacing:.03em}
+.dsh-powerup-prompt-pop-scope{flex:none;padding:5px 9px 3px;color:var(--dsw-alias-label-tertiary);font-size:10px;font-weight:600;letter-spacing:.03em}
+.dsh-powerup-prompt-pop-group{flex:none;display:flex;align-items:center;gap:5px;width:100%;min-height:26px;padding:2px 9px;border:0;border-radius:7px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:11px;font-weight:600;line-height:1.5;text-align:left;cursor:pointer}
+.dsh-powerup-prompt-pop-group svg{flex:none;color:var(--dsw-alias-label-tertiary);transition:transform .12s ease}
+.dsh-powerup-prompt-pop-group[aria-expanded=false] svg{transform:rotate(-90deg)}
+.dsh-powerup-prompt-pop-group:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
+.dsh-powerup-prompt-pop-group-count{margin-left:auto;color:var(--dsw-alias-label-tertiary);font-size:10px;font-weight:400}
 .dsh-powerup-prompt-pop-list{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:4px;padding:6px;overflow-y:auto;overflow-x:hidden}
 .dsh-powerup-prompt-pop-item{box-sizing:border-box;display:flex;align-items:center;gap:6px;width:100%;min-width:0;min-height:38px;padding:4px 5px 4px 9px;border:.5px solid transparent;border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;text-align:left;transition:border-color .12s ease,background .12s ease}
 .dsh-powerup-prompt-pop-item:hover{border-color:var(--dsw-alias-border-l2);background:var(--dsw-alias-interactive-bg-hover)}
@@ -4057,18 +4240,29 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-prompt-new{height:30px;padding:0 12px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font:inherit;font-size:12.5px;line-height:1.5;cursor:pointer;transition:border-color .12s ease,color .12s ease}
 .dsh-powerup-prompt-new:hover{border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-brand-primary)}
 .dsh-powerup-prompt-new:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:1px}
-.dsh-powerup-prompt-groups{display:flex;flex-direction:column;gap:14px;margin-top:14px}
-.dsh-powerup-prompt-group{border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-2);overflow:hidden}
-.dsh-powerup-prompt-group-head{display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;border:0;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;text-align:left;cursor:pointer}
-.dsh-powerup-prompt-group-head:hover{background:var(--dsw-alias-interactive-bg-hover)}
-.dsh-powerup-prompt-group-head:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:-2px}
+.dsh-powerup-prompt-scopes{display:flex;flex-direction:column;gap:16px;margin-top:14px}
+.dsh-powerup-prompt-scope-head{display:flex;align-items:center;gap:8px;padding:4px 2px}
+.dsh-powerup-prompt-scope-title{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-secondary);font-size:11.5px;font-weight:600;letter-spacing:.03em}
+.dsh-powerup-prompt-groups{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+.dsh-powerup-prompt-group{border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-2);overflow:hidden;transition:border-color .12s ease,background .12s ease}
+.dsh-powerup-prompt-group.drop-target{border-color:var(--dsw-alias-state-business-primary);background:var(--dsw-alias-interactive-bg-hover)}
+.dsh-powerup-prompt-group-head{display:flex;align-items:center;gap:8px;width:100%;padding:7px 12px;background:transparent}
+.dsh-powerup-prompt-group-toggle{display:flex;flex:1 1 auto;align-items:center;gap:8px;min-width:0;padding:2px 0;border:0;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;text-align:left;cursor:pointer}
+.dsh-powerup-prompt-group-toggle:hover{color:var(--dsw-alias-brand-primary)}
+.dsh-powerup-prompt-group-toggle:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:-2px}
+.dsh-powerup-prompt-group-actions{display:flex;align-items:center;gap:2px;flex:none}
 .dsh-powerup-prompt-group-chevron{flex:none;display:inline-flex;color:var(--dsw-alias-label-tertiary);transition:transform .15s ease}
 .dsh-powerup-prompt-group.is-collapsed .dsh-powerup-prompt-group-chevron{transform:rotate(-90deg)}
 .dsh-powerup-prompt-group-title{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:600;line-height:1.4}
 .dsh-powerup-prompt-group-count{flex:none;color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:1.5;font-variant-numeric:tabular-nums}
 .dsh-powerup-prompt-group-body{display:flex;flex-direction:column;gap:7px;padding:0 8px 8px}
-.dsh-powerup-prompt-card{border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1);overflow:hidden}
-.dsh-powerup-prompt-card-head{display:flex;align-items:center;gap:10px;padding:8px 11px;flex-wrap:wrap}
+.dsh-powerup-group-form{display:flex;align-items:center;gap:6px;padding:6px 12px 9px}
+.dsh-powerup-group-form .dsh-powerup-prompt-input{flex:1 1 auto;min-width:0}
+.dsh-powerup-prompt-card{border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1);overflow:hidden;transition:border-color .12s ease}
+.dsh-powerup-prompt-card.drop-target{border-color:var(--dsw-alias-state-business-primary);background:var(--dsw-alias-interactive-bg-hover)}
+.dsh-powerup-prompt-card[draggable=true]{cursor:grab}
+.dsh-powerup-prompt-drag-handle{flex:none;color:var(--dsw-alias-label-tertiary);font-size:13px;line-height:1;cursor:grab}
+.dsh-powerup-prompt-card-head{display:flex;align-items:center;gap:8px;padding:8px 11px;flex-wrap:wrap}
 .dsh-powerup-prompt-name{font-size:13px;font-weight:600;line-height:1.4;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dsh-powerup-prompt-card-actions{display:flex;align-items:center;gap:4px;margin-left:auto;flex-wrap:wrap}
 .dsh-powerup-linkbtn{background:none;border:0;padding:2px 4px;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;line-height:1.7;cursor:pointer;border-radius:5px}
@@ -8699,11 +8893,17 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 
       function PromptManager({ ctx }) {
         const prompts = usePrompts();
+        const groups = usePromptGroups();
         const [, forceLocale] = useState(0);
         const [expanded, setExpanded] = useState(null);
         const [draft, setDraft] = useState(null);
         // Groups start expanded; collapsing one only affects this view.
         const [collapsedGroups, setCollapsedGroups] = useState(() => new Set());
+        // Group create/rename: { scopeId, id:'', name:'' } (id='' => create).
+        const [groupDraft, setGroupDraft] = useState(null);
+        // Prompt id currently being dragged, for move-to-group drops.
+        const dragRef = useRef(null);
+        const [dragOver, setDragOver] = useState(null);
         const t = (key, params) => translateCurrent(key, params);
         useEffect(() => {
           const locale = ctx.get('locale');
@@ -8756,6 +8956,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             title: typeof draft.title === 'string' ? draft.title.trim() : '',
             text,
             workspaceId: typeof draft.workspaceId === 'string' ? draft.workspaceId.trim() : '',
+            groupId: typeof draft.groupId === 'string' ? draft.groupId : '',
           };
           const next = prompts.filter((p) => p.id !== record.id);
           next.push(record);
@@ -8767,6 +8968,55 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             && !window.confirm(t('prompts.confirmDelete'))) return;
           writePrompts(prompts.filter((p) => p.id !== prompt.id));
         };
+
+        // ---- Group management ------------------------------------------
+        const saveGroup = () => {
+          if (groupDraft === null) return;
+          const name = typeof groupDraft.name === 'string' ? groupDraft.name.trim() : '';
+          if (name === '') return;
+          const id = groupDraft.id;
+          if (id === '') {
+            writeGroups([...groups, {
+              id: newId(), kind: 'group', name, workspaceId: groupDraft.scopeId,
+            }]);
+          } else {
+            writeGroups(groups.map((g) => (g.id === id ? { ...g, name } : g)));
+          }
+          setGroupDraft(null);
+        };
+        const deleteGroup = (group) => {
+          if (typeof window !== 'undefined' && typeof window.confirm === 'function'
+            && !window.confirm(t('prompts.groupConfirmDelete'))) return;
+          // Detach its prompts so none disappear; store both lists in one write.
+          writeAll([
+            ...groups.filter((g) => g.id !== group.id),
+            ...prompts.map((p) => (p.groupId === group.id ? { ...p, groupId: '' } : p)),
+          ]);
+        };
+        /** Move the dragged prompt into a group ('' = ungrouped) of a scope. */
+        const movePrompt = (groupId, scopeId) => {
+          const id = dragRef.current;
+          dragRef.current = null;
+          setDragOver(null);
+          if (typeof id !== 'string' || id === '') return;
+          writeAll([
+            ...groups,
+            ...prompts.map((p) => (p.id === id
+              ? { ...p, groupId, workspaceId: scopeId }
+              : p)),
+          ]);
+        };
+        const dropProps = (key, groupId, scopeId) => ({
+          onDragOver: (event) => {
+            event.preventDefault();
+            if (dragOver !== key) setDragOver(key);
+          },
+          onDragLeave: () => setDragOver((current) => (current === key ? null : current)),
+          onDrop: (event) => {
+            event.preventDefault();
+            movePrompt(groupId, scopeId);
+          },
+        });
         const field = (label, key, placeholder, className) => h('label', { className: 'dsh-powerup-prompt-field' },
           h('span', { className: 'dsh-powerup-prompt-field-label' }, label),
           key === 'text'
@@ -8816,40 +9066,32 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           return found?.title || id;
         };
 
-        /**
-         * Group prompts by workspace: "all workspaces" first, then every real
-         * workspace in list order, then any orphaned scope not in the registry.
-         */
-        const groups = [];
-        const seenScope = new Set();
-        const pushGroup = (id) => {
-          if (seenScope.has(id)) return;
-          const items = prompts.filter((p) => p.workspaceId === id);
-          if (items.length === 0) return;
-          seenScope.add(id);
-          groups.push({ id, title: workspaceTitleOf(id), items });
-        };
-        pushGroup('');
-        for (const ws of workspaces) pushGroup(ws.workspaceId);
-        for (const prompt of prompts) pushGroup(prompt.workspaceId);
-
-        const toggleGroup = (id) => {
+        const toggleGroup = (key) => {
           setCollapsedGroups((current) => {
             const next = new Set(current);
-            if (next.has(id)) next.delete(id);
-            else next.add(id);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
             return next;
           });
         };
 
-        /** One collapsed prompt card: only the title plus edit/delete actions. */
-        const promptCard = (prompt) => {
+        /** One collapsed prompt card: title + edit/delete, draggable. */
+        const promptCard = (prompt, scopeId) => {
           const isExpanded = expanded === prompt.id;
           return h('section', {
             key: prompt.id,
-            className: 'dsh-powerup-prompt-card' + (isExpanded ? '' : ' folded'),
+            draggable: !isExpanded,
+            'data-prompt-drag': prompt.id,
+            className: 'dsh-powerup-prompt-card' + (isExpanded ? '' : ' folded')
+              + (dragOver === 'card:' + prompt.id ? ' drop-target' : ''),
+            onDragStart: (event) => {
+              dragRef.current = prompt.id;
+              try { event.dataTransfer?.setData?.('text/plain', prompt.id); } catch { /* best effort */ }
+            },
+            onDragEnd: () => { dragRef.current = null; setDragOver(null); },
           },
             h('div', { className: 'dsh-powerup-prompt-card-head' },
+              h('span', { className: 'dsh-powerup-prompt-drag-handle', 'aria-hidden': 'true' }, '\u2807'),
               h('span', { className: 'dsh-powerup-prompt-name' }, promptLabel(prompt, t)),
               h('div', { className: 'dsh-powerup-prompt-card-actions' },
                 h('button', {
@@ -8868,19 +9110,26 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           );
         };
 
-        const groupsView = groups.length === 0
-          ? h('div', { className: 'dsh-powerup-prompt-empty' }, t('prompts.empty'))
-          : h('div', { className: 'dsh-powerup-prompt-groups' }, groups.map((group) => {
-            const collapsed = collapsedGroups.has(group.id);
-            return h('section', {
-              key: 'group:' + group.id,
-              className: 'dsh-powerup-prompt-group' + (collapsed ? ' is-collapsed' : ''),
-            },
+        /** One group block: header (drop target) + collapsible body. */
+        const groupBlock = (section, scopeId) => {
+          const key = scopeId + ':' + section.id;
+          const collapsed = collapsedGroups.has(key);
+          const isUngrouped = section.isUngrouped;
+          const drop = dropProps(key, section.id, scopeId);
+          const editingThis = groupDraft !== null && groupDraft.scopeId === scopeId
+            && groupDraft.id === (isUngrouped ? '' : section.group.id);
+          return h('section', {
+            key,
+            className: 'dsh-powerup-prompt-group' + (isUngrouped ? ' dsh-powerup-prompt-ungrouped' : '')
+              + (collapsed ? ' is-collapsed' : '') + (dragOver === key ? ' drop-target' : ''),
+            ...drop,
+          },
+            h('div', { className: 'dsh-powerup-prompt-group-head' },
               h('button', {
                 type: 'button',
-                className: 'dsh-powerup-prompt-group-head',
+                className: 'dsh-powerup-prompt-group-toggle',
                 'aria-expanded': collapsed ? 'false' : 'true',
-                onClick: () => toggleGroup(group.id),
+                onClick: () => toggleGroup(key),
               },
                 h('span', {
                   className: 'dsh-powerup-prompt-group-chevron',
@@ -8893,12 +9142,85 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
                     strokeLinecap: 'round',
                     strokeLinejoin: 'round',
                   }))),
-                h('span', { className: 'dsh-powerup-prompt-group-title' }, group.title),
+                h('span', { className: 'dsh-powerup-prompt-group-title' },
+                  isUngrouped ? t('prompts.ungrouped') : (section.name || t('prompts.untitled'))),
                 h('span', { className: 'dsh-powerup-prompt-group-count' },
-                  t('prompts.itemsCount', { count: group.items.length })),
+                  t('prompts.itemsCount', { count: section.items.length })),
               ),
-              collapsed ? null : h('div', { className: 'dsh-powerup-prompt-group-body' },
-                group.items.map(promptCard)),
+              !isUngrouped
+                ? h('div', { className: 'dsh-powerup-prompt-group-actions' },
+                  h('button', {
+                    type: 'button', className: 'dsh-powerup-linkbtn',
+                    onClick: () => setGroupDraft({ scopeId, id: section.group.id, name: section.name }),
+                  }, t('prompts.groupRename')),
+                  h('button', {
+                    type: 'button', className: 'dsh-powerup-linkbtn danger',
+                    onClick: () => deleteGroup(section.group),
+                  }, t('prompts.groupDelete')),
+                )
+                : null,
+            ),
+            editingThis
+              ? h('div', { className: 'dsh-powerup-group-form' },
+                h('input', {
+                  className: 'dsh-powerup-prompt-input',
+                  type: 'text',
+                  value: groupDraft.name,
+                  placeholder: t('prompts.groupNamePlaceholder'),
+                  onChange: (event) => setGroupDraft((current) => ({ ...current, name: event.target.value })),
+                }),
+                h('button', { type: 'button', className: 'dsh-powerup-prompt-new', onClick: saveGroup },
+                  groupDraft.id === '' ? t('prompts.groupCreate') : t('prompts.save')),
+                h('button', { type: 'button', className: 'dsh-powerup-prompt-new', onClick: () => setGroupDraft(null) },
+                  t('prompts.cancel')),
+              )
+              : null,
+            collapsed ? null : h('div', { className: 'dsh-powerup-prompt-group-body' },
+              section.items.map((prompt) => promptCard(prompt, scopeId))),
+          );
+        };
+
+        // Scopes: global first, then every registered workspace, then orphaned.
+        const scopeIds = [];
+        if (prompts.some((p) => p.workspaceId === '') || groups.some((g) => g.workspaceId === '')) scopeIds.push('');
+        for (const ws of workspaces) {
+          if (prompts.some((p) => p.workspaceId === ws.workspaceId)
+            || groups.some((g) => g.workspaceId === ws.workspaceId)) scopeIds.push(ws.workspaceId);
+        }
+        for (const prompt of prompts) {
+          if (!scopeIds.includes(prompt.workspaceId)) scopeIds.push(prompt.workspaceId);
+        }
+        for (const group of groups) {
+          if (!scopeIds.includes(group.workspaceId)) scopeIds.push(group.workspaceId);
+        }
+
+        const groupsView = scopeIds.length === 0
+          ? h('div', { className: 'dsh-powerup-prompt-empty' }, t('prompts.empty'))
+          : h('div', { className: 'dsh-powerup-prompt-scopes' }, scopeIds.map((scopeId) => {
+            const sub = groupPrompts(prompts, groups, scopeId);
+            const creatingGroupHere = groupDraft !== null && groupDraft.scopeId === scopeId && groupDraft.id === '';
+            return h('section', { key: 'scope:' + scopeId, className: 'dsh-powerup-prompt-scope' },
+              h('div', { className: 'dsh-powerup-prompt-scope-head' },
+                h('span', { className: 'dsh-powerup-prompt-scope-title' }, workspaceTitleOf(scopeId)),
+                h('button', {
+                  type: 'button', className: 'dsh-powerup-linkbtn',
+                  onClick: () => setGroupDraft({ scopeId, id: '', name: '' }),
+                }, t('prompts.groupNew')),
+              ),
+              creatingGroupHere
+                ? h('div', { className: 'dsh-powerup-group-form' },
+                  h('input', {
+                    className: 'dsh-powerup-prompt-input', type: 'text', value: groupDraft.name,
+                    placeholder: t('prompts.groupNamePlaceholder'),
+                    onChange: (event) => setGroupDraft((current) => ({ ...current, name: event.target.value })),
+                  }),
+                  h('button', { type: 'button', className: 'dsh-powerup-prompt-new', onClick: saveGroup },
+                    t('prompts.groupCreate')),
+                  h('button', { type: 'button', className: 'dsh-powerup-prompt-new', onClick: () => setGroupDraft(null) },
+                    t('prompts.cancel')),
+                )
+                : null,
+              h('div', { className: 'dsh-powerup-prompt-groups' }, sub.map((section) => groupBlock(section, scopeId))),
             );
           }));
 
@@ -9259,6 +9581,10 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           promptCreateDraft,
           readPrompts,
           writePrompts,
+          readGroups,
+          writeGroups,
+          writeAll,
+          groupPrompts,
           promptsForWorkspace,
           promptLabel,
           readLastPrompt,

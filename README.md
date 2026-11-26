@@ -184,13 +184,21 @@ Save reusable prompts and drop one into a new session without retyping it.
   and the prompt body. Without a title the dropdown shows the first few
   characters of the body. A blank workspace scope makes the prompt available in
   every workspace; otherwise it appears only in that one.
+- Prompts are split into two sections: **Global** (visible in every workspace)
+  and **This workspace**. Each section can hold custom named groups, which can
+  be collapsed and expanded. Prompts not in any group are shown at the same
+  level as the group headers, under **Ungrouped**. In the **Prompts** settings
+  tab you can create, rename and delete groups for each scope, and **drag a
+  prompt onto a group header to move it** (or onto Ungrouped to take it out of
+  a group). Deleting a group never deletes its prompts — they become ungrouped.
 - In the New Session row, to the right of the Agent preset, a dropdown lists the
-  prompts available in the current workspace. In an **ongoing session** the same
-  picker also appears in the composer's bottom tool row, just right of the
-  permission dropdown; there its menu opens **upward**. **Clicking a prompt
-  fills the composer** so you can keep editing before sending. Each row also has
-  a **Send now** button that fills and submits immediately, and an **Edit** icon
-  button that opens the prompt dialog to change its title, scope and text.
+  prompts available in the current workspace, grouped the same way. In an
+  **ongoing session** the same picker also appears in the composer's bottom
+  tool row, just right of the permission dropdown; there its menu opens
+  **upward**. **Clicking a prompt fills the composer** so you can keep editing
+  before sending. Each row also has a **Send now** button that fills and
+  submits immediately, and an **Edit** icon button that opens the prompt dialog
+  to change its title, scope and text.
 - **Create a new prompt…** in the dropdown opens an in-conversation dialog. A
   prompt created here is pinned to the current workspace — you may only keep
   that scope or switch to **All workspaces**, never pick another workspace.
