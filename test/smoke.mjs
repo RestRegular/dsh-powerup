@@ -1314,7 +1314,12 @@ const update = moduleExports.__test;
 assert.ok(/[.]dsh-powerup-prompt-new\{[^}]*white-space:nowrap/u.test(update.PROMPTS_CSS), 'the new-requirement button does not wrap its label');
 assert.ok(update.PROGRESS_CSS.includes('.dsh-powerup-directask-tabs{'), 'direct-ask uses separate chat/history tabs');
 assert.equal(typeof update.renderMarkdown, 'function', 'markdown renderer is exported');
-assert.ok(/activeTab === 'chat' \? h\('div', \{ className: 'dsh-powerup-directask-composer' \}/u.test(source), 'the composer only renders on the chat tab');
+assert.ok(/function findComposerSeat\(/u.test(source), 'direct-ask locates the real host composer');
+assert.ok(/function createComposerTakeover\(/u.test(source), 'direct-ask snapshots and restores the composer on takeover');
+assert.ok(/seat\.addEventListener\('click', onPointer, true\)/u.test(source), 'direct-ask intercepts the host Send button in capture phase');
+assert.ok(/document\.addEventListener\('keydown', onKey, true\)/u.test(source), 'direct-ask intercepts host Enter in capture phase');
+assert.ok(!/dsh-powerup-directask-composer/u.test(source), 'direct-ask no longer renders its own composer');
+assert.ok(/new ResizeObserver\(update\)/u.test(source), 'direct-ask keeps its fixed position while the composer grows');
 assert.ok(/dsh-powerup-directask-title-input/u.test(update.PROGRESS_CSS), 'conversation titles are editable');
 assert.ok(/data-powerup-req-modal/u.test(source), 'requirement modal is marked so the progress panel ignores its clicks');
 assert.ok(/generateTitle/u.test(fs.readFileSync(new URL('../lib/direct-ask.js', import.meta.url), 'utf8')), 'LLM title generation exists');
@@ -1334,6 +1339,12 @@ assert.ok(typeof update.ProgressModelSelect === 'function', 'progress header mou
 assert.ok(typeof update.findModelSelectEntry === 'function', 'host model slot entry lookup is exported');
 assert.ok(update.PROGRESS_CSS.includes('.dsh-powerup-progress-req-actions{'), 'refresh button shares the requirements action row');
 assert.ok(update.PROGRESS_CSS.includes('.dsh-powerup-progress-model-seat{'), 'progress model seat is styled');
+assert.ok(!source.includes("t('progress.generate')"), 'the standalone Generate progress button is gone');
+assert.ok(/'progress\.refresh': '刷新进度'/u.test(source), 'refresh button is labelled 刷新进度');
+assert.ok(/data-powerup-model-menu/u.test(source) && /dsh-powerup-model-menu-raise/u.test(update.PROGRESS_CSS),
+  'the portaled host model menu is lifted above the panel and tagged so clicks inside it do not close the panel');
+assert.ok(/'dsh-powerup-prompt-new dsh-powerup-req-create'[\s\S]{0,200}'progress\.reqNew'\)[\s\S]{0,600}'dsh-powerup-progress-refresh'/u.test(source),
+  'the refresh button sits to the right of the New requirement button');
 
 // Every feature defaults on; a stored false (from older settings or the page
 // switches) wins. The legacy `enabled` flag migrates to `contextMenu`.
@@ -2238,7 +2249,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.19.0');
+assert.equal(host.__test.SELF_VERSION, '0.19.1');
 
 const installFailSpecs = [];
 const installFailManager = {

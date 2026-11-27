@@ -85,7 +85,7 @@
       const requirementCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.19.0';
+      const VERSION = '0.19.1';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -361,17 +361,16 @@
           'update.unsupportedTitle': '无法自动安装',
           'page.taskProgressTitle': '任务进度速览',
           'page.taskProgressDesc': '在会话顶部加一个「进度」按钮，点击后用当前会话的模型在后台分析会话记录，生成结构化的任务进度并用浮层展示。调用在旁路进行，不写入会话、不打断正在运行的任务；模型会按任务类型选择清单、阶段、里程碑或任务树，并可补充一段直接渲染给用户看的内容。',
-          'page.taskProgressHow': '在任意会话顶部点击「进度」按钮，面板会显示最近一次结果；首次使用点「生成进度」。生成期间可继续正常操作会话。',
+          'page.taskProgressHow': '在任意会话顶部点击「进度」按钮，面板会显示最近一次结果；首次使用切到「刷新进度」标签页点「刷新进度」。生成期间可继续正常操作会话。',
           'page.taskProgressCooldown': '刷新冷却（秒）',
           'page.taskProgressCooldownHint': '两次刷新之间的最短间隔，防止误触；设为 0 表示不限制。',
           'progress.title': '任务进度',
           'progress.label': '进度',
           'progress.subtitle': '由当前会话模型在后台生成',
           'progress.modelChanging': '正在切换模型…',
-          'progress.hint': '还没有进度报告，点「生成进度」开始分析。',
+          'progress.hint': '还没有进度报告，切到「刷新进度」标签页开始分析。',
           'progress.empty': '还没有生成过进度报告。',
-          'progress.generate': '生成进度',
-          'progress.refresh': '刷新',
+          'progress.refresh': '刷新进度',
           'progress.tabRefresh': '刷新进度',
           'progress.cancel': '取消',
           'progress.refreshCooldown': '请等待 {seconds} 秒后再刷新',
@@ -435,7 +434,7 @@
           'directAsk.copied': '已复制',
           'directAsk.close': '关闭',
           'directAsk.hide': '隐藏弹窗',
-          'directAsk.showHint': '输入问题开始对话；可继续追问，点「+」开启新对话，点「◷」查看历史。拖动标题栏移动窗口。',
+          'directAsk.showHint': '在下方原始输入框中直接输入问题并发送；可继续追问，点「+」开启新对话，点「◷」查看历史。发送只作用于轻量问答，不会写入当前会话。',
           'directAsk.newChat': '新对话',
           'directAsk.tabChat': '问答',
           'directAsk.noAnswer': '（无回答）',
@@ -773,10 +772,9 @@
           'progress.label': 'Progress',
           'progress.subtitle': 'Generated in the background by this session model',
           'progress.modelChanging': 'Switching model…',
-          'progress.hint': 'No progress report yet. Press Generate to analyze the session.',
+          'progress.hint': 'No progress report yet. Open the Refresh progress tab to analyze the session.',
           'progress.empty': 'No progress report generated yet.',
-          'progress.generate': 'Generate progress',
-          'progress.refresh': 'Refresh',
+          'progress.refresh': 'Refresh progress',
           'progress.tabRefresh': 'Refresh progress',
           'progress.cancel': 'Cancel',
           'progress.refreshCooldown': 'Please wait {seconds} seconds before refreshing again',
@@ -840,7 +838,7 @@
           'directAsk.copied': 'Copied',
           'directAsk.close': 'Close',
           'directAsk.hide': 'Hide dialog',
-          'directAsk.showHint': 'Type a question to start; follow up anytime, "+" starts a new chat, "◷" shows history. Drag the title bar to move.',
+          'directAsk.showHint': 'Type in the composer below and send; follow up anytime, "+" starts a new chat, "◷" shows history. Sending answers here only — it never writes to the session.',
           'directAsk.newChat': 'New chat',
           'directAsk.tabChat': 'Chat',
           'directAsk.noAnswer': '(no answer)',
@@ -4605,6 +4603,10 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-progress-title{font-size:14px;font-weight:600;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dsh-powerup-progress-sub{color:var(--dsw-alias-label-tertiary);font-size:10.5px;line-height:1.4}
 .dsh-powerup-progress-model-seat{flex:none;display:inline-flex;align-items:center;max-width:150px;overflow:hidden}
+/* Host model menus portal to body at z-index 1100; lift the one anchored in the
+   progress panel above the panel (1500) so it is not covered. Uses the data
+   attribute (React does not manage it) so re-renders cannot drop the lift. */
+.dsh-powerup-model-menu-raise,[data-powerup-model-menu]{z-index:1601 !important}
 .dsh-powerup-progress-model-loading{flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:18px;color:var(--dsw-alias-label-tertiary);font-size:13px}
 .dsh-powerup-progress-close{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;margin:-2px -2px 0 0;padding:0;border:0;border-radius:var(--dsw-radius-sm);background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:17px;line-height:1;cursor:pointer}
 .dsh-powerup-progress-close:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
@@ -4698,8 +4700,11 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 /* Direct-ask button + dialog */
 .dsh-powerup-directask-btn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0;border:.5px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font:inherit;line-height:1;cursor:pointer}
 .dsh-powerup-directask-btn:hover,.dsh-powerup-directask-btn.on{border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-brand-primary)}
-.dsh-powerup-directask-window{position:fixed;z-index:1600;box-sizing:border-box;display:flex;flex-direction:column;min-width:360px;min-height:280px;border-radius:var(--dsw-radius-panel,14px);background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.6;overflow:hidden;animation:dsh-powerup-progress-in .15s ease-out}
-.dsh-powerup-directask-titlebar{display:flex;align-items:center;gap:8px;flex:none;padding:10px 12px;border-bottom:.5px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-3);cursor:move;user-select:none}
+.dsh-powerup-directask-window{position:fixed;z-index:1600;box-sizing:border-box;display:flex;flex-direction:column;border:1px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-panel,14px);background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.6;overflow:hidden;animation:dsh-powerup-progress-in .15s ease-out}
+.dsh-powerup-directask-titlebar{display:flex;align-items:center;gap:8px;flex:none;padding:10px 12px;border-bottom:.5px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-3);user-select:none}
+/* Direct Ask takeover: hide other plugins' composer controls, keep host ones. */
+.dsh-powerup-da-takeover [data-powerup-da-hidden]{display:none!important}
+.dsh-powerup-da-takeover [data-composer-permission],.dsh-powerup-da-takeover [data-powerup-da-permission]{pointer-events:none;opacity:.55}
 .dsh-powerup-directask-title{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
 .dsh-powerup-directask-title-input{flex:1 1 auto;min-width:0;height:24px;padding:0 8px;border:.5px solid var(--dsw-alias-brand-primary);border-radius:6px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;outline:0}
 .dsh-powerup-directask-history-list button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;padding:6px 8px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:11.5px;text-align:left;cursor:pointer}
@@ -4743,18 +4748,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-directask-files{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 6px}
 .dsh-powerup-directask-file{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:999px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-secondary);font-size:11px}
 .dsh-powerup-directask-file button{border:0;background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer;font-size:13px;line-height:1}
-.dsh-powerup-directask-composer{flex:none;padding:10px 14px 12px;border-top:.5px solid var(--dsw-alias-border-l1)}
-.dsh-powerup-directask-inputrow{display:flex;align-items:flex-end;gap:8px;padding:6px 6px 6px 10px;border:1px solid var(--dsw-alias-border-l2);border-radius:14px;background:var(--dsw-alias-bg-layer-3)}
-.dsh-powerup-directask-inputrow:focus-within{border-color:var(--dsw-alias-brand-primary)}
-/* Native file input is hidden; only the custom '+' chip is shown. */
-.dsh-powerup-directask-attach{position:relative;display:inline-flex;align-items:center;justify-content:center;flex:none;width:26px;height:26px;border-radius:7px;color:var(--dsw-alias-label-secondary);font-size:18px;line-height:1;cursor:pointer;overflow:hidden}
-.dsh-powerup-directask-attach:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
-.dsh-powerup-directask-attach input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
-.dsh-powerup-directask-input{flex:1 1 auto;min-width:0;max-height:140px;border:0;outline:0;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:12.5px;line-height:1.6;resize:none}
-.dsh-powerup-directask-input::placeholder{color:var(--dsw-alias-label-tertiary)}
-.dsh-powerup-directask-send{flex:none;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:0;border-radius:8px;background:var(--dsw-alias-brand-primary);color:var(--dsw-alias-label-primary-foreground,var(--dsw-alias-bg-layer-1));cursor:pointer}
-.dsh-powerup-directask-send:disabled{opacity:.4;cursor:not-allowed}
-.dsh-powerup-directask-resizer{position:absolute;right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,var(--dsw-alias-border-l3) 50%,transparent 62%,var(--dsw-alias-border-l3) 62%,var(--dsw-alias-border-l3) 72%,transparent 72%)}
+.dsh-powerup-directask-btn.on{box-shadow:0 0 0 2px color-mix(in srgb,var(--dsw-alias-brand-primary) 30%,transparent)}
 `;
 
       /** Max display length of a session option, in Unicode code points. */
@@ -9395,11 +9389,70 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
        * model — no Agent, system prompt, tools or skills. Supports continuous
        * multi-turn Q&A and a browsable/clearable history of past exchanges.
        */
-      function DirectAskButton({ sessionId }) {
+      /** Find the composer seat DOM node for a session (stable DSH data attributes). */
+      function findComposerSeat(sessionId) {
+        if (typeof document === 'undefined' || document === null) return null;
+        const seats = Array.from(document.querySelectorAll('[data-composer-seat]'));
+        if (sessionId !== undefined && sessionId !== '') {
+          const own = seats.find((seat) => {
+            const body = seat.closest('[data-conversation-session]');
+            return body !== null && body.getAttribute('data-conversation-session') === sessionId;
+          });
+          if (own !== undefined) return own;
+        }
+        return seats[seats.length - 1] ?? null;
+      }
+
+      /** The host primary button is the only composer button carrying aria-busy. */
+      function findComposerSend(seat) {
+        if (seat === null) return null;
+        const buttons = Array.from(seat.querySelectorAll('button[aria-busy]'));
+        return buttons[buttons.length - 1] ?? null;
+      }
+
+      /**
+       * Hide every other plugin's controls in the composer while Direct Ask is
+       * open, and put them back byte-for-byte on close. Host controls (add file
+       * / command, permission, model, send) and our lightning button are kept.
+       */
+      function createComposerTakeover(seat) {
+        const lightning = seat.querySelector('.dsh-powerup-directask-btn');
+        // Each contribution to the `conversation.input.right` list slot is one
+        // child of the slot anchor. Hide the siblings of our lightning button;
+        // the host's file/command/permission/model/send controls live in OTHER
+        // slots and in the InputBar itself, so they stay visible and usable.
+        const rightAnchor = lightning?.parentElement ?? null;
+        const hidden = [];
+        const hideIn = (anchor) => {
+          if (anchor === null || anchor === undefined) return;
+          for (const child of Array.from(anchor.children)) {
+            if (!(child instanceof HTMLElement)) continue;
+            if (child === lightning || child.contains(lightning)) continue;
+            hidden.push([child, child.style.display]);
+            child.style.setProperty('display', 'none', 'important');
+            child.setAttribute('data-powerup-da-hidden', '1');
+          }
+        };
+        return {
+          take() {
+            seat.classList.add('dsh-powerup-da-takeover');
+            hideIn(rightAnchor);
+          },
+          release() {
+            seat.classList.remove('dsh-powerup-da-takeover');
+            for (const [el, prev] of hidden) {
+              if (prev === '' || prev === null) el.style.removeProperty('display');
+              else el.style.setProperty('display', prev);
+              el.removeAttribute('data-powerup-da-hidden');
+            }
+            hidden.length = 0;
+          },
+        };
+      }
+
+      function DirectAskButton({ sessionId, useInput, inputActions, ctx }) {
         const settings = useSettings();
         const [open, setOpen] = useState(false);
-        const [question, setQuestion] = useState('');
-        const [files, setFiles] = useState([]);
         const [busy, setBusy] = useState(false);
         const [error, setError] = useState('');
         const [copied, setCopied] = useState(false);
@@ -9426,27 +9479,35 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         const [titleDraft, setTitleDraft] = useState('');
         const turns = conversation.turns;
         const [activeTab, setActiveTab] = useState('chat');
-        const [pos, setPos] = useState(() => {
-          try {
-            const saved = JSON.parse(localStorage.getItem('dsh-powerup:directask:pos:v1') || 'null');
-            if (saved !== null && Number.isFinite(saved.x) && Number.isFinite(saved.y)) return { x: saved.x, y: saved.y };
-          } catch { /* fall through */ }
-          return { x: 24, y: 96 };
-        });
-        const [size, setSize] = useState(() => {
-          try {
-            const saved = JSON.parse(localStorage.getItem('dsh-powerup:directask:size:v1') || 'null');
-            if (saved !== null && Number.isFinite(saved.w) && Number.isFinite(saved.h)) {
-              return { w: Math.max(360, Math.min(1100, saved.w)), h: Math.max(280, Math.min(900, saved.h)) };
-            }
-          } catch { /* fall through */ }
-          return { w: 620, h: 560 };
-        });
-        const dialogRef = useRef(null);
-        const dragRef = useRef(null);
+
+        // The real composer is the input surface now. `useInput` comes from the
+        // host slot; a no-op keeps this component renderable on older hosts.
+        const inputState = typeof useInput === 'function' ? useInput((s) => s) : null;
+        const draft = String(inputState?.draft ?? '');
+        const attachmentIds = Array.isArray(inputState?.attachmentIds) ? inputState.attachmentIds : [];
+        const [seat, setSeat] = useState(null);
+        const [geo, setGeo] = useState(null);
+        const takeoverRef = useRef(null);
+        const snapshotRef = useRef(null);
+        const filesRef = useRef([]);
+        const attachmentIdsRef = useRef(attachmentIds);
+        attachmentIdsRef.current = attachmentIds;
+        const attachSnapshotRef = useRef([]);
+        /** Drop attachments added while Direct Ask was open (keep the pre-existing set). */
+        const pruneAddedAttachments = useCallback(() => {
+          const before = attachSnapshotRef.current;
+          if (typeof inputActions?.removeAttachment !== 'function') return;
+          for (const id of attachmentIdsRef.current) {
+            if (!before.includes(id)) inputActions.removeAttachment(id);
+          }
+        }, [inputActions]);
         const bottomRef = useRef(null);
         const sessionRef = useRef(sessionId);
         sessionRef.current = sessionId;
+        const draftRef = useRef(draft);
+        draftRef.current = draft;
+        const busyRef = useRef(false);
+        busyRef.current = busy;
         const t = useCallback((key, params) => translateCurrent(key, params), []);
 
         const persistHistory = useCallback((next) => {
@@ -9458,58 +9519,95 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           setConversation((cur) => ({ ...cur, turns: typeof fn === 'function' ? fn(cur.turns) : fn }));
         }, []);
 
+        // Resolve and pin the composer seat while open.
         useEffect(() => {
-          if (!open) return undefined;
-          const onKey = (event) => {
-            if (event.key === 'Escape') { event.stopPropagation(); setOpen(false); }
-          };
-          document.addEventListener('keydown', onKey, true);
-          return () => document.removeEventListener('keydown', onKey, true);
+          if (!open) { setSeat(null); return undefined; }
+          const found = findComposerSeat(sessionRef.current);
+          setSeat(found);
+          if (found === null) return undefined;
+          const update = () => setSeat((cur) => (cur === null ? findComposerSeat(sessionRef.current) : cur));
+          const timer = window.setInterval(update, 600);
+          return () => window.clearInterval(timer);
         }, [open]);
 
-        // Drag (title bar) and resize (bottom-right handle) with native pointers.
+        // Geometry: fixed to the composer's width, bottom just above it, and a
+        // height that fills the space above. Resizing the composer changes the
+        // HEIGHT only — the dialog never slides sideways or loses its bottom.
         useEffect(() => {
-          if (!open) return undefined;
-          const onMove = (event) => {
-            const drag = dragRef.current;
-            if (drag === null) return;
-            if (drag.kind === 'move') {
-              setPos({
-                x: Math.max(0, Math.min(window.innerWidth - 120, drag.px + event.clientX - drag.x)),
-                y: Math.max(0, Math.min(window.innerHeight - 60, drag.py + event.clientY - drag.y)),
-              });
-            } else if (drag.kind === 'resize') {
-              setSize({
-                w: Math.max(360, Math.min(1100, drag.w + event.clientX - drag.x)),
-                h: Math.max(280, Math.min(900, drag.h + event.clientY - drag.y)),
-              });
+          if (!open || seat === null) { setGeo(null); return undefined; }
+          const update = () => {
+            const rect = seat.getBoundingClientRect();
+            const gap = 8;
+            const top = 8;
+            const bottom = Math.max(top + 160, rect.top - gap);
+            setGeo({
+              left: Math.round(rect.left),
+              width: Math.round(rect.width),
+              top,
+              height: Math.round(bottom - top),
+            });
+          };
+          update();
+          const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;
+          observer?.observe(seat);
+          window.addEventListener('resize', update);
+          return () => {
+            observer?.disconnect();
+            window.removeEventListener('resize', update);
+          };
+        }, [open, seat]);
+
+        // Snapshot the composer on open; restore it verbatim on close. Also read
+        // files the user picks through the real composer's file input.
+        useEffect(() => {
+          if (!open || seat === null) return undefined;
+          snapshotRef.current = { draft: draftRef.current };
+          attachSnapshotRef.current = attachmentIdsRef.current.slice();
+          filesRef.current = [];
+          const takeover = createComposerTakeover(seat);
+          takeoverRef.current = takeover;
+          takeover.take();
+          const fileInput = seat.querySelector('input[type="file"]');
+          const onFiles = (event) => {
+            const picked = Array.from(event?.target?.files ?? []);
+            for (const file of picked) {
+              if (file === null || typeof file.text !== 'function') continue;
+              filesRef.current = [...filesRef.current, { name: file.name, text: '' }];
+              void file.text().then((text) => {
+                filesRef.current = filesRef.current.map((f) => (f.name === file.name && f.text === '' ? { ...f, text: String(text).slice(0, 40_000) } : f));
+              }).catch(() => { /* skip unreadable files */ });
             }
           };
-          const onUp = () => {
-            if (dragRef.current === null) return;
-            dragRef.current = null;
-            try {
-              localStorage.setItem('dsh-powerup:directask:pos:v1', JSON.stringify(pos));
-              localStorage.setItem('dsh-powerup:directask:size:v1', JSON.stringify(size));
-            } catch { /* ignore */ }
-          };
-          document.addEventListener('pointermove', onMove);
-          document.addEventListener('pointerup', onUp);
+          // Read the picked file in the capture phase. The file stays attached
+          // to the real composer UI so the user sees it, but it is only sent to
+          // the light Q&A API — never to the session.
+          fileInput?.addEventListener('change', onFiles, true);
           return () => {
-            document.removeEventListener('pointermove', onMove);
-            document.removeEventListener('pointerup', onUp);
+            fileInput?.removeEventListener('change', onFiles, true);
+            takeover.release();
+            takeoverRef.current = null;
+            const snap = snapshotRef.current;
+            snapshotRef.current = null;
+            filesRef.current = [];
+            if (snap !== null && typeof inputActions?.setDraft === 'function') {
+              inputActions.setDraft(snap.draft);
+            }
+            pruneAddedAttachments();
+            attachSnapshotRef.current = [];
           };
-        }, [open, pos, size]);
+        }, [open, seat, inputActions, pruneAddedAttachments]);
 
         useEffect(() => {
           if (bottomRef.current !== null) bottomRef.current.scrollIntoView?.({ block: 'nearest' });
         }, [turns, busy]);
 
-        const send = useCallback(async () => {
-          const q = question.trim();
+        // Read the host draft plus the files the user attached through the real
+        // composer, then answer through the dedicated, session-free API.
+        const sendToAsk = useCallback(async () => {
+          if (busyRef.current) return;
+          const q = draftRef.current.trim();
           if (q === '') { setError(t('directAsk.empty')); return; }
-          const priorContext = files.map((f) => ({ name: f.name, text: f.text }));
-          // Continuous Q&A: prior completed turns, in order, as user/assistant pairs.
+          const priorContext = filesRef.current.slice();
           const historyMsgs = [];
           for (const turn of turns) {
             if (turn.pending || !turn.answer || turn.error) continue;
@@ -9517,18 +9615,16 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             historyMsgs.push({ role: 'assistant', text: turn.answer });
           }
           const pendingId = `p-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-          const pending = {
+          updateTurns((cur) => [...cur, {
             id: pendingId, question: q, answer: '', context: priorContext, at: Date.now(), pending: true,
-          };
+          }]);
           setBusy(true);
           setError('');
-          setQuestion('');
-          setFiles([]);
           setCopied(false);
-          updateTurns((cur) => [...cur, pending]);
           setActiveTab('chat');
-          // Title: first message wins if empty. Auto-generate via LLM only when
-          // the user opted in — one tiny, token-capped request.
+          if (typeof inputActions?.setDraft === 'function') inputActions.setDraft('');
+          filesRef.current = [];
+          pruneAddedAttachments();
           if (!conversation.title) {
             const fallback = q.slice(0, 40);
             setConversation((cur) => ({ ...cur, title: fallback }));
@@ -9556,18 +9652,63 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             });
             const body = await response.json();
             if (!body?.ok) throw new Error(body?.error ?? `HTTP ${response.status}`);
-            updateTurns((cur) => cur.map((t) => (t.id === pendingId
-              ? { ...t, answer: typeof body.answer === 'string' ? body.answer : '', pending: false }
-              : t)));
+            updateTurns((cur) => cur.map((turn) => (turn.id === pendingId
+              ? { ...turn, answer: typeof body.answer === 'string' ? body.answer : '', pending: false }
+              : turn)));
           } catch (err) {
-            // Render the failure in the thread like a normal assistant reply.
-            updateTurns((cur) => cur.map((t) => (t.id === pendingId
-              ? { ...t, answer: String(err?.message ?? err), pending: false, error: true }
-              : t)));
+            updateTurns((cur) => cur.map((turn) => (turn.id === pendingId
+              ? { ...turn, answer: String(err?.message ?? err), pending: false, error: true }
+              : turn)));
           } finally {
             setBusy(false);
           }
-        }, [question, files, turns, t, conversation.title, settings.directAskAutoTitle, updateTurns]);
+        }, [turns, t, conversation.title, settings.directAskAutoTitle, inputActions, updateTurns, pruneAddedAttachments]);
+
+        // Intercept the host Send button and plain Enter while Direct Ask is open.
+        // Capture phase runs before React's bubble handler, so the message never
+        // reaches the session controller.
+        useEffect(() => {
+          if (!open || seat === null) return undefined;
+          const onPointer = (event) => {
+            const send = findComposerSend(seat);
+            if (send === null || send === undefined) return;
+            const target = event.target;
+            if (target !== send && !(target instanceof Node && send.contains(target))) return;
+            event.preventDefault();
+            event.stopPropagation();
+            void sendToAsk();
+          };
+          const onKey = (event) => {
+            if (event.key !== 'Enter' || event.shiftKey || event.isComposing === true || event.repeat === true) return;
+            const target = event.target;
+            const editor = target instanceof Element ? target.closest('[data-composer-input]') : null;
+            if (editor === null || !seat.contains(editor)) return;
+            if (editor.hasAttribute('data-composer-composing') || editor.hasAttribute('data-composer-chip-selected')) return;
+            const openMenu = document.querySelector?.(
+              '[aria-haspopup="listbox"][aria-expanded="true"], [aria-haspopup="menu"][aria-expanded="true"], [role="listbox"]:not([hidden]), [role="menu"]:not([hidden])',
+            );
+            if (openMenu !== null && openMenu !== undefined) return;
+            event.preventDefault();
+            event.stopPropagation();
+            void sendToAsk();
+          };
+          seat.addEventListener('click', onPointer, true);
+          document.addEventListener('keydown', onKey, true);
+          return () => {
+            seat.removeEventListener('click', onPointer, true);
+            document.removeEventListener('keydown', onKey, true);
+          };
+        }, [open, seat, sendToAsk]);
+
+        // Escape closes the overlay.
+        useEffect(() => {
+          if (!open) return undefined;
+          const onKey = (event) => {
+            if (event.key === 'Escape') { event.stopPropagation(); setOpen(false); }
+          };
+          document.addEventListener('keydown', onKey, true);
+          return () => document.removeEventListener('keydown', onKey, true);
+        }, [open]);
 
         const archiveCurrent = useCallback(() => {
           if (conversation.turns.length === 0) return history;
@@ -9604,7 +9745,6 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           const next = titleDraft.trim().slice(0, 60);
           if (next !== '') {
             setConversation((cur) => ({ ...cur, title: next }));
-            // Also update the archived copy if this conversation is in history.
             setHistory((cur) => cur.map((h) => (h.id === conversation.id ? { ...h, title: next } : h)));
             try { localStorage.setItem('dsh-powerup:directask:history:v1', JSON.stringify(history.map((h) => (h.id === conversation.id ? { ...h, title: next } : h)).slice(0, 30))); } catch { /* ignore */ }
           }
@@ -9617,28 +9757,13 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           persistHistory([]);
         }, [t, persistHistory]);
 
-        const pickFiles = useCallback(async (event) => {
-          const picked = Array.from(event?.target?.files ?? []);
-          const loaded = [];
-          for (const file of picked) {
-            try {
-              const text = await file.text();
-              loaded.push({ name: file.name, text: String(text).slice(0, 40_000) });
-            } catch {
-              /* skip unreadable files */
-            }
-          }
-          setFiles((current) => [...current, ...loaded]);
-          if (event?.target) event.target.value = '';
-        }, []);
-
         if (settings.directAsk === false) return null;
 
         const lightning = h('svg', { viewBox: '0 0 16 16', width: 16, height: 16, 'aria-hidden': 'true' },
           h('path', { d: 'M9 1.5 3.5 9H7l-1 5.5L12.5 7H9l1-5.5Z', fill: 'currentColor' }),
         );
 
-        // Icon-only composer button.
+        // Icon-only composer button — deliberately kept inside the real input.
         const button = h('button', {
           type: 'button',
           className: 'dsh-powerup-directask-btn' + (open ? ' on' : ''),
@@ -9647,18 +9772,14 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           onClick: () => setOpen((v) => !v),
         }, lightning);
 
-        const dialog = !open ? null : h('div', {
+        const dialog = !open || geo === null ? null : h('div', {
           className: 'dsh-powerup-directask-window',
-          style: { left: `${pos.x}px`, top: `${pos.y}px`, width: `${size.w}px`, height: `${size.h}px` },
-        },
-          h('div', {
-            className: 'dsh-powerup-directask-titlebar',
-            onPointerDown: (event) => {
-              const target = event.target;
-              if (target instanceof Element && target.closest('button')) return;
-              dragRef.current = { kind: 'move', x: event.clientX, y: event.clientY, px: pos.x, py: pos.y };
-            },
+          style: {
+            left: `${geo.left}px`, width: `${geo.width}px`,
+            top: `${geo.top}px`, height: `${geo.height}px`,
           },
+        },
+          h('div', { className: 'dsh-powerup-directask-titlebar' },
             editingTitle
               ? h('input', {
                 className: 'dsh-powerup-directask-title-input',
@@ -9671,7 +9792,6 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
                   else if (event.key === 'Escape') { event.preventDefault(); setEditingTitle(false); }
                 },
                 onBlur: saveTitle,
-                onPointerDown: (event) => event.stopPropagation(),
               })
               : h('span', { className: 'dsh-powerup-directask-title', title: conversation.title || t('directAsk.title') },
                 conversation.title || t('directAsk.title')),
@@ -9751,55 +9871,10 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             h('div', { ref: bottomRef }),
           ),
           error ? h('p', { className: 'dsh-powerup-progress-error' }, error) : null,
-          activeTab === 'chat' ? h('div', { className: 'dsh-powerup-directask-composer' },
-            files.length > 0 ? h('div', { className: 'dsh-powerup-directask-files' },
-              files.map((f, i) => h('span', { key: i, className: 'dsh-powerup-directask-file' },
-                f.name,
-                h('button', {
-                  type: 'button', 'aria-label': t('directAsk.removeFile'),
-                  onClick: () => setFiles((cur) => cur.filter((_, j) => j !== i)),
-                }, '×'),
-              )),
-            ) : null,
-            h('div', { className: 'dsh-powerup-directask-inputrow' },
-              h('label', { className: 'dsh-powerup-directask-attach', title: t('directAsk.attachHint') },
-                h('input', { type: 'file', multiple: true, onChange: (e) => void pickFiles(e) }),
-                h('span', null, '+'),
-              ),
-              h('textarea', {
-                className: 'dsh-powerup-directask-input',
-                value: question,
-                placeholder: t('directAsk.placeholder'),
-                disabled: busy,
-                rows: 1,
-                onChange: (event) => setQuestion(event.target.value),
-                onKeyDown: (event) => {
-                  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
-                    event.preventDefault();
-                    void send();
-                  }
-                },
-              }),
-              h('button', {
-                type: 'button', className: 'dsh-powerup-directask-send',
-                disabled: busy || question.trim() === '', onClick: () => void send(),
-                title: t('directAsk.send'),
-              }, h('svg', { viewBox: '0 0 16 16', width: 16, height: 16, 'aria-hidden': 'true' },
-                h('path', { d: 'M3 8h9M8.5 4.5 12 8l-3.5 3.5', fill: 'none', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round', strokeLinejoin: 'round' }))),
-            ),
-          ) : null,
-          h('div', {
-            className: 'dsh-powerup-directask-resizer',
-            onPointerDown: (event) => {
-              event.preventDefault();
-              dragRef.current = { kind: 'resize', x: event.clientX, y: event.clientY, w: size.w, h: size.h };
-            },
-          }),
         );
 
         return h(React.Fragment, null, button, renderInBody(dialog));
       }
-
       function DualSendButtons({ sessionId, useInput, inputActions, ctx, t }) {
         const settings = useSettings();
         const draft = typeof useInput === 'function' ? useInput((s) => s.draft) : '';
@@ -11143,6 +11218,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
       /** Render the host's exact composer model dropdown inside the progress header. */
       function ProgressModelSelect({ sessionId, ctx, t: translate }) {
         const slots = ctx?.get?.('slots');
+        const seatRef = useRef(null);
         const [entry, setEntry] = useState(() => findModelSelectEntry(slots));
         useEffect(() => {
           if (entry !== null || slots === undefined) return undefined;
@@ -11176,13 +11252,47 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         // because no other plugin contributes extra model actions.
         const seatRenderSlot = useCallback((key, owner, opts) => opts?.fallback ?? null, []);
 
+        // The host ModelSelect portals its menu to document.body at z-index 1100,
+        // below our progress panel (1500). Both the trigger inside this seat and
+        // the portaled menu carry the same inline --dsh-model-anchor variable, so
+        // match on it, lift the menu above the panel, and tag it. The tag lets
+        // the panel's outside-click handler ignore clicks inside that menu.
+        useEffect(() => {
+          if (entry === null || face === null) return undefined;
+          const syncMenu = () => {
+            const seat = seatRef.current;
+            if (!(seat instanceof Element)) return;
+            const trigger = seat.querySelector('[style*="--dsh-model-anchor"]');
+            if (!(trigger instanceof HTMLElement)) return;
+            const anchor = trigger.style.getPropertyValue('--dsh-model-anchor').trim();
+            if (anchor === '') return;
+            const menus = document.querySelectorAll('body > [style*="--dsh-model-anchor"]');
+            for (const menu of menus) {
+              if (!(menu instanceof HTMLElement)) continue;
+              if (menu.style.getPropertyValue('--dsh-model-anchor').trim() !== anchor) continue;
+              menu.classList.add('dsh-powerup-model-menu-raise');
+              menu.setAttribute('data-powerup-model-menu', '');
+            }
+          };
+          syncMenu();
+          const observer = typeof MutationObserver === 'function'
+            ? new MutationObserver(syncMenu)
+            : null;
+          if (observer !== null) observer.observe(document.body, { childList: true });
+          const timer = window.setInterval(syncMenu, 400);
+          return () => {
+            if (observer !== null) observer.disconnect();
+            window.clearInterval(timer);
+          };
+        }, [entry, face]);
+
         if (entry === null || face === null || seatT === null) {
           return h('span', {
             className: 'dsh-powerup-progress-model-loading',
             title: translate?.('progress.modelChanging') ?? '',
           }, '…');
         }
-        return h('span', { className: 'dsh-powerup-progress-model-seat' },
+        return h('span', { className: 'dsh-powerup-progress-model-seat', ref: seatRef },
           h(entry.component, { ...face, t: seatT, renderSlot: seatRenderSlot, locked: false }),
         );
       }
@@ -11359,6 +11469,9 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             if (panel !== null && event.target instanceof Node && panel.contains(event.target)) return;
             if (button !== null && event.target instanceof Node && button.contains(event.target)) return;
             if (creatingReq && event.target instanceof Element && event.target.closest('[data-powerup-req-modal]')) return;
+            // The host model dropdown portals its menu to document.body. Clicks
+            // there are outside the panel node but must not dismiss it.
+            if (event.target instanceof Element && event.target.closest('[data-powerup-model-menu]')) return;
             close();
           };
           document.addEventListener('keydown', onKey, true);
@@ -11450,7 +11563,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         // Three tabs below the header: progress / requirements / raw output.
         // The requirements tab is labelled "刷新进度": it holds the generation
         // requirements and the refresh action that consumes them. The refresh
-        // button lives here only (not in the footer), beside "新建要求".
+        // button lives here only (not in the footer), to the right of "新建要求".
         const tabs = [
           { id: 'progress', label: t('progress.tabProgress') },
           { id: 'requirements', label: t('progress.tabRefresh') },
@@ -11479,10 +11592,6 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           if (report === null || report === undefined) {
             return h('div', null,
               h('p', { className: 'dsh-powerup-progress-empty' }, t('progress.empty')),
-              h('button', {
-                type: 'button', className: 'dsh-powerup-progress-refresh',
-                disabled: busy, onClick: () => void run(),
-              }, t('progress.generate')),
             );
           }
           return h('div', null,
@@ -11519,6 +11628,10 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             onTextChange: setReqText,
           }),
           h('div', { className: 'dsh-powerup-progress-req-actions' },
+            h('button', {
+              type: 'button', className: 'dsh-powerup-prompt-new dsh-powerup-req-create',
+              onClick: () => setCreatingReq(true),
+            }, t('progress.reqNew')),
             running
               ? h('button', {
                 type: 'button', className: 'dsh-powerup-progress-refresh',
@@ -11529,10 +11642,6 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
                 disabled: busy || cooldownActive, title: cooldownActive ? refreshLabel : undefined,
                 onClick: () => void run(),
               }, refreshLabel),
-            h('button', {
-              type: 'button', className: 'dsh-powerup-prompt-new dsh-powerup-req-create',
-              onClick: () => setCreatingReq(true),
-            }, t('progress.reqNew')),
           ),
         );
 
@@ -11698,7 +11807,11 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         register('conversation.input.right', {
           id: 'powerup-direct-ask',
           order: 82,
-        }, (props) => h(DirectAskButton, { sessionId: props?.sessionId }), 'dsh-powerup: direct ask');
+        }, (props) => h(DirectAskButton, {
+          ...props,
+          ctx,
+          t: (key, params) => translateCurrent(key, params),
+        }), 'dsh-powerup: direct ask');
 
         // In an ongoing session, place the prompt picker in the bottom tool row
         // just after the host's permission / plan dropdowns; its popover opens

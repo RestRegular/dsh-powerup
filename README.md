@@ -475,22 +475,27 @@ refreshes.
 
 ### Direct ask (no Agent)
 
-An **icon-only** lightning button in the composer opens a floating DSH-styled
-chat window. Drag the title bar to move it and the bottom-right corner to
-resize it (position and size persist). It supports **continuous multi-turn Q&A**.
-The chat window uses two **tabs** — **Chat** and **History** — instead of
-embedding the history over the conversation. History is stored per **conversation**
-(not per message), each with a **title** you can edit inline. A settings toggle
-can ask the model to generate the title from the first message — one tiny,
-token-capped request; otherwise the first question becomes the title. Your
-message appears in the thread immediately as a pending bubble; the answer
-replaces the pending state in place and is **rendered as Markdown** (headings,
-lists, code blocks, inline formatting); failures render there too. Continuous Q&A flattens prior turns into a
-single user message before each call, so no hand-built assistant message ever
-reaches the model adapter — this fixes the "LLM_FAILED" error on the second
-message. "+" starts a new chat. Attach text files with the "+" chip in the
-composer — the native file picker stays hidden. This is deliberately **not an
-Agent**: it uses a single `llm.prepareCall` + stream call per turn with a short
+An **icon-only** lightning button in the composer toggles a fixed, DSH-styled
+light Q&A panel. The panel is pinned directly above the **real composer** — same
+width, centred on the same vertical axis — and is **not draggable or resizable**:
+as the composer grows while typing, only the panel height changes, so it never
+drifts out of alignment. While it is open, other plugins' composer controls are
+hidden and the rest of the conversation is covered: you see only the light Q&A
+panel and the original input box. That box is **reused in full** — text drafting,
+the file "+" picker, command insertion, permission dropdown, model selector and
+the send button all work as usual, but their effects are scoped to the Q&A only:
+sending answers here (never writes to the session), picked files become Q&A
+context, permissions are inert, and the chosen model drives the answer. The
+composer is snapshotted on open and **restored exactly** on close, including its
+draft and attachments. It supports **continuous multi-turn Q&A** with **Chat**
+and **History** tabs. History is stored per **conversation**, each with an
+inline-editable title; a settings toggle can generate that title from the first
+message via one tiny, token-capped request. Messages appear immediately as
+pending bubbles; answers are **rendered as Markdown**; failures render inline.
+Prior turns are flattened into a single user message per call, avoiding the
+"LLM_FAILED" error on the second message. "+" starts a new chat. This is
+deliberately **not an Agent**: it uses a single `llm.prepareCall` + stream call
+per turn with a short
 instruction, so no system prompt sections, tools, skills, memory or background
 jobs are involved, and nothing is written to the session log. Toggle it off on
 the Power-Up page if you don't want the button.
