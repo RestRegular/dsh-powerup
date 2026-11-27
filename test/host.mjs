@@ -14,6 +14,7 @@ import {
   stepIdOf,
 } from '../lib/step-reference.js';
 import { STEP_READ_DESCRIPTION, createStepReadTool } from '../lib/step-tool.js';
+import { QUICK_REPLIES_TOOL_NAME } from '../lib/quick-replies.js';
 
 // The Host half imports the DSH tool DSL. Map it to a local stub so the suite
 // runs outside a DSH installation; every other specifier resolves normally.
@@ -349,8 +350,9 @@ apply(wiredCtx);
 assert.deepEqual(wiredCtx.injections.map((entry) => entry.deps), [
   ['webServer'], ['tools', 'sessionQuery'], ['llm', 'sessionQuery'], ['sessionController'],
 ]);
-assert.equal(registered.length, 1, 'one tool is registered');
+assert.equal(registered.length, 2, 'step reader and quick replies are registered');
 assert.equal(registered[0].name, STEP_READ_TOOL_NAME);
+assert.equal(registered[1].name, QUICK_REPLIES_TOOL_NAME, 'quick replies tool is registered');
 const wiredOut = JSON.parse(await registered[0].execute({ ref: 'dsh-step:session-1/seq.5' }, {}));
 assert.equal(wiredOut.reference, 'dsh-step:session-1/seq.5');
 assert.deepEqual(wiredOut.events.map((event) => event.seq), [5]);

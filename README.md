@@ -7,8 +7,10 @@ data, an optional **stop reason for background jobs**, an in-place
 **plugin installer**, and a **sidebar launcher** that turns the left sidebar's
 panel list into an adaptive icon grid with drag sorting, folders, a
 back-to-conversation tile, and restart/close tiles. It also adds a
-**task-progress panel** with three-layer requirements and browsable history, and
-a **direct-ask button** for one-shot model answers without an Agent.
+**task-progress panel** with three-layer requirements and browsable history, a
+**direct-ask button** for one-shot model answers without an Agent, and
+**quick-reply options** that let the Agent offer tappable text buttons above the
+composer.
 
 ## Install
 
@@ -108,6 +110,24 @@ to 50 neighboring events on each side, and `requests: true` also includes the
 omitted by default because they are large. The tool is workspace-agnostic: it
 reads the session named in the reference through `ctx.sessionQuery`, so an agent
 can open a step in a session it never had to locate on disk.
+
+### Quick replies
+
+The Agent can call the **`powerup_quick_replies`** tool to publish a short list
+of tappable options for the current session:
+
+```json
+{ "options": [
+  { "label": "继续", "message": "请继续完成剩下的步骤" },
+  { "label": "换个方案", "message": "换一个方案试试" }
+] }
+```
+
+Up to 8 options appear as pills above the composer. Tapping one sends its
+`message` as a normal user message. The options disappear as soon as the user
+sends any message — tapping an option, pressing Enter, or clicking the host's
+Send button. The Agent can also pass an empty `options` array to clear them
+immediately.
 
 ### Sidebar launcher
 

@@ -85,7 +85,7 @@
       const requirementCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.19.5';
+      const VERSION = '0.19.6';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -143,6 +143,11 @@
           'page.dualSendTitle': '双发送按钮',
           'page.dualSendDesc': '在输入框右侧增加两个发送按钮：普通发送（等待/排队）与插话发送（立即打断当前生成）。快捷键 Enter 固定为等待发送、Ctrl+Shift+Enter 固定为插话发送，不受系统「繁忙时发送行为」设置影响。',
           'page.dualSendHow': '启用后输入框里会出现两个按钮，鼠标悬停可看到各自说明；输入文字后按 Enter 排队发送，按 Ctrl+Shift+Enter 立即插话发送。',
+          'page.quickRepliesTitle': '快捷回复选项',
+          'page.quickRepliesDesc': '允许 Agent 在回复后提供一组带文本的按钮选项。点击选项会立即把对应文本作为新消息发送，用户发出任意新消息（包括点击选项）后，这些选项会自动移除。',
+          'page.quickRepliesHow': 'Agent 通过 powerup_quick_replies 工具发布选项；选项出现于输入框上方，点击即可快速回复。',
+          'quickReplies.title': '快捷回复',
+          'quickReplies.hint': '选择一个选项快速发送',
           'mask.tab': '内容屏蔽',
           'mask.tabFeatures': '功能',
           'mask.tabWorkspace': '工作区设置',
@@ -768,6 +773,11 @@
           'page.taskProgressHow': 'Click Progress in any session header to see the last report; on first use press Generate. You can keep working in the session while it runs.',
           'page.taskProgressCooldown': 'Refresh cooldown (seconds)',
           'page.taskProgressCooldownHint': 'Minimum gap between refreshes to avoid accidental clicks; 0 disables the limit.',
+          'page.quickRepliesTitle': 'Quick reply options',
+          'page.quickRepliesDesc': 'Let the Agent offer a short list of text buttons after its reply. Tapping one sends its text as a new message immediately; the options are removed automatically once the user sends any message (including tapping an option).',
+          'page.quickRepliesHow': 'The Agent publishes options through the powerup_quick_replies tool; they appear above the composer and can be tapped to reply quickly.',
+          'quickReplies.title': 'Quick replies',
+          'quickReplies.hint': 'Pick an option to send it right away',
           'progress.title': 'Task progress',
           'progress.label': 'Progress',
           'progress.subtitle': 'Generated in the background by this session model',
@@ -947,6 +957,7 @@
         workspacePrompts: true,
         taskProgress: true,
         taskProgressCooldown: 5,
+        quickReplies: true,
         directAsk: true,
         directAskAutoTitle: false,
         oneClickEnable: true,
@@ -976,6 +987,7 @@
                 const value = Number(parsed.taskProgressCooldown);
                 return Number.isFinite(value) && value >= 0 ? Math.min(300, Math.max(0, Math.floor(value))) : DEFAULT_SETTINGS.taskProgressCooldown;
               })(),
+              quickReplies: parsed.quickReplies !== false,
               directAsk: parsed.directAsk !== false,
               directAskAutoTitle: parsed.directAskAutoTitle === true,
               oneClickEnable: parsed.oneClickEnable !== false,
@@ -4444,6 +4456,16 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 @media (max-width:680px){.dsh-powerup-mask-row{grid-template-columns:minmax(0,1fr)}}
 `;
 
+      const QUICK_REPLIES_CSS = `
+/* Quick-reply options rendered just above the composer card. */
+.dsh-powerup-quick-replies{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px 2px 2px}
+.dsh-powerup-quick-replies-label{font-size:11px;line-height:18px;color:var(--dsw-alias-label-caption);margin-right:2px}
+.dsh-powerup-quick-reply{display:inline-flex;align-items:center;max-width:100%;padding:5px 11px;border:.5px solid var(--dsw-alias-border-l2);border-radius:999px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-brand-primary,var(--dsw-alias-label-primary));font:inherit;font-size:12px;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;transition:background .12s ease,border-color .12s ease,transform .12s ease}
+.dsh-powerup-quick-reply:hover{background:var(--dsw-alias-interactive-bg-hover);border-color:var(--dsw-alias-brand-primary,var(--dsw-alias-border-l3));transform:translateY(-1px)}
+.dsh-powerup-quick-reply:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.dsh-powerup-quick-reply:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:1px}
+`;
+
       const PROMPTS_CSS = `
 /* New Session hero: dropdown trigger, portaled popover, and per-row send. */
 .dsh-powerup-prompt-trigger{display:inline-flex;align-items:center;gap:5px;max-width:190px;height:28px;padding:0 9px;border:.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;line-height:18px;cursor:pointer;transition:background .12s ease,color .12s ease,border-color .12s ease}
@@ -5982,7 +6004,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         try {
           const style = document.createElement('style');
           style.setAttribute('data-dsh-powerup', '');
-          style.textContent = CSS + '\n' + LAUNCHER_CSS + '\n' + SESSION_SWITCH_CSS + '\n' + LOCATE_CSS + '\n' + SCROLL_TOP_CSS + '\n' + RENDERING_CSS + '\n' + PROMPTS_CSS + '\n' + PROGRESS_CSS;
+          style.textContent = CSS + '\n' + LAUNCHER_CSS + '\n' + SESSION_SWITCH_CSS + '\n' + LOCATE_CSS + '\n' + SCROLL_TOP_CSS + '\n' + RENDERING_CSS + '\n' + QUICK_REPLIES_CSS + '\n' + PROMPTS_CSS + '\n' + PROGRESS_CSS;
           document.head.appendChild(style);
           ctx.effect(() => () => style.remove(), 'dsh-powerup: styles');
         } catch (error) {
@@ -10060,6 +10082,204 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         );
       }
 
+      // ------------------------------------------------------------------
+      // Quick replies: tappable message options published by the Agent.
+      // ------------------------------------------------------------------
+      const QUICK_REPLIES_API = '/dsh-powerup/api/quick-replies';
+      /** Last state per session, so options survive a component remount. */
+      const quickRepliesCache = new Map();
+
+      async function quickRepliesRequest(sessionId, action, extra = {}) {
+        const url = action === 'get'
+          ? `${QUICK_REPLIES_API}?sessionId=${encodeURIComponent(sessionId)}`
+          : QUICK_REPLIES_API;
+        const init = action === 'get'
+          ? {}
+          : {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ sessionId, ...extra }),
+          };
+        const response = await fetch(url, init);
+        const body = await response.json();
+        if (!body?.ok) throw new Error(body?.error ?? `HTTP ${response.status}`);
+        return body;
+      }
+
+      /**
+       * Resolve the session id from the slot prop or the live DOM contract.
+       * @param {string} sessionId
+       */
+      function quickOwnerId(sessionId) {
+        if (typeof sessionId === 'string' && sessionId !== '') return sessionId;
+        try {
+          const el = document.querySelector('[data-conversation-session]');
+          const id = el === null ? null : el.getAttribute('data-conversation-session');
+          return typeof id === 'string' && id !== '' ? id : '';
+        } catch {
+          return '';
+        }
+      }
+
+      /**
+       * Render the Agent-published reply options as pill buttons directly above
+       * the composer card. Any user message (host send button, Enter, or one of
+       * these buttons) clears them through the Host route.
+       */
+      function QuickReplies({ sessionId, ctx, t: translate }) {
+        const settings = useSettings();
+        const ownerId = quickOwnerId(sessionId);
+        const ownerRef = useRef(ownerId);
+        ownerRef.current = ownerId;
+        const [container, setContainer] = useState(null);
+        const cached = ownerId !== '' ? quickRepliesCache.get(ownerId) : undefined;
+        const [state, setState] = useState(() => ({
+          options: cached?.options ?? [],
+          version: cached?.version ?? '',
+        }));
+        const stateRef = useRef(state);
+        stateRef.current = state;
+
+        const applyState = useCallback((next) => {
+          const value = {
+            options: Array.isArray(next?.options) ? next.options : [],
+            version: typeof next?.version === 'string' ? next.version : '',
+          };
+          stateRef.current = value;
+          if (ownerRef.current !== '') quickRepliesCache.set(ownerRef.current, value);
+          setState(value);
+        }, []);
+
+        // Poll the Host store while a session is active.
+        useEffect(() => {
+          if (!settings.quickReplies || ownerId === '') {
+            applyState({ options: [], version: '' });
+            return undefined;
+          }
+          let alive = true;
+          const refresh = async () => {
+            try {
+              const body = await quickRepliesRequest(ownerId, 'get');
+              if (!alive) return;
+              const current = stateRef.current;
+              const same = body.options?.length === current.options?.length
+                && body.version === current.version
+                && (body.options ?? []).every((o, i) => o.label === current.options[i]?.label
+                  && o.message === current.options[i]?.message);
+              if (!same) applyState(body);
+            } catch {
+              /* A transient fetch failure keeps the last known options. */
+            }
+          };
+          void refresh();
+          const timer = window.setInterval(refresh, 700);
+          return () => { alive = false; window.clearInterval(timer); };
+        }, [settings.quickReplies, ownerId, applyState]);
+
+        // Mount a small container as the first child of the composer seat, so
+        // the options sit above the input card in normal layout.
+        useEffect(() => {
+          if (!settings.quickReplies || ownerId === '') { setContainer(null); return undefined; }
+          let node = null;
+          const locate = () => {
+            const seat = findComposerSeat(ownerRef.current);
+            if (seat === null || seat.contains(node)) return;
+            if (node !== null) node.remove();
+            node = document.createElement('div');
+            node.setAttribute('data-powerup-quick-replies', '');
+            node.className = 'dsh-powerup-quick-replies-mount';
+            seat.insertBefore(node, seat.firstChild);
+            setContainer(node);
+          };
+          locate();
+          const timer = window.setInterval(locate, 600);
+          return () => {
+            window.clearInterval(timer);
+            if (node !== null) node.remove();
+            setContainer(null);
+          };
+        }, [settings.quickReplies, ownerId]);
+
+        /** Clear the current options through the Host, guarded by version. */
+        const clear = useCallback(() => {
+          const id = ownerRef.current;
+          const version = stateRef.current.version;
+          if (id === '') return;
+          applyState({ options: [], version: '' });
+          void quickRepliesRequest(id, 'clear', { action: 'clear', version }).catch(() => {});
+        }, [applyState]);
+
+        // Detect a normal user send: host Send button click, or Enter in the
+        // composer editor. We only clear; the host performs the actual send.
+        useEffect(() => {
+          if (!settings.quickReplies || ownerId === '') return undefined;
+          const onClick = (event) => {
+            const target = event.target;
+            if (target === null || typeof target.closest !== 'function') return;
+            const button = target.closest('button[aria-busy]');
+            if (button === null) return;
+            const seat = findComposerSeat(ownerRef.current);
+            if (seat === null || !seat.contains(button)) return;
+            clear();
+          };
+          const onKeyDown = (event) => {
+            if (event.key !== 'Enter' || event.isComposing === true || event.repeat === true) return;
+            const target = event.target;
+            const editor = target !== null && typeof target.closest === 'function'
+              ? target.closest('[data-composer-input]') : null;
+            if (editor === null || editor.hasAttribute('data-composer-composing')
+              || editor.hasAttribute('data-composer-chip-selected')) return;
+            const openMenu = document.querySelector?.(
+              '[aria-haspopup="listbox"][aria-expanded="true"], [aria-haspopup="menu"][aria-expanded="true"], [role="listbox"]:not([hidden]), [role="menu"]:not([hidden])',
+            );
+            if (openMenu !== null && openMenu !== undefined) return;
+            clear();
+          };
+          document.addEventListener('click', onClick, true);
+          document.addEventListener('keydown', onKeyDown, true);
+          return () => {
+            document.removeEventListener('click', onClick, true);
+            document.removeEventListener('keydown', onKeyDown, true);
+          };
+        }, [settings.quickReplies, ownerId, clear]);
+
+        /** Send one option as a normal user message, then clear the options. */
+        const pick = useCallback((option) => {
+          const id = ownerRef.current;
+          const value = typeof option?.message === 'string' ? option.message.trim() : '';
+          if (id === '' || value === '') return;
+          try {
+            const sessions = ctx.get('sessions');
+            const binding = sessions?.binding?.(id);
+            const session = binding?.session;
+            if (session !== undefined && typeof session.prompt === 'function') {
+              const handle = typeof session.beginSubmission === 'function'
+                ? session.beginSubmission({ mode: 'queue', text: value, attachments: [] })
+                : null;
+              void session.prompt([{ type: 'text', text: value }], 'queue', undefined, handle?.requestId);
+            }
+          } catch (error) {
+            console.warn('[dsh-powerup] quick reply send failed:', error?.message ?? error);
+          }
+          clear();
+        }, [ctx, clear]);
+
+        const options = state.options;
+        if (container === null || options.length === 0) return null;
+        const content = h('div', { className: 'dsh-powerup-quick-replies' },
+          h('span', { className: 'dsh-powerup-quick-replies-label' }, translate('quickReplies.title')),
+          options.map((option, index) => h('button', {
+            type: 'button',
+            key: `${option.label}-${index}`,
+            className: 'dsh-powerup-quick-reply',
+            title: option.message,
+            onMouseDown: (event) => event.preventDefault(),
+            onClick: () => pick(option),
+          }, option.label)),
+        );
+        return createPortal !== null ? createPortal(content, container) : content;
+      }
+
       /**
        * Conversation View tab for per-workspace Power-Up settings. Registered
        * after Trajectory so it appears last in the header tab row.
@@ -10690,6 +10910,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           featureCard('scrollToTop', ScrollTopIcon, 'page.scrollToTopTitle', 'page.scrollToTopDesc', 'page.scrollToTopHow'),
           featureCard('contentRendering', PowerUpLineIcon, 'page.renderingTitle', 'page.renderingDesc', 'page.renderingHow'),
           featureCard('dualSend', LauncherIcon, 'page.dualSendTitle', 'page.dualSendDesc', 'page.dualSendHow'),
+          featureCard('quickReplies', TagIcon, 'page.quickRepliesTitle', 'page.quickRepliesDesc', 'page.quickRepliesHow'),
           featureCard('taskProgress', ProgressIcon, 'page.taskProgressTitle', 'page.taskProgressDesc', 'page.taskProgressHow',
             h('div', { className: 'dsh-powerup-card-detail' },
               numberRow('taskProgressCooldown', settings.taskProgressCooldown, t('page.taskProgressCooldown'), t('page.taskProgressCooldownHint')),
@@ -11897,6 +12118,15 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           t: (key, params) => translateCurrent(key, params),
         }), 'dsh-powerup: direct ask');
 
+        register('conversation.input.right', {
+          id: 'powerup-quick-replies',
+          order: 84,
+        }, (props) => h(QuickReplies, {
+          ...props,
+          ctx,
+          t: (key, params) => translateCurrent(key, params),
+        }), 'dsh-powerup: quick replies');
+
         // In an ongoing session, place the prompt picker in the bottom tool row
         // just after the host's permission / plan dropdowns; its popover opens
         // upward so it is not clipped by the screen bottom.
@@ -11978,6 +12208,10 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           RENDERING_CSS,
           PROMPTS_CSS,
           PROGRESS_CSS,
+          QUICK_REPLIES_CSS,
+          QuickReplies,
+          quickRepliesRequest,
+          quickOwnerId,
           ProgressControl,
           ProgressItem,
           ProgressModelSelect,

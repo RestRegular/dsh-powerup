@@ -224,13 +224,14 @@ assert.equal(typeof moduleExports.apply, 'function');
 assert.deepEqual(moduleExports.inject, ['slots', 'locale']);
 moduleExports.apply(ctx);
 
-assert.equal(registrations.length, 12, 'twelve slot registrations');
+assert.equal(registrations.length, 13, 'thirteen slot registrations');
 const bySlot = new Map(registrations.map((entry) => [entry.options.name, entry]));
 for (const slot of ['sidebar.panellist', 'main', 'shell.overlay', 'conversation.session.header.utilities', 'conversation.hero.options', 'conversation.input.right', 'conversation.input.left', 'conversation.view']) {
   assert.ok(bySlot.has(slot), `registered ${slot}`);
 }
 assert.ok(registrations.some((entry) => entry.options.name === 'conversation.input.right' && entry.options.id === 'powerup-dual-send'), 'dual-send registered in composer');
 assert.ok(registrations.some((entry) => entry.options.name === 'conversation.input.right' && entry.options.id === 'powerup-direct-ask'), 'direct-ask button registered in the composer');
+assert.ok(registrations.some((entry) => entry.options.name === 'conversation.input.right' && entry.options.id === 'powerup-quick-replies'), 'quick replies registered in the composer');
 const composerPrompt = registrations.find((entry) => entry.options.name === 'conversation.input.left');
 assert.equal(composerPrompt.options.id, 'powerup-prompts-composer', 'prompt picker is registered in the ongoing-session composer');
 assert.equal(bySlot.get('conversation.view').options.id, 'powerup-settings');
@@ -1363,7 +1364,7 @@ assert.ok(/'dsh-powerup-prompt-new dsh-powerup-req-create'[\s\S]{0,200}'progress
 const ALL_ON_SETTINGS = {
   contextMenu: true, launcher: true, sessionSwitch: true, jobStop: true,
   update: true, locateSession: true, scrollToTop: true, contentRendering: true, dualSend: false, workspacePrompts: true,
-  taskProgress: true, taskProgressCooldown: 5, directAsk: true, directAskAutoTitle: false, oneClickEnable: true, oneClickRestart: true,
+  taskProgress: true, taskProgressCooldown: 5, quickReplies: true, directAsk: true, directAskAutoTitle: false, oneClickEnable: true, oneClickRestart: true,
 };
 const savedGetItem = globalThis.localStorage.getItem;
 globalThis.localStorage.getItem = () => null;
@@ -1373,12 +1374,12 @@ assert.deepEqual(update.readSettings(), { ...ALL_ON_SETTINGS, contextMenu: false
 globalThis.localStorage.getItem = () => JSON.stringify({
   contextMenu: false, launcher: false, sessionSwitch: false, jobStop: false,
   update: false, locateSession: false, scrollToTop: false, contentRendering: false, dualSend: true, workspacePrompts: false,
-  taskProgress: false, directAsk: false, directAskAutoTitle: true, oneClickEnable: false, oneClickRestart: false,
+  taskProgress: false, quickReplies: false, directAsk: false, directAskAutoTitle: true, oneClickEnable: false, oneClickRestart: false,
 });
 assert.deepEqual(update.readSettings(), {
   contextMenu: false, launcher: false, sessionSwitch: false, jobStop: false,
   update: false, locateSession: false, scrollToTop: false, contentRendering: false, dualSend: true, workspacePrompts: false,
-  taskProgress: false, taskProgressCooldown: 5, directAsk: false, directAskAutoTitle: true, oneClickEnable: false, oneClickRestart: false,
+  taskProgress: false, taskProgressCooldown: 5, quickReplies: false, directAsk: false, directAskAutoTitle: true, oneClickEnable: false, oneClickRestart: false,
 });
 globalThis.localStorage.getItem = savedGetItem;
 
@@ -2261,7 +2262,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.19.5');
+assert.equal(host.__test.SELF_VERSION, '0.19.6');
 
 const installFailSpecs = [];
 const installFailManager = {

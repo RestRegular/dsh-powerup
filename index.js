@@ -22,6 +22,10 @@
  *   tool powerup_step_read             → resolves a `dsh-step:` reference
  *                                         copied from the Trajectory menu into
  *                                         the raw session events it identifies
+ *   tool powerup_quick_replies         → publishes tappable text reply options
+ *                                         for the current session's composer
+ *   GET  /dsh-powerup/api/quick-replies → reads the current session's options
+ *   POST /dsh-powerup/api/quick-replies → clears them after a user message
  *
  * The Client half drives other plugins' installation through the built-in
  * `pluginManager` Remote. Only the process restart, the self-update handoff,
@@ -51,6 +55,10 @@ import {
 import { createStepReadTool } from './lib/step-tool.js';
 import { createProgressManager } from './lib/progress-manager.js';
 import { buildAskPrompt, cleanAskText, directAsk, generateTitle } from './lib/direct-ask.js';
+import {
+  createQuickRepliesStore,
+  createQuickRepliesTool,
+} from './lib/quick-replies.js';
 
 /** Prefix owned by this plugin. */
 const ROUTE = '/dsh-powerup/api';
@@ -76,6 +84,8 @@ const PROMPTS_FILE = 'prompts.json';
 const MASK_RULES_FILE = 'mask-rules.json';
 /** Pending continuation prompts recorded by forced restart / close. */
 const TASK_RESUME_FILE_NAME = TASK_RESUME_FILE;
+/** Persisted quick-reply options, keyed by session id. */
+const QUICK_REPLIES_FILE = 'quick-replies.json';
 /** Persisted progress-generation requirements (global + per workspace/session). */
 const PROGRESS_REQUIREMENTS_FILE = 'progress-requirements.json';
 /** Story of generated progress reports, kept on disk so refreshes never drop history. */
@@ -473,8 +483,47 @@ async function handle(req, res, ctx) {
 
   const url = new URL(req.url ?? ROUTE, 'http://localhost');
   const op = url.pathname.slice(ROUTE.length).replace(/^\/+/u, '') || url.searchParams.get('op') || '';
-  if (op !== '' && op !== 'restart' && op !== 'close' && op !== 'self-update' && op !== 'audit' && op !== 'job-kill' && op !== 'prompts' && op !== 'mask-rules' && op !== 'progress' && op !== 'progress-requirements' && op !== 'progress-history' && op !== 'direct-ask' && op !== 'ask-title') {
+  if (op !== '' && op !== 'restart' && op !== 'close' && op !== 'self-update' && op !== 'audit' && op !== 'job-kill' && op !== 'prompts' && op !== 'mask-rules' && op !== 'progress' && op !== 'progress-requirements' && op !== 'progress-history' && op !== 'direct-ask' && op !== 'ask-title' && op !== 'quick-replies') {
     sendJson(res, { ok: false, error: 'not-found' }, 404);
+    return;
+  }
+
+  if (op === 'quick-replies') {
+    const store = createQuickRepliesStore({
+      file: storePath(QUICK_REPLIES_FILE),
+      readFile: readFileSync,
+      writeFile: writeFileSync,
+      mkdir: mkdirSync,
+      dirname,
+    });
+    if (req.method === 'GET') {
+      const sessionId = typeof url.searchParams.get('sessionId') === 'string'
+        ? url.searchParams.get('sessionId').trim() : '';
+      sendJson(res, { ok: true, ...store.read(sessionId) });
+      return;
+    }
+    if (req.method === 'POST') {
+      try {
+        const body = await readJsonBody(req);
+        const sessionId = typeof body?.sessionId === 'string' ? body.sessionId.trim() : '';
+        if (sessionId === '') {
+          sendJson(res, { ok: false, code: 'invalid-request', error: 'sessionId is required' }, 400);
+          return;
+        }
+        const action = body?.action === 'clear' ? 'clear' : 'set';
+        if (action === 'clear') {
+          const cleared = store.clearIfVersion(sessionId, typeof body?.version === 'string' ? body.version : '');
+          sendJson(res, { ok: true, cleared, options: [], version: '' });
+          return;
+        }
+        const result = store.set(sessionId, body?.options);
+        sendJson(res, { ok: true, ...result });
+      } catch (error) {
+        sendJson(res, { ok: false, error: String(error?.message ?? error) }, 500);
+      }
+      return;
+    }
+    sendJson(res, { ok: false, error: 'method-not-allowed' }, 405);
     return;
   }
 
@@ -959,6 +1008,22 @@ export function apply(ctx) {
       })),
       'dsh-powerup: step reference reader',
     );
+    // Quick replies are keyed by the calling Agent's session id. The tool is
+    // registered alongside step_read because both need the tools service.
+    const quickStore = createQuickRepliesStore({
+      file: storePath(QUICK_REPLIES_FILE),
+      readFile: readFileSync,
+      writeFile: writeFileSync,
+      mkdir: mkdirSync,
+      dirname,
+    });
+    scope.effect(
+      () => tools.register(createQuickRepliesTool(defineTool, {
+        getSessionId: () => '',
+        getStore: () => quickStore,
+      })),
+      'dsh-powerup: quick replies',
+    );
   });
   // The progress side call needs both `llm` and `sessionQuery`. Wait for them
   // through inject so a late-provided service still creates the manager.
@@ -1124,7 +1189,10 @@ export const __test = {
   TASK_RESUME_FILE_NAME,
   PROGRESS_REQUIREMENTS_FILE,
   PROGRESS_HISTORY_FILE,
+  QUICK_REPLIES_FILE,
   createProgressManager,
+  createQuickRepliesStore,
+  createQuickRepliesTool,
   cleanResumePrompt,
   readJsonObject,
 };
