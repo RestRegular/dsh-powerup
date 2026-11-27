@@ -85,7 +85,7 @@
       const requirementCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.19.4';
+      const VERSION = '0.19.5';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -11385,10 +11385,12 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         const reqs = useRequirements();
         // Resolve the owning workspace for requirement filtering + create modal.
         // Prefer the slot-provided scoped `useWorkspaces` hook (the client-side
-        // `workspaces` service has no `.list`; that is Host-only). Fall back to
-        // the live DOM session id if the hook is absent on an older host.
+        // `workspaces` service has no `.list`; that is Host-only). Use sessionId
+        // directly here — sessionRef is declared further down, and referencing it
+        // here throws a TDZ ReferenceError when the hook evaluates the selector
+        // during render, crashing the control so its entry button never renders.
         const workspaceSelector = useMemo(
-          () => (snapshot) => resolveWorkspaceIdFromSnapshot(snapshot, sessionRef.current),
+          () => (snapshot) => resolveWorkspaceIdFromSnapshot(snapshot, sessionId),
           [sessionId],
         );
         const workspaceId = typeof useWorkspaces === 'function'
