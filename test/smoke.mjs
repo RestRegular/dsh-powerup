@@ -1316,6 +1316,9 @@ assert.ok(/[.]dsh-powerup-prompt-new\{[^}]*white-space:nowrap/u.test(update.PROM
 assert.ok(update.PROGRESS_CSS.includes('.dsh-powerup-directask-tabs{'), 'direct-ask uses separate chat/history tabs');
 assert.equal(typeof update.renderMarkdown, 'function', 'markdown renderer is exported');
 assert.ok(/function findComposerSeat\(/u.test(source), 'direct-ask locates the real host composer');
+assert.ok(/function findLastTurnTail\(/u.test(source), 'quick replies locate the last assistant turn-tail');
+assert.ok(update.QUICK_REPLIES_CSS.includes('flex-direction:column'), 'quick replies stack vertically');
+assert.ok(/\[data-turn-tail\]/u.test(source), 'quick replies anchor to the host message action row');
 assert.ok(/function createComposerTakeover\(/u.test(source), 'direct-ask snapshots and restores the composer on takeover');
 assert.ok(/seat\.addEventListener\('click', onPointer, true\)/u.test(source), 'direct-ask intercepts the host Send button in capture phase');
 assert.ok(/document\.addEventListener\('keydown', onKey, true\)/u.test(source), 'direct-ask intercepts host Enter in capture phase');
@@ -2312,7 +2315,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.19.8');
+assert.equal(host.__test.SELF_VERSION, '0.19.9');
 
 const installFailSpecs = [];
 const installFailManager = {

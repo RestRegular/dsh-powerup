@@ -85,7 +85,7 @@
       const requirementCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.19.8';
+      const VERSION = '0.19.9';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -145,7 +145,7 @@
           'page.dualSendHow': '启用后输入框里会出现两个按钮，鼠标悬停可看到各自说明；输入文字后按 Enter 排队发送，按 Ctrl+Shift+Enter 立即插话发送。',
           'page.quickRepliesTitle': '快捷回复选项',
           'page.quickRepliesDesc': '允许 Agent 在回复后提供一组带文本的按钮选项。点击选项会立即把对应文本作为新消息发送，用户发出任意新消息（包括点击选项）后，这些选项会自动移除。',
-          'page.quickRepliesHow': 'Agent 通过 powerup_quick_replies 工具发布选项；选项出现于输入框上方，点击即可快速回复。',
+          'page.quickRepliesHow': 'Agent 通过 powerup_quick_replies 工具发布选项；选项竖向排列在最后一条助手消息的复制/点赞按钮上方，点击即可快速回复。',
           'quickReplies.title': '快捷回复',
           'quickReplies.hint': '选择一个选项快速发送',
           'mask.tab': '内容屏蔽',
@@ -775,7 +775,7 @@
           'page.taskProgressCooldownHint': 'Minimum gap between refreshes to avoid accidental clicks; 0 disables the limit.',
           'page.quickRepliesTitle': 'Quick reply options',
           'page.quickRepliesDesc': 'Let the Agent offer a short list of text buttons after its reply. Tapping one sends its text as a new message immediately; the options are removed automatically once the user sends any message (including tapping an option).',
-          'page.quickRepliesHow': 'The Agent publishes options through the powerup_quick_replies tool; they appear above the composer and can be tapped to reply quickly.',
+          'page.quickRepliesHow': 'The Agent publishes options through the powerup_quick_replies tool; they stack vertically above the copy/like buttons of the last assistant message.',
           'quickReplies.title': 'Quick replies',
           'quickReplies.hint': 'Pick an option to send it right away',
           'progress.title': 'Task progress',
@@ -4460,11 +4460,12 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 `;
 
       const QUICK_REPLIES_CSS = `
-/* Quick-reply options rendered just above the composer card. */
-.dsh-powerup-quick-replies{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px 2px 2px}
-.dsh-powerup-quick-replies-label{font-size:11px;line-height:18px;color:var(--dsw-alias-label-caption);margin-right:2px}
-.dsh-powerup-quick-reply{display:inline-flex;align-items:center;max-width:100%;padding:5px 11px;border:.5px solid var(--dsw-alias-border-l2);border-radius:999px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-brand-primary,var(--dsw-alias-label-primary));font:inherit;font-size:12px;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;transition:background .12s ease,border-color .12s ease,transform .12s ease}
-.dsh-powerup-quick-reply:hover{background:var(--dsw-alias-interactive-bg-hover);border-color:var(--dsw-alias-brand-primary,var(--dsw-alias-border-l3));transform:translateY(-1px)}
+/* Quick-reply options rendered above the assistant message's action row. */
+.dsh-powerup-quick-replies-mount{display:block;width:100%}
+.dsh-powerup-quick-replies{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:4px 0 8px;max-width:100%}
+.dsh-powerup-quick-replies-label{font-size:11px;line-height:16px;color:var(--dsw-alias-label-caption)}
+.dsh-powerup-quick-reply{display:block;max-width:100%;padding:6px 12px;border:.5px solid var(--dsw-alias-border-l2);border-radius:10px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-brand-primary,var(--dsw-alias-label-primary));font:inherit;font-size:12px;line-height:18px;text-align:left;white-space:normal;overflow-wrap:anywhere;cursor:pointer;transition:background .12s ease,border-color .12s ease,transform .12s ease}
+.dsh-powerup-quick-reply:hover{background:var(--dsw-alias-interactive-bg-hover);border-color:var(--dsw-alias-brand-primary,var(--dsw-alias-border-l3));transform:translateX(2px)}
 .dsh-powerup-quick-reply:disabled{opacity:.5;cursor:not-allowed;transform:none}
 .dsh-powerup-quick-reply:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:1px}
 `;
@@ -9446,6 +9447,25 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         return seats[seats.length - 1] ?? null;
       }
 
+      /**
+       * Find the last assistant turn-tail in the conversation for a session.
+       * The host renders `[data-turn-tail]` around the assistant message's
+       * IconActions row (copy / like / dislike / branch). Quick-reply options
+       * mount at the top of that tail, directly above the action buttons.
+       */
+      function findLastTurnTail(sessionId) {
+        if (typeof document === 'undefined' || document === null) return null;
+        const tails = Array.from(document.querySelectorAll('[data-turn-tail]'));
+        if (sessionId !== undefined && sessionId !== '') {
+          const own = tails.filter((tail) => {
+            const body = tail.closest('[data-conversation-session]');
+            return body !== null && body.getAttribute('data-conversation-session') === sessionId;
+          });
+          if (own.length > 0) return own[own.length - 1];
+        }
+        return tails[tails.length - 1] ?? null;
+      }
+
       /** The host primary button is the only composer button carrying aria-busy. */
       function findComposerSend(seat) {
         if (seat === null) return null;
@@ -10195,19 +10215,23 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           return () => { alive = false; window.clearInterval(timer); };
         }, [settings.quickReplies, ownerId, applyState]);
 
-        // Mount a small container as the first child of the composer seat, so
-        // the options sit above the input card in normal layout.
+        // Mount a small container inside the last assistant turn-tail, just
+        // above its IconActions row (copy / like / branch). The tail is
+        // re-elected periodically because new turns replace the last one.
         useEffect(() => {
           if (!settings.quickReplies || ownerId === '') { setContainer(null); return undefined; }
           let node = null;
+          let host = null;
           const locate = () => {
-            const seat = findComposerSeat(ownerRef.current);
-            if (seat === null || seat.contains(node)) return;
+            const tail = findLastTurnTail(ownerRef.current);
+            if (tail === null) return;
+            if (tail === host && node !== null && node.isConnected) return;
             if (node !== null) node.remove();
             node = document.createElement('div');
             node.setAttribute('data-powerup-quick-replies', '');
             node.className = 'dsh-powerup-quick-replies-mount';
-            seat.insertBefore(node, seat.firstChild);
+            tail.insertBefore(node, tail.firstChild);
+            host = tail;
             setContainer(node);
           };
           locate();
@@ -12233,6 +12257,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           QuickReplies,
           quickRepliesRequest,
           quickOwnerId,
+          findLastTurnTail,
           ProgressControl,
           ProgressItem,
           ProgressModelSelect,

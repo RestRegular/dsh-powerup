@@ -123,7 +123,7 @@ of tappable options for the current session:
 ] }
 ```
 
-Up to 8 options appear as pills above the composer. Tapping one sends its
+Up to 8 options appear as stacked buttons above the copy/like actions of the last assistant message. Tapping one sends its
 `message` as a normal user message. The options disappear as soon as the user
 sends any message — tapping an option, pressing Enter, or clicking the host's
 Send button. The Agent can also pass an empty `options` array to clear them

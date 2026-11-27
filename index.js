@@ -255,7 +255,7 @@ function appendSelfUpdateLog(line) {
  */
 const QUICK_REPLIES_PROMPT_SECTION = [
   '## Quick reply options (dsh-powerup)',
-  'When your answer leaves a few obvious next steps, call the `powerup_quick_replies` tool to offer tappable buttons above the composer.',
+  'When your answer leaves a few obvious next steps, call the `powerup_quick_replies` tool to offer tappable buttons under your reply.',
   'Pass `options` as a list of objects with `label` and `message`: `label` is the short button text, `message` is the full text sent when the user taps it.',
   'Offer at most 8 concise, mutually exclusive choices; prefer 2-4. Use this after answering, not instead of answering.',
   'The options vanish as soon as the user sends any message, so do not repeat them in your reply text.',
