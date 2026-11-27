@@ -2262,7 +2262,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.19.6');
+assert.equal(host.__test.SELF_VERSION, '0.19.7');
 
 const installFailSpecs = [];
 const installFailManager = {
@@ -2356,3 +2356,4 @@ assert.ok(iconSvg.includes('viewBox="0 0 256 256"'));
 assert.ok(!iconSvg.includes('<script'));
 
 console.log('smoke ok: 7 slots, icons, page, overlays, job stop reason, prompt store, install flow, bridge, helpers, theme tokens, manifest, host routes');
+
