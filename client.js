@@ -85,7 +85,7 @@
       const requirementCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.19.7';
+      const VERSION = '0.19.8';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -1013,6 +1013,9 @@
           localStorage.setItem(SETTINGS_KEY, JSON.stringify(settingsValue));
         } catch {
           /* The in-memory value still works for this page. */
+        }
+        if (Object.prototype.hasOwnProperty.call(patch, 'quickReplies')) {
+          syncQuickRepliesEnabled(settingsValue.quickReplies);
         }
         for (const listener of [...settingsListeners]) {
           try {
@@ -10088,6 +10091,22 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
       const QUICK_REPLIES_API = '/dsh-powerup/api/quick-replies';
       /** Last state per session, so options survive a component remount. */
       const quickRepliesCache = new Map();
+      /** Last flag pushed to the Host, so we only POST on a real change. */
+      let hostQuickRepliesEnabled = null;
+
+      /** Mirror the settings toggle to the Host so it can add/remove the tool and prompt section. */
+      function syncQuickRepliesEnabled(enabled) {
+        const value = enabled !== false;
+        if (hostQuickRepliesEnabled === value) return;
+        hostQuickRepliesEnabled = value;
+        void fetch(QUICK_REPLIES_API, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ action: 'set-enabled', enabled: value }),
+        }).catch(() => {
+          hostQuickRepliesEnabled = null; // allow a retry after a transient failure
+        });
+      }
 
       async function quickRepliesRequest(sessionId, action, extra = {}) {
         const url = action === 'get'
@@ -12040,6 +12059,8 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         }, 'dsh-powerup: client context');
         bindLocale(ctx);
         installStyles(ctx);
+        // Align the Host tool/prompt registration with this browser's switch on load.
+        syncQuickRepliesEnabled(settingsValue.quickReplies);
         installLauncher(ctx);
         installSessionSwitcher(ctx);
         installLocateSession(ctx);

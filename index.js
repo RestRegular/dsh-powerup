@@ -86,6 +86,8 @@ const MASK_RULES_FILE = 'mask-rules.json';
 const TASK_RESUME_FILE_NAME = TASK_RESUME_FILE;
 /** Persisted quick-reply options, keyed by session id. */
 const QUICK_REPLIES_FILE = 'quick-replies.json';
+/** Persisted on/off state of the quick-replies feature (driven by the Client settings page). */
+const QUICK_REPLIES_ENABLED_FILE = 'quick-replies-enabled.json';
 /** Persisted progress-generation requirements (global + per workspace/session). */
 const PROGRESS_REQUIREMENTS_FILE = 'progress-requirements.json';
 /** Story of generated progress reports, kept on disk so refreshes never drop history. */
@@ -245,6 +247,75 @@ function appendSelfUpdateLog(line) {
     /* The diagnostic log is optional. */
   }
 }
+
+/**
+ * Brief system-prompt guidance for the quick-replies tool. Registered only
+ * while the feature is enabled, then disposed together with the tool.
+ * `interpolate: false` keeps any braces literal (the DSL treats {{x}} as a variable).
+ */
+const QUICK_REPLIES_PROMPT_SECTION = [
+  '## Quick reply options (dsh-powerup)',
+  'When your answer leaves a few obvious next steps, call the `powerup_quick_replies` tool to offer tappable buttons above the composer.',
+  'Pass `options` as a list of objects with `label` and `message`: `label` is the short button text, `message` is the full text sent when the user taps it.',
+  'Offer at most 8 concise, mutually exclusive choices; prefer 2-4. Use this after answering, not instead of answering.',
+  'The options vanish as soon as the user sends any message, so do not repeat them in your reply text.',
+].join('\n');
+
+/** Stable section name; a duplicate registration throws, so keep it unique. */
+const QUICK_REPLIES_SECTION_NAME = 'dsh-powerup:quick-replies';
+
+/**
+ * In-memory enabled flag plus listeners for the quick-replies feature. The
+ * Client settings toggle POSTs changes to the Host route, which calls
+ * `setQuickRepliesEnabled` and notifies the registration controller.
+ */
+let quickRepliesEnabled = true;
+const quickRepliesListeners = new Set();
+/** Live registrations owned by the feature; mutated by the apply() controller. */
+const quickRepliesState = {
+  toolOff: undefined,
+  sectionOff: undefined,
+  sync: undefined,
+  systemPrompt: undefined,
+};
+
+function getQuickRepliesEnabled() {
+  return quickRepliesEnabled;
+}
+
+function setQuickRepliesEnabled(value) {
+  const next = value !== false;
+  if (next === quickRepliesEnabled) return quickRepliesEnabled;
+  quickRepliesEnabled = next;
+  try {
+    mkdirSync(dirname(storePath(QUICK_REPLIES_ENABLED_FILE)), { recursive: true });
+    writeFileSync(storePath(QUICK_REPLIES_ENABLED_FILE), JSON.stringify({ enabled: next }) + '\n', 'utf8');
+  } catch {
+    /* Persistence is best-effort; the in-memory flag still applies. */
+  }
+  for (const listener of [...quickRepliesListeners]) {
+    try { listener(next); } catch { /* one listener must not break the rest */ }
+  }
+  return next;
+}
+
+function subscribeQuickRepliesEnabled(listener) {
+  quickRepliesListeners.add(listener);
+  return () => quickRepliesListeners.delete(listener);
+}
+
+/** Load persisted quick-replies switch once at module load. */
+function loadQuickRepliesEnabled() {
+  try {
+    const parsed = JSON.parse(readFileSync(storePath(QUICK_REPLIES_ENABLED_FILE), 'utf8'));
+    if (parsed !== null && typeof parsed === 'object' && parsed.enabled !== undefined) {
+      quickRepliesEnabled = parsed.enabled !== false;
+    }
+  } catch {
+    /* Missing or corrupt file: keep the default (on). */
+  }
+}
+loadQuickRepliesEnabled();
 
 /** The reason core records for a human kill; a custom reason is appended. */
 const HUMAN_KILL_REASON = 'cancelled by the user';
@@ -497,14 +568,25 @@ async function handle(req, res, ctx) {
       dirname,
     });
     if (req.method === 'GET') {
-      const sessionId = typeof url.searchParams.get('sessionId') === 'string'
-        ? url.searchParams.get('sessionId').trim() : '';
-      sendJson(res, { ok: true, ...store.read(sessionId) });
+      // A GET without sessionId reports the feature switch, so the Client can
+      // sync the Host even before any options are published.
+      const rawSession = url.searchParams.get('sessionId');
+      if (rawSession === null) {
+        sendJson(res, { ok: true, enabled: getQuickRepliesEnabled() });
+        return;
+      }
+      sendJson(res, { ok: true, enabled: getQuickRepliesEnabled(), ...store.read(rawSession.trim()) });
       return;
     }
     if (req.method === 'POST') {
       try {
         const body = await readJsonBody(req);
+        // The settings toggle sends no sessionId and carries an `enabled` flag.
+        if (body?.action === 'set-enabled') {
+          const enabled = setQuickRepliesEnabled(body.enabled !== false);
+          sendJson(res, { ok: true, enabled });
+          return;
+        }
         const sessionId = typeof body?.sessionId === 'string' ? body.sessionId.trim() : '';
         if (sessionId === '') {
           sendJson(res, { ok: false, code: 'invalid-request', error: 'sessionId is required' }, 400);
@@ -998,7 +1080,7 @@ export function apply(ctx) {
       'dsh-powerup: restart and self-update routes',
     );
   });
-  ctx.inject(['tools', 'sessionQuery'], (scope) => {
+  ctx.inject(['tools', 'sessionQuery', 'systemPrompt'], (scope) => {
     const tools = scope.get('tools');
     if (tools === undefined || typeof tools.register !== 'function') return;
     scope.effect(
@@ -1008,8 +1090,9 @@ export function apply(ctx) {
       })),
       'dsh-powerup: step reference reader',
     );
-    // Quick replies are keyed by the calling Agent's session id. The tool is
-    // registered alongside step_read because both need the tools service.
+    // Quick replies are keyed by the calling Agent's session id. Both the tool
+    // and its system-prompt guidance follow the feature switch: when the Client
+    // disables it, the tool is unregistered and the injected section disposed.
     const quickStore = createQuickRepliesStore({
       file: storePath(QUICK_REPLIES_FILE),
       readFile: readFileSync,
@@ -1017,13 +1100,53 @@ export function apply(ctx) {
       mkdir: mkdirSync,
       dirname,
     });
-    scope.effect(
-      () => tools.register(createQuickRepliesTool(defineTool, {
-        getSessionId: () => '',
-        getStore: () => quickStore,
-      })),
-      'dsh-powerup: quick replies',
-    );
+    const makeTool = () => createQuickRepliesTool(defineTool, {
+      getSessionId: () => '',
+      getStore: () => quickStore,
+    });
+    // `sync` registers or tears down everything the feature owns. It is driven
+    // by the enabled flag and re-run whenever the Client toggles the switch.
+    const sync = () => {
+      if (getQuickRepliesEnabled()) {
+        if (quickRepliesState.toolOff === undefined) {
+          quickRepliesState.toolOff = tools.register(makeTool());
+        }
+        if (quickRepliesState.sectionOff === undefined && quickRepliesState.systemPrompt !== undefined) {
+          quickRepliesState.sectionOff = quickRepliesState.systemPrompt.section({
+            name: QUICK_REPLIES_SECTION_NAME,
+            order: 5001,
+            text: QUICK_REPLIES_PROMPT_SECTION,
+            interpolate: false,
+          });
+        }
+      } else {
+        if (typeof quickRepliesState.toolOff === 'function') {
+          quickRepliesState.toolOff();
+          quickRepliesState.toolOff = undefined;
+        }
+        if (typeof quickRepliesState.sectionOff === 'function') {
+          quickRepliesState.sectionOff();
+          quickRepliesState.sectionOff = undefined;
+        }
+      }
+    };
+    const off = subscribeQuickRepliesEnabled(() => sync());
+    scope.effect(() => {
+      // `effect` calls this immediately and keeps the RETURNED function as the
+      // real disposer. Doing teardown in the body would unregister on startup.
+      quickRepliesState.systemPrompt = scope.get('systemPrompt');
+      quickRepliesState.sync = sync;
+      sync();
+      return () => {
+        off();
+        if (typeof quickRepliesState.toolOff === 'function') quickRepliesState.toolOff();
+        if (typeof quickRepliesState.sectionOff === 'function') quickRepliesState.sectionOff();
+        quickRepliesState.toolOff = undefined;
+        quickRepliesState.sectionOff = undefined;
+        quickRepliesState.sync = undefined;
+        quickRepliesState.systemPrompt = undefined;
+      };
+    }, 'dsh-powerup: quick replies');
   });
   // The progress side call needs both `llm` and `sessionQuery`. Wait for them
   // through inject so a late-provided service still creates the manager.
@@ -1190,9 +1313,16 @@ export const __test = {
   PROGRESS_REQUIREMENTS_FILE,
   PROGRESS_HISTORY_FILE,
   QUICK_REPLIES_FILE,
+  QUICK_REPLIES_ENABLED_FILE,
+  QUICK_REPLIES_PROMPT_SECTION,
+  QUICK_REPLIES_SECTION_NAME,
   createProgressManager,
   createQuickRepliesStore,
   createQuickRepliesTool,
+  getQuickRepliesEnabled,
+  setQuickRepliesEnabled,
+  subscribeQuickRepliesEnabled,
+  quickRepliesState,
   cleanResumePrompt,
   readJsonObject,
 };

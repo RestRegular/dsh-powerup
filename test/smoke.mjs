@@ -1383,6 +1383,32 @@ assert.deepEqual(update.readSettings(), {
 });
 globalThis.localStorage.getItem = savedGetItem;
 
+// Toggling quick replies mirrors the switch to the Host so it can add/remove
+// the tool and the injected system-prompt section.
+{
+  const savedFetch = globalThis.fetch;
+  const posted = [];
+  globalThis.fetch = async (url, init) => {
+    posted.push({ url: String(url), init });
+    return { ok: true, async json() { return { ok: true }; } };
+  };
+  update.setSettings({ quickReplies: false });
+  await new Promise((r) => setImmediate(r));
+  assert.equal(posted.length, 1, 'one sync POST on toggle');
+  assert.match(posted[0].url, /\/dsh-powerup\/api\/quick-replies$/u);
+  const body = JSON.parse(posted[0].init.body);
+  assert.deepEqual(body, { action: 'set-enabled', enabled: false });
+  // An unchanged value must not re-post (a no-op toggle).
+  update.setSettings({ quickReplies: false });
+  await new Promise((r) => setImmediate(r));
+  assert.equal(posted.length, 1, 'unchanged flag does not re-post');
+  update.setSettings({ quickReplies: true });
+  await new Promise((r) => setImmediate(r));
+  assert.equal(posted.length, 2);
+  assert.deepEqual(JSON.parse(posted[1].init.body), { action: 'set-enabled', enabled: true });
+  globalThis.fetch = savedFetch;
+}
+
 // Workspace prompts: storage shape, scoping, label fallback, and workspace
 // resolution from the live workspace snapshot.
 {
@@ -2014,6 +2040,30 @@ function fakeJsonRequest(url, payload) {
   };
 }
 
+// The quick-replies switch route: the Client POSTs set-enabled when the
+// settings toggle changes, and GET (without sessionId) reads it back.
+const enabledGet = fakeResponse();
+await host.__test.handle({
+  method: 'GET',
+  url: '/dsh-powerup/api/quick-replies',
+  headers: {},
+  socket: { remoteAddress: '127.0.0.1' },
+}, enabledGet);
+assert.equal(JSON.parse(enabledGet.body).enabled, host.__test.getQuickRepliesEnabled());
+const enabledOff = fakeResponse();
+await host.__test.handle(
+  fakeJsonRequest('/dsh-powerup/api/quick-replies', { action: 'set-enabled', enabled: false }),
+  enabledOff,
+);
+assert.deepEqual(JSON.parse(enabledOff.body), { ok: true, enabled: false });
+assert.equal(host.__test.getQuickRepliesEnabled(), false);
+const enabledBack = fakeResponse();
+await host.__test.handle(
+  fakeJsonRequest('/dsh-powerup/api/quick-replies', { action: 'set-enabled', enabled: true }),
+  enabledBack,
+);
+assert.equal(JSON.parse(enabledBack.body).enabled, true);
+
 const killCalls = [];
 const killJobs = {
   kill(jobId, sessionId, reason) {
@@ -2262,7 +2312,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.19.7');
+assert.equal(host.__test.SELF_VERSION, '0.19.8');
 
 const installFailSpecs = [];
 const installFailManager = {

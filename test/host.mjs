@@ -309,8 +309,18 @@ assert.equal(bigintPayload.events[0].data.cyclic, '[circular]');
 // ---------------------------------------------------------------------------
 // Host wiring: apply() registers the tool once tools + sessionQuery exist
 // ---------------------------------------------------------------------------
-const { apply } = await import(new URL('../index.js', import.meta.url).href);
+const hostModule = await import(new URL('../index.js', import.meta.url).href);
+const { apply } = hostModule;
+const {
+  QUICK_REPLIES_PROMPT_SECTION,
+  QUICK_REPLIES_SECTION_NAME,
+  getQuickRepliesEnabled,
+  setQuickRepliesEnabled,
+  quickRepliesState,
+} = hostModule.__test;
 assert.equal(typeof apply, 'function');
+// A previous run may have persisted the switch off; start each run enabled.
+setQuickRepliesEnabled(true);
 
 function fakeContext(services) {
   const injections = [];
@@ -341,18 +351,45 @@ const fakeTools = {
   },
 };
 const wiringQuery = fakeSessionQuery(events, { title: 'Wired step' });
+const sections = [];
+const fakeSystemPrompt = {
+  section(section) {
+    sections.push(section);
+    return () => {
+      const i = sections.indexOf(section);
+      if (i !== -1) sections.splice(i, 1);
+    };
+  },
+};
 const wiredCtx = fakeContext({
   webServer: { register: () => () => {} },
   tools: fakeTools,
   sessionQuery: wiringQuery,
+  systemPrompt: fakeSystemPrompt,
 });
 apply(wiredCtx);
 assert.deepEqual(wiredCtx.injections.map((entry) => entry.deps), [
-  ['webServer'], ['tools', 'sessionQuery'], ['llm', 'sessionQuery'], ['sessionController'],
+  ['webServer'], ['tools', 'sessionQuery', 'systemPrompt'], ['llm', 'sessionQuery'], ['sessionController'],
 ]);
 assert.equal(registered.length, 2, 'step reader and quick replies are registered');
 assert.equal(registered[0].name, STEP_READ_TOOL_NAME);
 assert.equal(registered[1].name, QUICK_REPLIES_TOOL_NAME, 'quick replies tool is registered');
+assert.equal(sections.length, 1, 'prompt guidance section is registered while enabled');
+assert.equal(sections[0].name, QUICK_REPLIES_SECTION_NAME);
+assert.equal(sections[0].interpolate, false);
+assert.match(sections[0].text, /powerup_quick_replies/u);
+assert.ok(sections[0].text.includes(QUICK_REPLIES_PROMPT_SECTION));
+
+// Toggling the switch off removes both the tool and the prompt section;
+// toggling back on registers them again.
+setQuickRepliesEnabled(false);
+assert.equal(getQuickRepliesEnabled(), false);
+assert.equal(registered.some((d) => d.name === QUICK_REPLIES_TOOL_NAME), false, 'tool unregistered when disabled');
+assert.equal(sections.length, 0, 'prompt section removed when disabled');
+setQuickRepliesEnabled(true);
+assert.equal(registered.some((d) => d.name === QUICK_REPLIES_TOOL_NAME), true, 'tool re-registered when enabled');
+assert.equal(sections.length, 1, 'prompt section restored when enabled');
+assert.equal(quickRepliesState.toolOff !== undefined, true);
 const wiredOut = JSON.parse(await registered[0].execute({ ref: 'dsh-step:session-1/seq.5' }, {}));
 assert.equal(wiredOut.reference, 'dsh-step:session-1/seq.5');
 assert.deepEqual(wiredOut.events.map((event) => event.seq), [5]);
