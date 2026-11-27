@@ -1321,7 +1321,12 @@ assert.ok(/document\.addEventListener\('keydown', onKey, true\)/u.test(source), 
 assert.ok(!/dsh-powerup-directask-composer/u.test(source), 'direct-ask no longer renders its own composer');
 assert.ok(/new ResizeObserver\(update\)/u.test(source), 'direct-ask keeps its fixed position while the composer grows');
 assert.ok(/dsh-powerup-directask-title-input/u.test(update.PROGRESS_CSS), 'conversation titles are editable');
+assert.ok(/dsh-powerup-directask-window\{position:fixed;z-index:900/u.test(update.PROGRESS_CSS), 'direct-ask overlay sits below host composer popovers');
+assert.ok(/seat\.closest\('\[data-conversation-content\]'\)/u.test(source), 'direct-ask overlay starts below the session title bar');
+assert.ok(/seat\.querySelector\('\[data-composer-card\]'\)/u.test(source), 'direct-ask overlay matches the input card width and covers the task/plan dock');
 assert.ok(/data-powerup-req-modal/u.test(source), 'requirement modal is marked so the progress panel ignores its clicks');
+assert.ok(/data-powerup-ws-menu/u.test(source) && /\[data-powerup-model-menu\], \[data-powerup-ws-menu\]/u.test(source), 'workspace dropdown clicks do not close the progress panel');
+assert.ok(/scopeOptions/u.test(source) && /prompts\.workspaceCurrent/u.test(source), 'requirement scope offers only current and all workspaces');
 assert.ok(/generateTitle/u.test(fs.readFileSync(new URL('../lib/direct-ask.js', import.meta.url), 'utf8')), 'LLM title generation exists');
 {
   const nodes = update.renderMarkdown('# Title\n\n- one\n- two\n\n**bold** and `code`');
@@ -2249,7 +2254,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.19.1');
+assert.equal(host.__test.SELF_VERSION, '0.19.2');
 
 const installFailSpecs = [];
 const installFailManager = {

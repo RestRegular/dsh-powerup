@@ -85,7 +85,7 @@
       const requirementCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.19.1';
+      const VERSION = '0.19.2';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -4700,7 +4700,10 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 /* Direct-ask button + dialog */
 .dsh-powerup-directask-btn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0;border:.5px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font:inherit;line-height:1;cursor:pointer}
 .dsh-powerup-directask-btn:hover,.dsh-powerup-directask-btn.on{border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-brand-primary)}
-.dsh-powerup-directask-window{position:fixed;z-index:1600;box-sizing:border-box;display:flex;flex-direction:column;border:1px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-panel,14px);background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.6;overflow:hidden;animation:dsh-powerup-progress-in .15s ease-out}
+/* Keep the takeover BELOW every host composer popover (file-drop overlay is
+   z-index 1000, model menu / file picker portals are 1100) so they stay
+   clickable, yet above all chat content (AppFrame chrome tops out at 71). */
+.dsh-powerup-directask-window{position:fixed;z-index:900;box-sizing:border-box;display:flex;flex-direction:column;border:1px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-panel,14px);background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.6;overflow:hidden;animation:dsh-powerup-progress-in .15s ease-out}
 .dsh-powerup-directask-titlebar{display:flex;align-items:center;gap:8px;flex:none;padding:10px 12px;border-bottom:.5px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-3);user-select:none}
 /* Direct Ask takeover: hide other plugins' composer controls, keep host ones. */
 .dsh-powerup-da-takeover [data-powerup-da-hidden]{display:none!important}
@@ -9041,6 +9044,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
               ref: menuRef,
               className: 'dsh-powerup-ws-menu',
               role: 'listbox',
+              'data-powerup-ws-menu': '',
             }, options.map((option) => h('button', {
               type: 'button',
               key: option.value,
@@ -9530,20 +9534,36 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           return () => window.clearInterval(timer);
         }, [open]);
 
-        // Geometry: fixed to the composer's width, bottom just above it, and a
-        // height that fills the space above. Resizing the composer changes the
-        // HEIGHT only — the dialog never slides sideways or loses its bottom.
+        // Geometry: cover ONLY the conversation's content area — from just under
+        // the session title bar down to the top of the input card, including the
+        // task/plan dock that lives above the card inside the composer seat. The
+        // width matches the input card (not the full-width seat). Resizing changes
+        // only the height/top; the dialog never slides sideways.
         useEffect(() => {
           if (!open || seat === null) { setGeo(null); return undefined; }
           const update = () => {
             const rect = seat.getBoundingClientRect();
-            const gap = 8;
-            const top = 8;
-            const bottom = Math.max(top + 160, rect.top - gap);
+            const card = seat.querySelector('[data-composer-card]');
+            const cardRect = card === null ? null : card.getBoundingClientRect();
+            const content = seat.closest('[data-conversation-content]');
+            const contentRect = content === null ? null : content.getBoundingClientRect();
+            const header = content?.querySelector('header[data-window-drag]') ?? document.querySelector('header[data-window-drag]');
+            const headerRect = header == null ? null : header.getBoundingClientRect();
+            const left = cardRect !== null ? cardRect.left : rect.left;
+            const width = cardRect !== null ? cardRect.width : rect.width;
+            // Anchor the top to the content region (or the header's bottom) so
+            // the session title bar is never covered.
+            const top = contentRect !== null ? contentRect.top
+              : (headerRect !== null ? headerRect.bottom : 0);
+            // Bottom edge: the top of the visible input card. Anything docked
+            // above the card (task/plan/queue/todo) sits inside this range, so
+            // it is covered too.
+            const bottomEdge = cardRect !== null ? cardRect.top : rect.top;
+            const bottom = Math.max(top + 160, bottomEdge - 8);
             setGeo({
-              left: Math.round(rect.left),
-              width: Math.round(rect.width),
-              top,
+              left: Math.round(left),
+              width: Math.round(width),
+              top: Math.round(top),
               height: Math.round(bottom - top),
             });
           };
@@ -10918,12 +10938,14 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         const [targetWorkspace, setTargetWorkspace] = useState(requirementCreateDraft.workspaceId ?? key);
         const [closing, setClosing] = useState(false);
         const closingRef = useRef(false);
-        const workspaces = (() => {
-          try {
-            const snapshot = ctxRef.current?.get?.('workspaces')?.list?.getSnapshot?.();
-            return Array.isArray(snapshot?.items) ? snapshot.items : [];
-          } catch { return []; }
-        })();
+        // Like PromptCreateModal, the requirement can only belong to the
+        // session's own workspace or to all workspaces — never an arbitrary one.
+        const scopeOptions = fixedScope
+          ? [{ value: '', label: t('prompts.anyWorkspace') }]
+          : [
+            { value: key, label: t('prompts.workspaceCurrent'), hint: workspaceTitle || key },
+            { value: '', label: t('prompts.anyWorkspace') },
+          ];
         const requestClose = () => {
           if (closingRef.current) return;
           closingRef.current = true;
@@ -10979,10 +11001,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
                 h('span', { className: 'dsh-powerup-prompt-field-label' }, t('prompts.workspaceLabel')),
                 h(WorkspaceSelect, {
                   value: targetWorkspace,
-                  options: [
-                    { value: '', label: t('prompts.anyWorkspace') },
-                    ...workspaces.map((ws) => ({ value: ws.workspaceId, label: ws.title || ws.workspaceId, hint: ws.title ? ws.workspaceId : undefined })),
-                  ],
+                  options: scopeOptions,
                   onChange: setTargetWorkspace,
                   t,
                 }),
@@ -11469,9 +11488,10 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             if (panel !== null && event.target instanceof Node && panel.contains(event.target)) return;
             if (button !== null && event.target instanceof Node && button.contains(event.target)) return;
             if (creatingReq && event.target instanceof Element && event.target.closest('[data-powerup-req-modal]')) return;
-            // The host model dropdown portals its menu to document.body. Clicks
-            // there are outside the panel node but must not dismiss it.
-            if (event.target instanceof Element && event.target.closest('[data-powerup-model-menu]')) return;
+            // Both the host model dropdown and our own WorkspaceSelect portal
+            // their menus to document.body. Clicks there are outside the panel
+            // node but must not dismiss it.
+            if (event.target instanceof Element && event.target.closest('[data-powerup-model-menu], [data-powerup-ws-menu]')) return;
             close();
           };
           document.addEventListener('keydown', onKey, true);
