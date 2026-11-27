@@ -55,6 +55,25 @@ assert.equal(captured[1].options.system.includes('no tools'), true);
 assert.equal(captured[1].options.purpose, 'powerup-direct-ask');
 assert.equal(captured[1].options.messages[0].content[0].text, 'hi');
 
+// Multi-turn history is included before the current question.
+captured.length = 0;
+await directAsk({
+  llm: fakeLlm([{ type: 'finish', reason: { kind: 'stop' } }]),
+  route,
+  prompt: 'and now?',
+  history: [
+    { role: 'user', text: 'first' },
+    { role: 'assistant', text: 'reply' },
+    { role: 'bogus', text: 'ignored' },
+  ],
+});
+const msgs = captured[1].options.messages;
+assert.equal(msgs.length, 3, 'two history turns + the new question');
+assert.equal(msgs[0].role, 'user');
+assert.equal(msgs[0].content[0].text, 'first');
+assert.equal(msgs[1].role, 'assistant');
+assert.equal(msgs[2].content[0].text, 'and now?');
+
 await assert.rejects(
   directAsk({ llm: fakeLlm([{ type: 'finish', reason: { kind: 'error' } }]), route, prompt: 'x' }),
   (error) => error instanceof DirectAskError && error.code === 'LLM_FAILED',

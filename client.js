@@ -383,7 +383,11 @@
           'progress.clearHistoryConfirm': '确定清空全部历史进度？此操作不可撤销。',
           'progress.cleared': '历史已清空',
           'progress.requirements': '生成要求',
-          'progress.reqHint': '设置语言、结构、必须包含的数据、额外展示区要回答的问题等；设置后会作为后续生成的默认要求。',
+          'progress.tabRequirements': '要求',
+          'progress.reqHint': '每条要求可设置语言、结构、必须包含的数据、额外展示区要回答的问题等；按工作区隔离，留空工作区则对所有工作区生效。生成进度时可勾选本次要应用哪些要求。',
+          'progress.reqNew': '新建要求',
+          'progress.reqSelect': '本次应用的要求',
+          'progress.reqSelectHint': '勾选本次生成要使用要求；不选则不附加任何要求。',
           'progress.reqGlobal': '通用要求（设置页）',
           'progress.reqWorkspace': '工作区要求',
           'progress.reqSession': '会话要求',
@@ -415,7 +419,12 @@
           'directAsk.copied': '已复制',
           'directAsk.close': '关闭',
           'directAsk.hide': '隐藏弹窗',
-          'directAsk.showHint': '再次点击闪电按钮可显示/隐藏弹窗',
+          'directAsk.showHint': '输入问题开始对话；可继续追问，点「+」开启新对话，点「◷」查看历史。拖动标题栏移动窗口。',
+          'directAsk.newChat': '新对话',
+          'directAsk.history': '历史记录',
+          'directAsk.historyEmpty': '还没有历史对话',
+          'directAsk.clearHistory': '清空历史',
+          'directAsk.clearHistoryConfirm': '确定清空全部问答历史？此操作不可撤销。',
           'page.promptsTitle': '工作区提示词',
           'page.promptsDesc': '为每个工作区保存可复用的提示词。开启后，新会话行的 Agent 预设右侧会出现一个下拉列表，选择即可把提示词填入输入框（可继续编辑），或点提示词右侧的发送按钮直接发出。',
           'page.promptsHow': '先启用本功能，再切到「工作区提示词」标签页创建提示词；提示词按工作区隔离，没有标题时显示开头几个字。',
@@ -761,7 +770,11 @@
           'progress.clearHistoryConfirm': 'Clear all progress history? This cannot be undone.',
           'progress.cleared': 'History cleared',
           'progress.requirements': 'Requirements',
-          'progress.reqHint': 'Set language, structure, required data, questions for the display area, etc. Saved requirements apply to future generations.',
+          'progress.tabRequirements': 'Requirements',
+          'progress.reqHint': 'Each requirement sets language, structure, required data, questions for the display area, etc. Scoped per workspace; a blank workspace applies everywhere. Choose which ones to apply when generating progress.',
+          'progress.reqNew': 'New requirement',
+          'progress.reqSelect': 'Requirements for this run',
+          'progress.reqSelectHint': 'Check the requirements to apply this time; none selected means no extra requirements.',
           'progress.reqGlobal': 'Global requirements (settings)',
           'progress.reqWorkspace': 'Workspace requirements',
           'progress.reqSession': 'Session requirements',
@@ -793,7 +806,12 @@
           'directAsk.copied': 'Copied',
           'directAsk.close': 'Close',
           'directAsk.hide': 'Hide dialog',
-          'directAsk.showHint': 'Click the lightning button again to show/hide the dialog',
+          'directAsk.showHint': 'Type a question to start; follow up anytime, "+" starts a new chat, "◷" shows history. Drag the title bar to move.',
+          'directAsk.newChat': 'New chat',
+          'directAsk.history': 'History',
+          'directAsk.historyEmpty': 'No saved conversations yet',
+          'directAsk.clearHistory': 'Clear history',
+          'directAsk.clearHistoryConfirm': 'Clear all Q&A history? This cannot be undone.',
           'page.promptsTitle': 'Workspace prompts',
           'page.promptsDesc': 'Save reusable prompts per workspace. When enabled, a dropdown appears next to the Agent preset in the New Session row: pick a prompt to fill the composer (still editable), or click its send button to send it right away.',
           'page.promptsHow': 'Enable this feature, then open the "Workspace prompts" tab to create prompts. Prompts are scoped per workspace; without a title the first few characters are shown.',
@@ -4591,24 +4609,63 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-progress-history-item{padding:3px 9px;border:.5px solid var(--dsw-alias-border-l2);border-radius:999px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-secondary);font:inherit;font-size:10.5px;line-height:1.5;cursor:pointer}
 .dsh-powerup-progress-history-item.on{border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-brand-primary);background:color-mix(in srgb,var(--dsw-alias-brand-primary) 10%,transparent)}
 .dsh-powerup-progress-age{margin:0 0 10px;padding:6px 10px;border-radius:7px;background:color-mix(in srgb,var(--dsw-alias-state-warning-primary,var(--dsw-alias-state-error-primary)) 10%,transparent);color:var(--dsw-alias-state-warning-primary,var(--dsw-alias-state-error-primary));font-size:11px;line-height:1.5}
-.dsh-powerup-progress-req-pop{padding:10px 16px 0;border-bottom:.5px solid var(--dsw-alias-border-l1)}
-.dsh-powerup-progress-req-pop .dsh-powerup-prompt-textarea{min-height:64px}
+.dsh-powerup-progress-req-pop{padding:10px 16px 0;border-bottom:.5px solid var(--dsw-alias-border-l1);max-height:160px;overflow-y:auto}
+.dsh-powerup-req-picker{display:flex;flex-direction:column;gap:4px;padding:4px 0}
+.dsh-powerup-req-option{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);font-size:11.5px;cursor:pointer}
+.dsh-powerup-req-option:hover{background:var(--dsw-alias-interactive-bg-hover)}
+.dsh-powerup-req-option input{flex:none;accent-color:var(--dsw-alias-brand-primary)}
+.dsh-powerup-req-manager{display:flex;flex-direction:column;gap:16px}
+.dsh-powerup-req-list{display:flex;flex-direction:column;gap:8px;margin:0;padding:0;list-style:none}
+.dsh-powerup-req-item{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1)}
+.dsh-powerup-req-item.off{opacity:.55}
+.dsh-powerup-req-copy{display:flex;flex:1 1 auto;flex-direction:column;gap:3px;min-width:0}
+.dsh-powerup-req-title{font-size:12.5px;font-weight:600;color:var(--dsw-alias-label-primary)}
+.dsh-powerup-req-text{color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:1.5;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.dsh-powerup-req-form{display:flex;flex-direction:column;gap:8px;margin-top:8px;padding:10px;border-radius:8px;background:var(--dsw-alias-bg-layer-2)}
+.dsh-powerup-req-form-foot{display:flex;justify-content:flex-end;gap:8px}
 .dsh-powerup-progress-resizer{position:absolute;right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,var(--dsw-alias-border-l3) 50%,transparent 62%,var(--dsw-alias-border-l3) 62%,var(--dsw-alias-border-l3) 72%,transparent 72%)}
 .dsh-powerup-progress-req-editor{display:flex;flex-direction:column;gap:10px;padding:8px 0}
 @media (prefers-reduced-motion:reduce){.dsh-powerup-progress-panel,.dsh-powerup-progress-btn.is-running svg,.dsh-powerup-progress-fill{animation:none;transition:none}}
 /* Direct-ask button + dialog */
-.dsh-powerup-directask-btn{display:inline-flex;align-items:center;gap:4px;height:26px;padding:0 8px;border:.5px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font:inherit;font-size:11.5px;line-height:1;cursor:pointer}
+.dsh-powerup-directask-btn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0;border:.5px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font:inherit;line-height:1;cursor:pointer}
 .dsh-powerup-directask-btn:hover,.dsh-powerup-directask-btn.on{border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-brand-primary)}
-.dsh-powerup-directask-mask{position:fixed;z-index:1600;display:flex;box-sizing:border-box;max-height:calc(100dvh - 24px);pointer-events:none}
-.dsh-powerup-directask-dialog{box-sizing:border-box;display:flex;flex-direction:column;width:100%;max-height:min(80vh,760px);border-radius:var(--dsw-radius-panel,14px);background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2);pointer-events:auto;animation:dsh-powerup-progress-in .15s ease-out}
-.dsh-powerup-directask-files{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.dsh-powerup-directask-window{position:fixed;z-index:1600;box-sizing:border-box;display:flex;flex-direction:column;min-width:360px;min-height:280px;border-radius:var(--dsw-radius-panel,14px);background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.6;overflow:hidden;animation:dsh-powerup-progress-in .15s ease-out}
+.dsh-powerup-directask-titlebar{display:flex;align-items:center;gap:8px;flex:none;padding:10px 12px;border-bottom:.5px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-3);cursor:move;user-select:none}
+.dsh-powerup-directask-title{font-size:13px;font-weight:600;white-space:nowrap}
+.dsh-powerup-directask-subtitle{flex:1 1 auto;min-width:0;color:var(--dsw-alias-label-tertiary);font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dsh-powerup-directask-titlebtn,.dsh-powerup-directask-close{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:15px;line-height:1;cursor:pointer}
+.dsh-powerup-directask-titlebtn:hover,.dsh-powerup-directask-titlebtn.on,.dsh-powerup-directask-close:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
+.dsh-powerup-directask-history{flex:none;max-height:180px;overflow-y:auto;padding:10px 14px;border-bottom:.5px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1)}
+.dsh-powerup-directask-history-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;font-size:11.5px}
+.dsh-powerup-directask-history-list{margin:0;padding:0;list-style:none}
+.dsh-powerup-directask-history-list button{width:100%;padding:5px 8px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:11px;text-align:left;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dsh-powerup-directask-history-list button:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
+.dsh-powerup-directask-thread{flex:1 1 auto;min-height:0;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:12px;--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2)}
+.dsh-powerup-directask-welcome{margin:auto;color:var(--dsw-alias-label-tertiary);font-size:12px;text-align:center}
+.dsh-powerup-directask-turn{display:flex;flex-direction:column;gap:6px}
+.dsh-powerup-directask-msg{display:flex;flex-direction:column;gap:4px;max-width:88%}
+.dsh-powerup-directask-msg.user{align-self:flex-end;align-items:flex-end}
+.dsh-powerup-directask-msg.assistant{align-self:flex-start;align-items:flex-start}
+.dsh-powerup-directask-msg-body{padding:8px 12px;border-radius:12px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);font-size:12.5px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere}
+.dsh-powerup-directask-msg.user .dsh-powerup-directask-msg-body{background:var(--dsw-alias-brand-primary);color:var(--dsw-alias-label-primary-foreground,var(--dsw-alias-bg-layer-1));border-bottom-right-radius:3px}
+.dsh-powerup-directask-msg.assistant .dsh-powerup-directask-msg-body{border-bottom-left-radius:3px}
+.dsh-powerup-directask-ctx{display:flex;flex-wrap:wrap;gap:4px;align-self:flex-end}
+.dsh-powerup-directask-ctx span{padding:2px 7px;border-radius:999px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-tertiary);font-size:10px}
+.dsh-powerup-directask-files{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 6px}
 .dsh-powerup-directask-file{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:999px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-secondary);font-size:11px}
 .dsh-powerup-directask-file button{border:0;background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer;font-size:13px;line-height:1}
-.dsh-powerup-directask-label{display:block}
-.dsh-powerup-directask-label textarea{min-height:90px}
-.dsh-powerup-directask-attach{display:inline-flex;align-items:center;gap:6px;width:fit-content;margin-top:8px;color:var(--dsw-alias-label-secondary);font-size:11.5px;cursor:pointer}
-.dsh-powerup-directask-answer{margin-top:12px;padding-top:10px;border-top:.5px solid var(--dsw-alias-border-l1)}
-.dsh-powerup-directask-answer-body{margin:6px 0;padding:12px;border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);font-size:12.5px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow-y:auto}
+.dsh-powerup-directask-composer{flex:none;padding:10px 14px 12px;border-top:.5px solid var(--dsw-alias-border-l1)}
+.dsh-powerup-directask-inputrow{display:flex;align-items:flex-end;gap:8px;padding:6px 6px 6px 10px;border:1px solid var(--dsw-alias-border-l2);border-radius:14px;background:var(--dsw-alias-bg-layer-3)}
+.dsh-powerup-directask-inputrow:focus-within{border-color:var(--dsw-alias-brand-primary)}
+/* Native file input is hidden; only the custom '+' chip is shown. */
+.dsh-powerup-directask-attach{position:relative;display:inline-flex;align-items:center;justify-content:center;flex:none;width:26px;height:26px;border-radius:7px;color:var(--dsw-alias-label-secondary);font-size:18px;line-height:1;cursor:pointer;overflow:hidden}
+.dsh-powerup-directask-attach:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
+.dsh-powerup-directask-attach input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.dsh-powerup-directask-input{flex:1 1 auto;min-width:0;max-height:140px;border:0;outline:0;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:12.5px;line-height:1.6;resize:none}
+.dsh-powerup-directask-input::placeholder{color:var(--dsw-alias-label-tertiary)}
+.dsh-powerup-directask-send{flex:none;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:0;border-radius:8px;background:var(--dsw-alias-brand-primary);color:var(--dsw-alias-label-primary-foreground,var(--dsw-alias-bg-layer-1));cursor:pointer}
+.dsh-powerup-directask-send:disabled{opacity:.4;cursor:not-allowed}
+.dsh-powerup-directask-resizer{position:absolute;right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,var(--dsw-alias-border-l3) 50%,transparent 62%,var(--dsw-alias-border-l3) 62%,var(--dsw-alias-border-l3) 72%,transparent 72%)}
 `;
 
       /** Max display length of a session option, in Unicode code points. */
@@ -9111,23 +9168,54 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
       }
 
       /**
-       * Lighting-bolt button in the composer. Opens a dialog that sends a
-       * question straight to the model — no Agent, system prompt, tools or
-       * skills. The dialog can be hidden/shown by clicking the button again.
+       * Lightning-bolt button in the composer (icon only). Opens a floating,
+       * draggable + resizable DSH-styled Q&A window that talks straight to the
+       * model — no Agent, system prompt, tools or skills. Supports continuous
+       * multi-turn Q&A and a browsable/clearable history of past exchanges.
        */
       function DirectAskButton({ sessionId }) {
         const settings = useSettings();
         const [open, setOpen] = useState(false);
         const [question, setQuestion] = useState('');
         const [files, setFiles] = useState([]);
-        const [answer, setAnswer] = useState('');
         const [busy, setBusy] = useState(false);
         const [error, setError] = useState('');
         const [copied, setCopied] = useState(false);
+        /** Current conversation: [{question, answer, context, at}]. */
+        const [turns, setTurns] = useState([]);
+        /** Archived conversations, newest first: [{id, at, turns}]. */
+        const [history, setHistory] = useState(() => {
+          try { return JSON.parse(localStorage.getItem('dsh-powerup:directask:history:v1') || '[]'); }
+          catch { return []; }
+        });
+        const [showHistory, setShowHistory] = useState(false);
+        const [pos, setPos] = useState(() => {
+          try {
+            const saved = JSON.parse(localStorage.getItem('dsh-powerup:directask:pos:v1') || 'null');
+            if (saved !== null && Number.isFinite(saved.x) && Number.isFinite(saved.y)) return { x: saved.x, y: saved.y };
+          } catch { /* fall through */ }
+          return { x: 24, y: 96 };
+        });
+        const [size, setSize] = useState(() => {
+          try {
+            const saved = JSON.parse(localStorage.getItem('dsh-powerup:directask:size:v1') || 'null');
+            if (saved !== null && Number.isFinite(saved.w) && Number.isFinite(saved.h)) {
+              return { w: Math.max(360, Math.min(1100, saved.w)), h: Math.max(280, Math.min(900, saved.h)) };
+            }
+          } catch { /* fall through */ }
+          return { w: 620, h: 560 };
+        });
         const dialogRef = useRef(null);
+        const dragRef = useRef(null);
+        const bottomRef = useRef(null);
         const sessionRef = useRef(sessionId);
         sessionRef.current = sessionId;
         const t = useCallback((key, params) => translateCurrent(key, params), []);
+
+        const persistHistory = useCallback((next) => {
+          setHistory(next);
+          try { localStorage.setItem('dsh-powerup:directask:history:v1', JSON.stringify(next.slice(0, 30))); } catch { /* ignore */ }
+        }, []);
 
         useEffect(() => {
           if (!open) return undefined;
@@ -9138,12 +9226,58 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           return () => document.removeEventListener('keydown', onKey, true);
         }, [open]);
 
+        // Drag (title bar) and resize (bottom-right handle) with native pointers.
+        useEffect(() => {
+          if (!open) return undefined;
+          const onMove = (event) => {
+            const drag = dragRef.current;
+            if (drag === null) return;
+            if (drag.kind === 'move') {
+              setPos({
+                x: Math.max(0, Math.min(window.innerWidth - 120, drag.px + event.clientX - drag.x)),
+                y: Math.max(0, Math.min(window.innerHeight - 60, drag.py + event.clientY - drag.y)),
+              });
+            } else if (drag.kind === 'resize') {
+              setSize({
+                w: Math.max(360, Math.min(1100, drag.w + event.clientX - drag.x)),
+                h: Math.max(280, Math.min(900, drag.h + event.clientY - drag.y)),
+              });
+            }
+          };
+          const onUp = () => {
+            if (dragRef.current === null) return;
+            dragRef.current = null;
+            try {
+              localStorage.setItem('dsh-powerup:directask:pos:v1', JSON.stringify(pos));
+              localStorage.setItem('dsh-powerup:directask:size:v1', JSON.stringify(size));
+            } catch { /* ignore */ }
+          };
+          document.addEventListener('pointermove', onMove);
+          document.addEventListener('pointerup', onUp);
+          return () => {
+            document.removeEventListener('pointermove', onMove);
+            document.removeEventListener('pointerup', onUp);
+          };
+        }, [open, pos, size]);
+
+        useEffect(() => {
+          if (bottomRef.current !== null) bottomRef.current.scrollIntoView?.({ block: 'nearest' });
+        }, [turns, busy]);
+
         const send = useCallback(async () => {
           const q = question.trim();
           if (q === '') { setError(t('directAsk.empty')); return; }
+          const priorContext = files.map((f) => ({ name: f.name, text: f.text }));
+          // Continuous Q&A: send the current turns as prior messages.
+          const historyMsgs = [];
+          for (const turn of turns) {
+            historyMsgs.push({ role: 'user', text: turn.question });
+            if (turn.answer) historyMsgs.push({ role: 'assistant', text: turn.answer });
+          }
           setBusy(true);
           setError('');
-          setAnswer('');
+          setQuestion('');
+          setFiles([]);
           setCopied(false);
           try {
             const response = await fetch(DIRECT_ASK_API, {
@@ -9152,18 +9286,43 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
               body: JSON.stringify({
                 sessionId: sessionRef.current ?? '',
                 question: q,
-                context: files.map((f) => ({ name: f.name, text: f.text })),
+                context: priorContext,
+                history: historyMsgs,
               }),
             });
             const body = await response.json();
             if (!body?.ok) throw new Error(body?.error ?? `HTTP ${response.status}`);
-            setAnswer(typeof body.answer === 'string' ? body.answer : '');
+            setTurns((cur) => [...cur, {
+              question: q, answer: typeof body.answer === 'string' ? body.answer : '',
+              context: priorContext, at: Date.now(),
+            }]);
           } catch (err) {
             setError(err?.message ?? String(err));
+            setQuestion(q);
           } finally {
             setBusy(false);
           }
-        }, [question, files, t]);
+        }, [question, files, turns, t]);
+
+        const newChat = useCallback(() => {
+          if (turns.length > 0) persistHistory([{ id: String(Date.now()), at: Date.now(), turns }, ...history]);
+          setTurns([]);
+          setError('');
+          setShowHistory(false);
+        }, [turns, history, persistHistory]);
+
+        const openArchived = useCallback((entry) => {
+          if (turns.length > 0) persistHistory([{ id: String(Date.now()), at: Date.now(), turns }, ...history.filter((h) => h.id !== entry.id)]);
+          else persistHistory(history.filter((h) => h.id !== entry.id));
+          setTurns(Array.isArray(entry.turns) ? entry.turns : []);
+          setShowHistory(false);
+        }, [turns, history, persistHistory]);
+
+        const clearHistory = useCallback(() => {
+          if (typeof window !== 'undefined' && typeof window.confirm === 'function'
+            && !window.confirm(t('directAsk.clearHistoryConfirm'))) return;
+          persistHistory([]);
+        }, [t, persistHistory]);
 
         const pickFiles = useCallback(async (event) => {
           const picked = Array.from(event?.target?.files ?? []);
@@ -9182,87 +9341,134 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 
         if (settings.directAsk === false) return null;
 
-        const lightning = h('svg', { viewBox: '0 0 16 16', width: 15, height: 15, 'aria-hidden': 'true' },
+        const lightning = h('svg', { viewBox: '0 0 16 16', width: 16, height: 16, 'aria-hidden': 'true' },
           h('path', { d: 'M9 1.5 3.5 9H7l-1 5.5L12.5 7H9l1-5.5Z', fill: 'currentColor' }),
         );
 
+        // Icon-only composer button.
         const button = h('button', {
           type: 'button',
           className: 'dsh-powerup-directask-btn' + (open ? ' on' : ''),
           title: t('directAsk.hint'),
           'aria-label': t('directAsk.label'),
           onClick: () => setOpen((v) => !v),
-        }, lightning, h('span', null, t('directAsk.label')));
+        }, lightning);
 
         const dialog = !open ? null : h('div', {
-          className: 'dsh-powerup-directask-mask',
-          style: {
-            bottom: '72px',
-            right: '18px',
-            width: 'min(600px, calc(100vw - 36px))',
-          },
+          className: 'dsh-powerup-directask-window',
+          style: { left: `${pos.x}px`, top: `${pos.y}px`, width: `${size.w}px`, height: `${size.h}px` },
         },
           h('div', {
-            ref: dialogRef,
-            className: 'dsh-powerup-directask-dialog',
-            role: 'dialog',
-            'aria-label': t('directAsk.title'),
+            className: 'dsh-powerup-directask-titlebar',
+            onPointerDown: (event) => {
+              const target = event.target;
+              if (target instanceof Element && target.closest('button')) return;
+              dragRef.current = { kind: 'move', x: event.clientX, y: event.clientY, px: pos.x, py: pos.y };
+            },
           },
-            h('div', { className: 'dsh-powerup-update-head' },
-              h('div', { className: 'dsh-powerup-update-heading' },
-                h('h2', null, t('directAsk.title')),
-                h('p', { className: 'dsh-powerup-update-note' }, t('directAsk.subtitle')),
-              ),
-              h('button', {
-                type: 'button', className: 'dsh-powerup-update-close',
-                'aria-label': t('directAsk.close'), onClick: () => setOpen(false),
-              }, '×'),
+            h('span', { className: 'dsh-powerup-directask-title' }, t('directAsk.title')),
+            h('span', { className: 'dsh-powerup-directask-subtitle' }, t('directAsk.subtitle')),
+            h('button', {
+              type: 'button', className: 'dsh-powerup-directask-titlebtn',
+              title: t('directAsk.newChat'), onClick: newChat,
+            }, '+'),
+            h('button', {
+              type: 'button', className: 'dsh-powerup-directask-titlebtn' + (showHistory ? ' on' : ''),
+              title: t('directAsk.history'), onClick: () => setShowHistory((v) => !v),
+            }, '◷'),
+            h('button', {
+              type: 'button', className: 'dsh-powerup-directask-close',
+              'aria-label': t('directAsk.close'), onClick: () => setOpen(false),
+            }, '×'),
+          ),
+          showHistory ? h('div', { className: 'dsh-powerup-directask-history' },
+            h('div', { className: 'dsh-powerup-directask-history-head' },
+              h('strong', null, t('directAsk.history')),
+              h('button', { type: 'button', className: 'dsh-powerup-progress-mini', onClick: clearHistory }, t('directAsk.clearHistory')),
             ),
-            h('div', { className: 'dsh-powerup-update-body' },
-              files.length > 0 ? h('div', { className: 'dsh-powerup-directask-files' },
-                files.map((f, i) => h('span', { key: i, className: 'dsh-powerup-directask-file' },
-                  f.name,
-                  h('button', {
-                    type: 'button', 'aria-label': t('directAsk.removeFile'),
-                    onClick: () => setFiles((cur) => cur.filter((_, j) => j !== i)),
-                  }, '×'),
+            history.length === 0
+              ? h('p', { className: 'dsh-powerup-progress-empty' }, t('directAsk.historyEmpty'))
+              : h('ul', { className: 'dsh-powerup-directask-history-list' },
+                history.map((entry) => h('li', { key: entry.id },
+                  h('button', { type: 'button', onClick: () => openArchived(entry) },
+                    new Date(entry.at ?? Date.now()).toLocaleString(),
+                    ' · ', String(entry.turns?.[0]?.question ?? '').slice(0, 40),
+                  ),
                 )),
+              ),
+          ) : null,
+          h('div', { className: 'dsh-powerup-directask-thread' },
+            turns.length === 0 && !busy
+              ? h('p', { className: 'dsh-powerup-directask-welcome' }, t('directAsk.showHint'))
+              : null,
+            turns.map((turn, i) => h('div', { key: i, className: 'dsh-powerup-directask-turn' },
+              h('div', { className: 'dsh-powerup-directask-msg user' },
+                h('div', { className: 'dsh-powerup-directask-msg-body' }, turn.question),
+              ),
+              turn.context?.length ? h('div', { className: 'dsh-powerup-directask-ctx' },
+                turn.context.map((f, j) => h('span', { key: j }, f.name)),
               ) : null,
-              h('label', { className: 'dsh-powerup-directask-label' },
-                h('textarea', {
-                  className: 'dsh-powerup-prompt-input dsh-powerup-prompt-textarea',
-                  value: question,
-                  placeholder: t('directAsk.placeholder'),
-                  disabled: busy,
-                  onChange: (event) => setQuestion(event.target.value),
-                }),
-              ),
-              h('label', { className: 'dsh-powerup-directask-attach' },
-                h('input', { type: 'file', multiple: true, onChange: (e) => void pickFiles(e) }),
-                h('span', null, t('directAsk.attach')),
-              ),
-              h('p', { className: 'dsh-powerup-setting-hint' }, t('directAsk.attachHint')),
-              error ? h('p', { className: 'dsh-powerup-progress-error' }, error) : null,
-              answer !== '' ? h('div', { className: 'dsh-powerup-directask-answer' },
-                h('h4', { className: 'dsh-powerup-section' }, t('directAsk.answer')),
-                h('div', { className: 'dsh-powerup-directask-answer-body' }, answer),
+              h('div', { className: 'dsh-powerup-directask-msg assistant' },
+                h('div', { className: 'dsh-powerup-directask-msg-body' }, turn.answer || '…'),
                 h('button', {
                   type: 'button', className: 'dsh-powerup-progress-mini',
                   onClick: async () => {
-                    const ok = await copyText(answer);
+                    const ok = await copyText(turn.answer);
                     if (ok) { setCopied(true); setTimeout(() => setCopied(false), 1500); }
                   },
                 }, copied ? t('directAsk.copied') : t('directAsk.copy')),
-              ) : null,
-            ),
-            h('div', { className: 'dsh-powerup-update-foot' },
-              h('span', { className: 'dsh-powerup-setting-hint' }, t('directAsk.showHint')),
+              ),
+            )),
+            busy ? h('div', { className: 'dsh-powerup-directask-msg assistant' },
+              h('div', { className: 'dsh-powerup-directask-msg-body' }, t('directAsk.sending')),
+            ) : null,
+            h('div', { ref: bottomRef }),
+          ),
+          error ? h('p', { className: 'dsh-powerup-progress-error' }, error) : null,
+          h('div', { className: 'dsh-powerup-directask-composer' },
+            files.length > 0 ? h('div', { className: 'dsh-powerup-directask-files' },
+              files.map((f, i) => h('span', { key: i, className: 'dsh-powerup-directask-file' },
+                f.name,
+                h('button', {
+                  type: 'button', 'aria-label': t('directAsk.removeFile'),
+                  onClick: () => setFiles((cur) => cur.filter((_, j) => j !== i)),
+                }, '×'),
+              )),
+            ) : null,
+            h('div', { className: 'dsh-powerup-directask-inputrow' },
+              h('label', { className: 'dsh-powerup-directask-attach', title: t('directAsk.attachHint') },
+                h('input', { type: 'file', multiple: true, onChange: (e) => void pickFiles(e) }),
+                h('span', null, '+'),
+              ),
+              h('textarea', {
+                className: 'dsh-powerup-directask-input',
+                value: question,
+                placeholder: t('directAsk.placeholder'),
+                disabled: busy,
+                rows: 1,
+                onChange: (event) => setQuestion(event.target.value),
+                onKeyDown: (event) => {
+                  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+                    event.preventDefault();
+                    void send();
+                  }
+                },
+              }),
               h('button', {
-                type: 'button', className: 'dsh-powerup-update-primary',
+                type: 'button', className: 'dsh-powerup-directask-send',
                 disabled: busy || question.trim() === '', onClick: () => void send(),
-              }, busy ? t('directAsk.sending') : t('directAsk.send')),
+                title: t('directAsk.send'),
+              }, h('svg', { viewBox: '0 0 16 16', width: 16, height: 16, 'aria-hidden': 'true' },
+                h('path', { d: 'M3 8h9M8.5 4.5 12 8l-3.5 3.5', fill: 'none', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round', strokeLinejoin: 'round' }))),
             ),
           ),
+          h('div', {
+            className: 'dsh-powerup-directask-resizer',
+            onPointerDown: (event) => {
+              event.preventDefault();
+              dragRef.current = { kind: 'resize', x: event.clientX, y: event.clientY, w: size.w, h: size.h };
+            },
+          }),
         );
 
         return h(React.Fragment, null, button, renderInBody(dialog));
@@ -9419,7 +9625,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
               ),
             ),
             h(MaskRuleEditor, { scope: 'workspace', t, workspaceId }),
-            h(ProgressScopeRequirements, { t, workspaceId, sessionId: ownerId }),
+            h(RequirementManager, { ctx, workspaceOnly: true, workspaceId }),
           ),
         );
       }
@@ -9968,6 +10174,15 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
               onClick: () => setTab('prompts'),
             }, t('prompts.tabManage'))
             : null,
+          settings.taskProgress !== false
+            ? h('button', {
+              type: 'button',
+              role: 'tab',
+              'aria-selected': tab === 'requirements' ? 'true' : 'false',
+              className: 'dsh-powerup-tab' + (tab === 'requirements' ? ' on' : ''),
+              onClick: () => setTab('requirements'),
+            }, t('progress.tabRequirements'))
+            : null,
         );
 
         const featuresContent = h('div', null,
@@ -9982,11 +10197,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           featureCard('scrollToTop', ScrollTopIcon, 'page.scrollToTopTitle', 'page.scrollToTopDesc', 'page.scrollToTopHow'),
           featureCard('contentRendering', PowerUpLineIcon, 'page.renderingTitle', 'page.renderingDesc', 'page.renderingHow'),
           featureCard('dualSend', LauncherIcon, 'page.dualSendTitle', 'page.dualSendDesc', 'page.dualSendHow'),
-          featureCard('taskProgress', ProgressIcon, 'page.taskProgressTitle', 'page.taskProgressDesc', 'page.taskProgressHow',
-            h('div', { className: 'dsh-powerup-card-detail' },
-              h(ProgressRequirementsEditor, { t }),
-            ),
-          ),
+          featureCard('taskProgress', ProgressIcon, 'page.taskProgressTitle', 'page.taskProgressDesc', 'page.taskProgressHow'),
           featureCard('directAsk', TagIcon, 'page.directAskTitle', 'page.directAskDesc', 'page.directAskHow',
             h('div', { className: 'dsh-powerup-card-detail' },
               settingRow('directAsk', settings.directAsk !== false, t('page.directAskToggle'), t('page.directAskToggleHint')),
@@ -10011,7 +10222,9 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
               ? h(MaskRuleEditor, { scope: 'global', t })
               : tab === 'prompts' && settings.workspacePrompts !== false
                 ? h(PromptManager, { ctx })
-                : featuresContent,
+                : tab === 'requirements' && settings.taskProgress !== false
+                  ? h(RequirementManager, { ctx })
+                  : featuresContent,
             h('footer', { className: 'dsh-powerup-foot' },
               h('span', null, format(t('page.footer'), { version: VERSION })),
               h('span', { className: 'dsh-powerup-dot' }),
@@ -10053,8 +10266,8 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
       const HISTORY_API = '/dsh-powerup/api/progress-history';
       const DIRECT_ASK_API = '/dsh-powerup/api/direct-ask';
 
-      /** Module-level requirements cache: {global, workspaces:{}, sessions:{}}. */
-      let requirementsCache = { global: '', workspaces: {}, sessions: {} };
+      /** Module-level requirements cache: flat records [{id,title,text,workspaceId,enabled}]. */
+      let requirementsCache = [];
       let requirementsLoaded = false;
       const requirementsListeners = new Set();
       function emitRequirements() {
@@ -10062,18 +10275,24 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           try { fn(); } catch { /* one listener must not break the rest */ }
         }
       }
+      function normalizeRequirement(item) {
+        if (item === null || typeof item !== 'object') return null;
+        return {
+          id: typeof item.id === 'string' && item.id !== '' ? item.id : newId(),
+          title: typeof item.title === 'string' ? item.title : '',
+          text: typeof item.text === 'string' ? item.text : '',
+          workspaceId: typeof item.workspaceId === 'string' ? item.workspaceId : '',
+          enabled: item.enabled !== false,
+        };
+      }
       async function loadRequirements() {
         if (requirementsLoaded) return requirementsCache;
         requirementsLoaded = true;
         try {
           const response = await fetch(REQUIREMENTS_API, { headers: { accept: 'application/json' } });
           const data = await response.json();
-          if (data?.ok && data.requirements !== null && typeof data.requirements === 'object') {
-            requirementsCache = {
-              global: typeof data.requirements.global === 'string' ? data.requirements.global : '',
-              workspaces: data.requirements.workspaces ?? {},
-              sessions: data.requirements.sessions ?? {},
-            };
+          if (data?.ok && Array.isArray(data.requirements)) {
+            requirementsCache = data.requirements.map(normalizeRequirement).filter(Boolean);
           }
         } catch {
           /* Host unavailable: keep the last known value. */
@@ -10082,12 +10301,12 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         return requirementsCache;
       }
       function saveRequirements(next) {
-        requirementsCache = next;
+        requirementsCache = (Array.isArray(next) ? next : []).map(normalizeRequirement).filter(Boolean);
         emitRequirements();
         fetch(REQUIREMENTS_API, {
           method: 'POST',
           headers: { 'content-type': 'application/json', accept: 'application/json' },
-          body: JSON.stringify({ requirements: next }),
+          body: JSON.stringify({ requirements: requirementsCache }),
         }).catch(() => { /* in-memory copy still works this session */ });
       }
       function useRequirements() {
@@ -10099,6 +10318,12 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           return () => requirementsListeners.delete(listener);
         }, []);
         return requirementsCache;
+      }
+      /** Requirements visible to one workspace: global (''), plus that workspace. */
+      function requirementsForWorkspace(list, workspaceId) {
+        const id = typeof workspaceId === 'string' ? workspaceId : '';
+        return (Array.isArray(list) ? list : [])
+          .filter((r) => r.workspaceId === '' || r.workspaceId === id);
       }
 
       /** Textarea field for one requirements layer. */
@@ -10115,50 +10340,141 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         );
       }
 
-      /** Settings-page editor: global progress requirements. */
-      function ProgressRequirementsEditor({ t }) {
+      /**
+       * Multi-record requirement manager, modelled on PromptManager: records are
+       * scoped to a workspace ('' = global) and can be enabled/disabled, edited
+       * and deleted. Used in the Power-Up page's new "Requirements" tab and as
+       * the workspace-scoped editor in the conversation settings tab.
+       */
+      function RequirementManager({ ctx, workspaceOnly, workspaceId }) {
         const reqs = useRequirements();
-        return h('div', { className: 'dsh-powerup-progress-req-editor' },
+        const [, forceLocale] = useState(0);
+        const [draft, setDraft] = useState(null);
+        const [expanded, setExpanded] = useState(null);
+        const t = (key, params) => translateCurrent(key, params);
+        useEffect(() => {
+          const locale = ctx?.get?.('locale');
+          if (locale === undefined || typeof locale.subscribe !== 'function') return undefined;
+          return locale.subscribe(() => forceLocale((v) => v + 1));
+        }, [ctx]);
+        const workspaces = (() => {
+          try {
+            const snapshot = ctx?.get?.('workspaces')?.list?.getSnapshot?.();
+            return Array.isArray(snapshot?.items) ? snapshot.items : [];
+          } catch { return []; }
+        })();
+        const visible = workspaceOnly
+          ? reqs.filter((r) => r.workspaceId === (typeof workspaceId === 'string' ? workspaceId : ''))
+          : reqs;
+
+        const sections = workspaceOnly
+          ? [{ id: workspaceId ?? '', label: t('progress.reqWorkspace'), items: visible }]
+          : [
+            { id: '', label: t('prompts.scopeGlobal'), items: reqs.filter((r) => r.workspaceId === '') },
+            ...workspaces.map((ws) => ({
+              id: ws.workspaceId,
+              label: ws.title ?? ws.workspaceId,
+              items: reqs.filter((r) => r.workspaceId === ws.workspaceId),
+            })),
+          ];
+
+        const cancel = () => { setDraft(null); setExpanded(null); };
+        const save = () => {
+          if (draft === null) return;
+          const text = typeof draft.text === 'string' ? draft.text.trim() : '';
+          if (text === '') return;
+          const record = {
+            id: draft.id || newId(),
+            title: typeof draft.title === 'string' ? draft.title.trim() : '',
+            text,
+            workspaceId: typeof draft.workspaceId === 'string' ? draft.workspaceId : '',
+            enabled: draft.enabled !== false,
+          };
+          const next = reqs.filter((r) => r.id !== record.id);
+          next.push(record);
+          saveRequirements(next);
+          cancel();
+        };
+        const remove = (record) => {
+          if (typeof window !== 'undefined' && typeof window.confirm === 'function'
+            && !window.confirm(t('prompts.confirmDelete'))) return;
+          saveRequirements(reqs.filter((r) => r.id !== record.id));
+        };
+        const toggleEnabled = (record) => {
+          saveRequirements(reqs.map((r) => (r.id === record.id ? { ...r, enabled: r.enabled === false } : r)));
+        };
+
+        return h('div', { className: 'dsh-powerup-req-manager' },
           h('p', { className: 'dsh-powerup-card-desc' }, t('progress.reqHint')),
-          h(RequirementField, {
-            label: t('progress.reqGlobal'),
-            value: reqs.global,
-            placeholder: t('progress.reqPlaceholder'),
-            onChange: (value) => saveRequirements({ ...requirementsCache, global: value }),
-          }),
+          ...sections.map((section) => h('div', { key: `sec-${section.id}` },
+            h('h3', { className: 'dsh-powerup-section-title' }, section.label),
+            h('ul', { className: 'dsh-powerup-req-list' },
+              section.items.map((r) => h('li', { key: r.id, className: 'dsh-powerup-req-item' + (r.enabled === false ? ' off' : '') },
+                h('button', {
+                  type: 'button', role: 'switch', 'aria-checked': r.enabled !== false ? 'true' : 'false',
+                  className: 'dsh-powerup-switch', title: t('page.enabled'),
+                  onClick: () => toggleEnabled(r),
+                }, r.enabled !== false ? t('page.enabled') : t('page.disabled')),
+                h('div', { className: 'dsh-powerup-req-copy' },
+                  h('span', { className: 'dsh-powerup-req-title' }, r.title || (r.text.slice(0, 40) + (r.text.length > 40 ? '…' : ''))),
+                  h('span', { className: 'dsh-powerup-req-text' }, r.text),
+                ),
+                h('button', {
+                  type: 'button', className: 'dsh-powerup-prompt-new', onClick: () => { setDraft({ ...r }); setExpanded(r.id); },
+                }, t('prompts.edit')),
+                h('button', {
+                  type: 'button', className: 'dsh-powerup-prompt-new', onClick: () => remove(r),
+                }, t('prompts.delete')),
+              )),
+            ),
+            expanded === `new-${section.id}` && draft !== null
+              ? h(RequirementForm, { draft, setDraft, workspaces, workspaceOnly, scopeId: section.id, t, save, cancel })
+              : null,
+            h('button', {
+              type: 'button', className: 'dsh-powerup-prompt-new',
+              onClick: () => { setDraft({ id: '', title: '', text: '', workspaceId: section.id, enabled: true }); setExpanded(`new-${section.id}`); },
+            }, t('progress.reqNew')),
+          )),
         );
       }
 
-      /** Workspace/session-scoped requirements, shown in the conversation settings tab. */
-      function ProgressScopeRequirements({ t, workspaceId, sessionId }) {
-        const reqs = useRequirements();
-        const ws = typeof workspaceId === 'string' ? workspaceId : '';
-        const sid = typeof sessionId === 'string' ? sessionId : '';
-        const setWorkspace = (value) => {
-          const workspaces = { ...(requirementsCache.workspaces ?? {}) };
-          workspaces[ws] = value;
-          saveRequirements({ ...requirementsCache, workspaces });
-        };
-        const setSession = (value) => {
-          const sessions = { ...(requirementsCache.sessions ?? {}) };
-          sessions[sid] = value;
-          saveRequirements({ ...requirementsCache, sessions });
-        };
-        return h('div', { className: 'dsh-powerup-progress-req-editor' },
-          h('h3', { className: 'dsh-powerup-section-title' }, t('progress.requirements')),
-          h('p', { className: 'dsh-powerup-card-desc' }, t('progress.reqHint')),
-          h(RequirementField, {
-            label: t('progress.reqWorkspace'),
-            value: reqs.workspaces?.[ws] ?? '',
-            placeholder: t('progress.reqPlaceholder'),
-            onChange: setWorkspace,
+      /** Inline create/edit form for one requirement record. */
+      function RequirementForm({ draft, setDraft, workspaces, workspaceOnly, scopeId, t, save, cancel }) {
+        return h('div', { className: 'dsh-powerup-req-form' },
+          h('input', {
+            className: 'dsh-powerup-prompt-input', type: 'text',
+            value: draft.title ?? '', placeholder: t('prompts.titlePlaceholder'),
+            onChange: (e) => setDraft({ ...draft, title: e.target.value }),
           }),
-          sid !== '' ? h(RequirementField, {
-            label: t('progress.reqSession'),
-            value: reqs.sessions?.[sid] ?? '',
-            placeholder: t('progress.reqPlaceholder'),
-            onChange: setSession,
+          h('textarea', {
+            className: 'dsh-powerup-prompt-input dsh-powerup-prompt-textarea',
+            value: draft.text ?? '', placeholder: t('progress.reqPlaceholder'),
+            onChange: (e) => setDraft({ ...draft, text: e.target.value }),
+          }),
+          !workspaceOnly ? h(WorkspaceSelect, {
+            value: draft.workspaceId ?? '',
+            options: [{ value: '', label: t('prompts.anyWorkspace') }, ...workspaces.map((ws) => ({ value: ws.workspaceId, label: ws.title ?? ws.workspaceId }))],
+            onChange: (value) => setDraft({ ...draft, workspaceId: value }),
+            t,
           }) : null,
+          h('div', { className: 'dsh-powerup-req-form-foot' },
+            h('button', { type: 'button', className: 'dsh-powerup-update-ghost', onClick: cancel }, t('prompts.cancel')),
+            h('button', { type: 'button', className: 'dsh-powerup-update-primary', onClick: save }, t('prompts.save')),
+          ),
+        );
+      }
+
+      /** Panel picker: choose which visible requirements to apply for this generation. */
+      function RequirementPicker({ reqs, selectedIds, onToggle, t }) {
+        if (reqs.length === 0) return h('p', { className: 'dsh-powerup-progress-empty' }, t('progress.reqEmpty'));
+        return h('div', { className: 'dsh-powerup-req-picker' },
+          reqs.map((r) => h('label', { key: r.id, className: 'dsh-powerup-req-option' },
+            h('input', {
+              type: 'checkbox', checked: selectedIds.includes(r.id),
+              onChange: () => onToggle(r.id),
+            }),
+            h('span', null, r.title || (r.text.slice(0, 50) + (r.text.length > 50 ? '…' : ''))),
+          )),
         );
       }
 
@@ -10317,7 +10633,17 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         const [historyIndex, setHistoryIndex] = useState(0);
         const [showRaw, setShowRaw] = useState(false);
         const [showReq, setShowReq] = useState(false);
-        const [tempReq, setTempReq] = useState('');
+        // Ids of requirement records selected for the next generation.
+        const [selectedReqIds, setSelectedReqIds] = useState([]);
+        const reqs = useRequirements();
+        // Resolve the owning workspace for requirement filtering.
+        const workspaceId = useMemo(() => {
+          try {
+            const snapshot = ctxRef.current?.get?.('workspaces')?.list?.getSnapshot?.();
+            return resolveWorkspaceIdFromSnapshot(snapshot, sessionRef.current) ?? '';
+          } catch { return ''; }
+        }, [sessionId, open]);
+        const visibleReqs = requirementsForWorkspace(reqs, workspaceId);
         const [size, setSize] = useState(() => {
           try {
             const saved = JSON.parse(localStorage.getItem('dsh-powerup:progress:size:v1') || 'null');
@@ -10373,7 +10699,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           if (typeof id !== 'string' || id === '') return;
           setBusy(true);
           try {
-            const body = await progressRequest(id, 'start', { requirements: tempReq });
+            const body = await progressRequest(id, 'start', { requirementIds: selectedReqIds });
             setView(body);
             setHistoryIndex(0);
           } catch (error) {
@@ -10382,7 +10708,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             setBusy(false);
             if (!open) setOpen(true);
           }
-        }, [open, tempReq]);
+        }, [open, selectedReqIds]);
 
         const clearHistory = useCallback(async () => {
           const id = sessionRef.current;
@@ -10425,7 +10751,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             const drag = dragRef.current;
             if (drag === null) return;
             const w = Math.max(320, Math.min(900, drag.w + drag.x - event.clientX));
-            const h = Math.max(240, Math.min(900, drag.h + drag.y - event.clientY));
+            const h = Math.max(240, Math.min(900, drag.h + event.clientY - drag.y));
             setSize({ w, h });
           };
           const onUp = () => {
@@ -10547,12 +10873,13 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         })();
 
         const requirementsEditor = showReq ? h('div', { className: 'dsh-powerup-progress-req-pop' },
-          h(RequirementField, {
-            label: t('progress.reqTemporary'),
-            hint: t('progress.reqTemporaryHint'),
-            value: tempReq,
-            placeholder: t('progress.reqPlaceholder'),
-            onChange: setTempReq,
+          h('span', { className: 'dsh-powerup-prompt-field-label' }, t('progress.reqSelect')),
+          h('p', { className: 'dsh-powerup-setting-hint' }, t('progress.reqSelectHint')),
+          h(RequirementPicker, {
+            reqs: visibleReqs,
+            selectedIds: selectedReqIds,
+            t,
+            onToggle: (id) => setSelectedReqIds((cur) => cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]),
           }),
         ) : null;
 
@@ -10784,8 +11111,9 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           PROMPTS_CSS,
           PROGRESS_CSS,
           ProgressControl,
-          ProgressRequirementsEditor,
-          ProgressScopeRequirements,
+          RequirementManager,
+          RequirementPicker,
+          requirementForWorkspace: requirementsForWorkspace,
           DirectAskButton,
           ProgressStructure,
           ProgressDisplay,

@@ -445,30 +445,34 @@ the running agent:
 - The feature is on by default and can be switched off on the Power-Up page;
   reports are cached per session in memory and marked stale after a minute.
 
-### Three-layer progress requirements, resizable panel and history
+### Progress requirements, resizable panel and history
 
-Progress requirements can be set globally on the Power-Up settings page, per
-workspace/session in the conversation's Power-Up settings tab, and as a one-off
-override inside the panel. All layers are concatenated (global → workspace →
-session → one-off) into extra instructions for the model, so language, structure,
-required data and questions for the display area are remembered from then on.
+Requirements are a **list of records** (just like prompts), managed in the
+Power-Up page's dedicated **Requirements** tab and in the conversation's
+Power-Up settings tab. Each record is scoped to a workspace (`''` = global), can
+be enabled/disabled, and describes language, structure, required data or
+questions for the display area. When generating progress you **choose which
+requirements to apply** in the panel — nothing is added unless you check it.
 The panel is wider by default, resizable from its bottom-right corner (size
 persisted), and its header tint shifts from blue toward warning red as the
-displayed report ages. Every refresh adds a new report to a per-session history
-stored on disk; older reports stay browsable and are never discarded by a
-refresh. The panel can switch between them, show the exact raw AI text, copy it,
-and clear the history explicitly. "Refresh progress" generates a new report
-without dropping the old ones.
+report ages. Every refresh adds a new report to a per-session history stored on
+disk; older reports stay browsable and are never discarded. The panel can switch
+between them, show the exact raw AI text, copy it, and clear the history
+explicitly. "Refresh progress" generates a new report without dropping the old
+ones.
 
 ### Direct ask (no Agent)
 
-A lightning button in the composer opens a floating, show/hide dialog that sends
-a question straight to the model. This is deliberately **not an Agent**: it uses
-a single `llm.prepareCall` + stream call with a short instruction, so no system
-prompt sections, tools, skills, memory or background jobs are involved, and
-nothing is written to the session log. You can attach text files as context in
-the dialog; the answer is shown in a copyable panel. Toggle it off on the
-Power-Up page if you don't want the button.
+An **icon-only** lightning button in the composer opens a floating DSH-styled
+chat window. Drag the title bar to move it and the bottom-right corner to
+resize it (position and size persist). It supports **continuous multi-turn Q&A**
+and a browsable **history** of past conversations ("+" starts a new chat, "◷"
+shows history; both clearable). Attach text files with the "+" chip in the
+composer — the native file picker stays hidden. This is deliberately **not an
+Agent**: it uses a single `llm.prepareCall` + stream call per turn with a short
+instruction, so no system prompt sections, tools, skills, memory or background
+jobs are involved, and nothing is written to the session log. Toggle it off on
+the Power-Up page if you don't want the button.
 
 ### Dual send buttons
 

@@ -483,12 +483,21 @@ async function handle(req, res, ctx) {
     if (req.method === 'POST') {
       try {
         const body = await readJsonBody(req);
-        const requirements = body?.requirements !== null && typeof body?.requirements === 'object'
+        // Keep the flat list form; accept {requirements: [...]} or a bare array.
+        const list = Array.isArray(body?.requirements)
           ? body.requirements
-          : {};
+          : Array.isArray(body) ? body : [];
+        const records = list.filter((r) => r !== null && typeof r === 'object')
+          .map((r) => ({
+            id: typeof r.id === 'string' && r.id !== '' ? r.id : `req-${randomUUID()}`,
+            title: typeof r.title === 'string' ? r.title : '',
+            text: typeof r.text === 'string' ? r.text : '',
+            workspaceId: typeof r.workspaceId === 'string' ? r.workspaceId : '',
+            enabled: r.enabled !== false,
+          }));
         mkdirSync(dirname(filePath), { recursive: true });
-        writeFileSync(filePath, JSON.stringify(requirements, null, 2) + '\n', 'utf8');
-        sendJson(res, { ok: true, requirements });
+        writeFileSync(filePath, JSON.stringify(records, null, 2) + '\n', 'utf8');
+        sendJson(res, { ok: true, requirements: records });
       } catch (error) {
         sendJson(res, { ok: false, error: String(error?.message ?? error) }, 500);
       }
@@ -499,7 +508,12 @@ async function handle(req, res, ctx) {
       return;
     }
     try {
-      sendJson(res, { ok: true, requirements: readJsonObject(filePath) });
+      let raw;
+      try { raw = JSON.parse(readFileSync(filePath, 'utf8')); } catch { raw = undefined; }
+      let records = [];
+      if (Array.isArray(raw)) records = raw;
+      else if (raw !== null && typeof raw === 'object' && Array.isArray(raw.records)) records = raw.records;
+      sendJson(res, { ok: true, requirements: records });
     } catch (error) {
       sendJson(res, { ok: false, error: String(error?.message ?? error) }, 500);
     }
@@ -547,6 +561,7 @@ async function handle(req, res, ctx) {
     }
     const sessionId = typeof body?.sessionId === 'string' ? body.sessionId.trim() : '';
     const context = Array.isArray(body?.context) ? body.context : [];
+    const history = Array.isArray(body?.history) ? body.history : [];
     const prompt = buildAskPrompt({ question: cleanAskText(body?.question), context });
     if (prompt === '') {
       sendJson(res, { ok: false, code: 'invalid-request', error: 'question is required' }, 400);
@@ -578,7 +593,7 @@ async function handle(req, res, ctx) {
     const timer = setTimeout(() => controller.abort(), 90_000);
     timer.unref?.();
     try {
-      const answer = await directAsk({ llm, route, prompt, signal: controller.signal });
+      const answer = await directAsk({ llm, route, prompt, history, signal: controller.signal });
       sendJson(res, { ok: true, answer: answer.text, finish: answer.finish ?? null });
     } catch (error) {
       sendJson(res, { ok: false, code: error?.code ?? 'ask-failed', error: String(error?.message ?? error) }, 500);
@@ -612,11 +627,11 @@ async function handle(req, res, ctx) {
       return;
     }
     try {
-      // A one-off requirements override from the progress panel is kept for
-      // the next start; it does not modify the persisted layers.
-      if (typeof body?.requirements === 'string') {
-        ctx.__powerupProgressOverride = ctx.__powerupProgressOverride ?? {};
-        ctx.__powerupProgressOverride[sessionId] = body.requirements;
+      // A one-off requirements selection from the progress panel is kept for
+      // the next start; it does not modify the persisted records.
+      if (Array.isArray(body?.requirementIds)) {
+        ctx.__powerupProgressSelection = ctx.__powerupProgressSelection ?? {};
+        ctx.__powerupProgressSelection[sessionId] = body.requirementIds.map(String);
       }
       const view = action === 'start'
         ? manager.start(sessionId)
@@ -904,21 +919,39 @@ export function apply(ctx) {
   // The progress side call needs both `llm` and `sessionQuery`. Wait for them
   // through inject so a late-provided service still creates the manager.
   ctx.inject(['llm', 'sessionQuery'], (scope) => {
-    // Requirements are stored as { global, workspaces: {id: text}, sessions: {id: text} }.
-    // The active requirements for a session are the concatenation of the global,
-    // workspace and session layers; the UI may pass a one-off override too.
-    const requirementsFor = (sessionId, override) => {
-      const saved = readJsonObject(storePath(PROGRESS_REQUIREMENTS_FILE));
-      const parts = [];
-      if (typeof saved.global === 'string' && saved.global.trim() !== '') parts.push(saved.global.trim());
-      const workspaces = saved.workspaces !== null && typeof saved.workspaces === 'object' ? saved.workspaces : {};
-      const sessions = saved.sessions !== null && typeof saved.sessions === 'object' ? saved.sessions : {};
-      // Resolve the session's workspace id without activating an Agent.
+    // Requirements are a flat list of records: {id,title,text,workspaceId,enabled}.
+    // workspaceId '' = global. The panel sends the ids it wants; the Host only
+    // includes records visible to the session's workspace and explicitly picked.
+    const requirementsFor = (sessionId, selectedIds) => {
+      const file = storePath(PROGRESS_REQUIREMENTS_FILE);
+      let raw;
+      try {
+        raw = JSON.parse(readFileSync(file, 'utf8'));
+      } catch {
+        raw = undefined;
+      }
+      let all = [];
+      if (Array.isArray(raw)) all = raw;
+      else if (raw !== null && typeof raw === 'object' && Array.isArray(raw.records)) all = raw.records;
+      else if (raw !== null && typeof raw === 'object') {
+        // Legacy object form ({global, workspaces, sessions}) migrated on read.
+        const migrated = [];
+        if (typeof raw.global === 'string' && raw.global.trim() !== '') {
+          migrated.push({ id: 'legacy-global', title: '通用要求', text: raw.global, workspaceId: '', enabled: true });
+        }
+        const ws = raw.workspaces ?? {};
+        for (const [wid, text] of Object.entries(ws)) {
+          if (typeof text === 'string' && text.trim() !== '') {
+            migrated.push({ id: `legacy-ws-${wid}`, title: '工作区要求', text, workspaceId: wid, enabled: true });
+          }
+        }
+        all = migrated;
+      }
       let workspaceId = '';
       try {
         const registry = scope.get('workspaceRegistry');
-        const ws = typeof registry?.list === 'function' ? registry.list() : [];
-        for (const item of Array.isArray(ws) ? ws : []) {
+        const list = typeof registry?.list === 'function' ? registry.list() : [];
+        for (const item of Array.isArray(list) ? list : []) {
           if (Array.isArray(item?.sessionIds) && item.sessionIds.includes(sessionId)) {
             workspaceId = typeof item.id === 'string' ? item.id : '';
             break;
@@ -927,13 +960,17 @@ export function apply(ctx) {
       } catch {
         /* workspace layer is optional */
       }
-      if (workspaceId !== '' && typeof workspaces[workspaceId] === 'string' && workspaces[workspaceId].trim() !== '') {
-        parts.push(workspaces[workspaceId].trim());
+      const ids = Array.isArray(selectedIds) ? new Set(selectedIds.map(String)) : null;
+      const parts = [];
+      for (const record of all) {
+        if (record === null || typeof record !== 'object') continue;
+        if (record.enabled === false) continue;
+        if (typeof record.text !== 'string' || record.text.trim() === '') continue;
+        const wid = typeof record.workspaceId === 'string' ? record.workspaceId : '';
+        if (wid !== '' && wid !== workspaceId) continue; // workspace isolation
+        if (ids !== null && !ids.has(String(record.id))) continue; // panel selection
+        parts.push(record.text.trim());
       }
-      if (typeof sessions[sessionId] === 'string' && sessions[sessionId].trim() !== '') {
-        parts.push(sessions[sessionId].trim());
-      }
-      if (typeof override === 'string' && override.trim() !== '') parts.push(override.trim());
       return parts.join('\n\n');
     };
     // Persist progress history to disk so it survives restarts and refreshes.
@@ -949,7 +986,7 @@ export function apply(ctx) {
           ? selection
           : undefined;
       },
-      getRequirements: (sessionId) => requirementsFor(sessionId, ctx.__powerupProgressOverride?.[sessionId]),
+      getRequirements: (sessionId) => requirementsFor(sessionId, ctx.__powerupProgressSelection?.[sessionId]),
       onHistoryChange: (sessionId, history) => {
         try {
           const all = readJsonObject(historyPath);
@@ -977,7 +1014,7 @@ export function apply(ctx) {
       return originalPoll(sessionId);
     };
     ctx.__powerupProgress = manager;
-    ctx.__powerupProgressOverride = ctx.__powerupProgressOverride ?? {};
+    ctx.__powerupProgressSelection = ctx.__powerupProgressSelection ?? {};
     scope.effect(() => () => {
       if (ctx.__powerupProgress === manager) ctx.__powerupProgress = undefined;
     }, 'dsh-powerup: progress manager');
