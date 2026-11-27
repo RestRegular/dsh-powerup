@@ -456,13 +456,15 @@ requirements you want** — checked ones fill an editable text box that you may
 freely modify, and generation/refresh uses the full box text verbatim. The panel
 also has a **New requirement** entry with a modal pinned to the session's
 workspace (like the prompt picker).
-The panel is wider by default, resizable from its bottom-right corner (size
-persisted), and its header tint shifts from blue toward warning red as the
-report ages. Every refresh adds a new report to a per-session history stored on
-disk; older reports stay browsable and are never discarded. The panel can switch
-between them, show the exact raw AI text, copy it, and clear the history
-explicitly. "Refresh progress" generates a new report without dropping the old
-ones.
+The panel uses **tabs** below the header: **Progress**, **Requirements** and
+**Raw output** — requirements and the raw AI text are no longer embedded in the
+progress body. Stage cards (checklist steps, phases, milestones and tree nodes)
+are **collapsible**. The panel is wider by default, resizable from its
+bottom-right corner (size persisted), and its header tint shifts from blue
+toward warning red as the report ages. Every refresh adds a new report to a
+per-session history stored on disk; older reports stay browsable and are never
+discarded. The panel can clear the history explicitly. "Refresh progress"
+generates a new report without dropping the old ones.
 
 ### Direct ask (no Agent)
 

@@ -85,7 +85,7 @@
       const requirementCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.15.0';
+      const VERSION = '0.16.0';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -377,7 +377,11 @@
           'progress.updated': '更新于 {time}',
           'progress.history': '历史进度',
           'progress.historyEmpty': '暂无历史记录',
-          'progress.viewRaw': '查看原始内容',
+          'progress.viewRaw': '原始内容',
+          'progress.tabProgress': '进度',
+          'progress.rawEmpty': '本次报告没有原始文本。',
+          'progress.expand': '展开',
+          'progress.collapse': '折叠',
           'progress.rawTitle': 'AI 原始生成内容',
           'progress.rawHint': '这是模型返回的原始文本，未经解析处理。',
           'progress.copyRaw': '复制原文',
@@ -767,7 +771,11 @@
           'progress.updated': 'Updated at {time}',
           'progress.history': 'History',
           'progress.historyEmpty': 'No history yet',
-          'progress.viewRaw': 'View raw output',
+          'progress.viewRaw': 'Raw output',
+          'progress.tabProgress': 'Progress',
+          'progress.rawEmpty': 'No raw text for this report.',
+          'progress.expand': 'Expand',
+          'progress.collapse': 'Collapse',
           'progress.rawTitle': 'Raw AI output',
           'progress.rawHint': 'This is the exact text returned by the model, before parsing.',
           'progress.copyRaw': 'Copy raw',
@@ -4579,7 +4587,19 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-progress-fill{height:100%;border-radius:999px;background:var(--dsw-alias-brand-primary);transition:width .3s ease}
 .dsh-powerup-progress-section{margin:12px 0 6px;color:var(--dsw-alias-label-tertiary);font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
 .dsh-powerup-progress-items{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
-.dsh-powerup-progress-item{display:flex;align-items:flex-start;gap:8px;padding:6px 8px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-1)}
+.dsh-powerup-progress-item{display:flex;flex-direction:column;gap:4px;padding:6px 8px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-1)}
+.dsh-powerup-progress-item-head{display:flex;align-items:center;gap:7px;min-width:0}
+.dsh-powerup-progress-item-toggle{flex:none;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;padding:0;border:0;border-radius:4px;background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer;transition:transform .12s ease}
+.dsh-powerup-progress-item-toggle svg{transform:rotate(-90deg);transition:transform .12s ease}
+.dsh-powerup-progress-item:not(.is-collapsed) .dsh-powerup-progress-item-toggle svg{transform:none}
+.dsh-powerup-progress-item-toggle-spacer{flex:none;width:16px;height:16px}
+.dsh-powerup-progress-item-detail{margin-left:23px;color:var(--dsw-alias-label-tertiary);font-size:10.5px;line-height:1.5;overflow-wrap:anywhere}
+.dsh-powerup-progress-tabs{display:flex;flex:none;gap:2px;padding:0 12px;border-bottom:.5px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1)}
+.dsh-powerup-progress-tab{position:relative;padding:8px 12px;border:0;background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;font-size:11.5px;line-height:1.5;cursor:pointer}
+.dsh-powerup-progress-tab:hover{color:var(--dsw-alias-label-primary)}
+.dsh-powerup-progress-tab.on{color:var(--dsw-alias-brand-primary);font-weight:600}
+.dsh-powerup-progress-tab.on:after{content:"";position:absolute;left:8px;right:8px;bottom:-1px;height:2px;border-radius:2px;background:var(--dsw-alias-brand-primary)}
+.dsh-powerup-progress-req-tab{display:flex;flex-direction:column;gap:6px}
 .dsh-powerup-progress-badge{flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 5px;border-radius:8px;font-size:9.5px;font-weight:700;letter-spacing:.02em}
 .dsh-powerup-progress-badge[data-status=pending]{background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-tertiary)}
 .dsh-powerup-progress-badge[data-status=in-progress]{background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 14%,transparent);color:var(--dsw-alias-state-business-primary)}
@@ -10627,32 +10647,50 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         }, STATUS_LABEL[status] ?? status);
       }
 
-      /** Render one node (checklist step / phase / milestone / tree node). */
-      function ProgressItem(title, status, detail, children, key) {
-        return h('li', { key, className: 'dsh-powerup-progress-item' },
-          ProgressBadge(status),
-          h('div', { className: 'dsh-powerup-progress-item-copy' },
+      /**
+       * One collapsible node (checklist step / phase / milestone / tree node).
+       * Rendered via h(ProgressItem, …) so each card owns its own collapse state.
+       */
+      function ProgressItem({ title, status, detail, children, nodeKey, t: translate }) {
+        const [collapsed, setCollapsed] = useState(false);
+        const hasBody = Boolean(detail) || (Array.isArray(children) && children.length > 0);
+        return h('li', { key: nodeKey, className: 'dsh-powerup-progress-item' + (collapsed ? ' is-collapsed' : '') },
+          h('div', { className: 'dsh-powerup-progress-item-head' },
+            hasBody
+              ? h('button', {
+                type: 'button',
+                className: 'dsh-powerup-progress-item-toggle',
+                'aria-expanded': collapsed ? 'false' : 'true',
+                'aria-label': collapsed ? (translate?.('progress.expand') ?? 'Expand') : (translate?.('progress.collapse') ?? 'Collapse'),
+                onClick: () => setCollapsed((v) => !v),
+              }, h('svg', { width: 10, height: 10, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': 'true' },
+                h('path', { d: 'm4 6 4 4 4-4', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round', strokeLinejoin: 'round' })))
+              : h('span', { className: 'dsh-powerup-progress-item-toggle-spacer' }),
+            ProgressBadge(status),
             h('span', { className: 'dsh-powerup-progress-item-title' }, title),
-            detail ? h('span', { className: 'dsh-powerup-progress-item-detail' }, detail) : null,
-            Array.isArray(children) && children.length > 0
-              ? h('ul', { className: 'dsh-powerup-progress-children' }, children)
-              : null,
           ),
+          !collapsed && detail ? h('span', { className: 'dsh-powerup-progress-item-detail' }, detail) : null,
+          !collapsed && Array.isArray(children) && children.length > 0
+            ? h('ul', { className: 'dsh-powerup-progress-children' }, children)
+            : null,
         );
       }
 
       /** Render the model-chosen structured body. */
-      function ProgressStructure(report) {
+      function ProgressStructure(report, t) {
         if (report === null || typeof report !== 'object') return null;
         const sections = [];
+        const item = (title, status, detail, children, nodeKey) => h(ProgressItem, {
+          key: nodeKey, title, status, detail, children, nodeKey, t,
+        });
         const mode = report.mode ?? 'checklist';
         if (mode === 'phases' && Array.isArray(report.phases) && report.phases.length > 0) {
           sections.push(h('div', { key: 'phases' },
             h('div', { className: 'dsh-powerup-progress-section' }, MODE_LABEL.phases),
-            h('ul', { className: 'dsh-powerup-progress-items' }, report.phases.map((phase, i) => ProgressItem(
+            h('ul', { className: 'dsh-powerup-progress-items' }, report.phases.map((phase, i) => item(
               phase.name, phase.status, phase.detail,
               Array.isArray(phase.steps) && phase.steps.length > 0
-                ? phase.steps.map((s, j) => ProgressItem(s.title, s.status, '', null, `p${i}-s${j}`))
+                ? phase.steps.map((s, j) => item(s.title, s.status, '', null, `p${i}-s${j}`))
                 : null,
               `phase-${i}`,
             ))),
@@ -10660,13 +10698,13 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         } else if (mode === 'milestones' && Array.isArray(report.milestones) && report.milestones.length > 0) {
           sections.push(h('div', { key: 'milestones' },
             h('div', { className: 'dsh-powerup-progress-section' }, MODE_LABEL.milestones),
-            h('ul', { className: 'dsh-powerup-progress-items' }, report.milestones.map((m, i) => ProgressItem(
+            h('ul', { className: 'dsh-powerup-progress-items' }, report.milestones.map((m, i) => item(
               m.name, m.status, m.criteria ? `${m.detail ?? ''} · ${m.criteria}`.trim() : m.detail,
               null, `m-${i}`,
             ))),
           ));
         } else if (mode === 'tree' && report.tree !== null && report.tree !== undefined) {
-          const node = (n, key) => ProgressItem(
+          const node = (n, key) => item(
             n.title, n.status, n.detail,
             Array.isArray(n.children) && n.children.length > 0 ? n.children.map((c, i) => node(c, `${key}-${i}`)) : null,
             key,
@@ -10678,7 +10716,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         } else if (Array.isArray(report.steps) && report.steps.length > 0) {
           sections.push(h('div', { key: 'steps' },
             h('div', { className: 'dsh-powerup-progress-section' }, MODE_LABEL.checklist),
-            h('ul', { className: 'dsh-powerup-progress-items' }, report.steps.map((s, i) => ProgressItem(
+            h('ul', { className: 'dsh-powerup-progress-items' }, report.steps.map((s, i) => item(
               s.title, s.status, s.detail, null, `step-${i}`,
             ))),
           ));
@@ -10753,8 +10791,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         const [view, setView] = useState(null);
         const [busy, setBusy] = useState(false);
         const [historyIndex, setHistoryIndex] = useState(0);
-        const [showRaw, setShowRaw] = useState(false);
-        const [showReq, setShowReq] = useState(false);
+        const [activeTab, setActiveTab] = useState('progress');
         // Selected requirement ids + the free-editable combined text.
         const [selectedReqIds, setSelectedReqIds] = useState([]);
         const [reqText, setReqText] = useState('');
@@ -10964,30 +11001,35 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
                 h('div', { className: 'dsh-powerup-progress-fill', style: { width: `${report.percent}%` } }),
               ),
             ),
-            ProgressStructure(report),
+            ProgressStructure(report, t),
             ProgressDisplay(report),
           );
         })();
 
-        const body = (() => {
+        // Three tabs below the header: progress / requirements / raw output.
+        const tabs = [
+          { id: 'progress', label: t('progress.tabProgress') },
+          { id: 'requirements', label: t('progress.requirements') },
+          { id: 'raw', label: t('progress.viewRaw') },
+        ];
+        const tabBar = h('div', { className: 'dsh-powerup-progress-tabs', role: 'tablist' },
+          tabs.map((tab) => h('button', {
+            key: tab.id,
+            type: 'button',
+            role: 'tab',
+            'aria-selected': activeTab === tab.id ? 'true' : 'false',
+            className: 'dsh-powerup-progress-tab' + (activeTab === tab.id ? ' on' : ''),
+            onClick: () => setActiveTab(tab.id),
+          }, tab.label)),
+        );
+
+        const progressBody = (() => {
           if (view === null) return h('div', { className: 'dsh-powerup-progress-empty' }, t('progress.hint'));
           if (view.status === 'error') return h('p', { className: 'dsh-powerup-progress-error' }, view.error ?? t('progress.failed'));
           if (running) {
             return h('div', null,
               h('div', { className: 'dsh-powerup-progress-loading' }, t('progress.loading')),
               reportBody,
-            );
-          }
-          if (showRaw) {
-            const raw = typeof report?.raw === 'string' ? report.raw : '';
-            return h('div', null,
-              h('h4', { className: 'dsh-powerup-progress-section' }, t('progress.rawTitle')),
-              h('p', { className: 'dsh-powerup-progress-empty' }, t('progress.rawHint')),
-              h('pre', { className: 'dsh-powerup-progress-code' }, raw || '(empty)'),
-              h('button', {
-                type: 'button', className: 'dsh-powerup-progress-refresh',
-                onClick: () => void copyText(raw),
-              }, t('progress.copyRaw')),
             );
           }
           if (report === null || report === undefined) {
@@ -11019,8 +11061,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           );
         })();
 
-        const requirementsEditor = showReq ? h('div', { className: 'dsh-powerup-progress-req-pop' },
-          h('span', { className: 'dsh-powerup-prompt-field-label' }, t('progress.reqSelect')),
+        const requirementsBody = h('div', { className: 'dsh-powerup-progress-req-tab' },
           h('p', { className: 'dsh-powerup-setting-hint' }, t('progress.reqSelectHint')),
           h(RequirementPicker, {
             reqs: visibleReqs,
@@ -11034,7 +11075,24 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             type: 'button', className: 'dsh-powerup-prompt-new dsh-powerup-req-create',
             onClick: () => setCreatingReq(true),
           }, t('progress.reqNew')),
-        ) : null;
+        );
+
+        const rawBody = h('div', null,
+          h('p', { className: 'dsh-powerup-progress-empty' }, t('progress.rawHint')),
+          h('pre', { className: 'dsh-powerup-progress-code' },
+            (typeof report?.raw === 'string' ? report.raw : '') || t('progress.rawEmpty')),
+          h('button', {
+            type: 'button', className: 'dsh-powerup-progress-refresh',
+            disabled: typeof report?.raw !== 'string' || report.raw === '',
+            onClick: () => void copyText(typeof report?.raw === 'string' ? report.raw : ''),
+          }, t('progress.copyRaw')),
+        );
+
+        const activeBody = activeTab === 'requirements'
+          ? requirementsBody
+          : activeTab === 'raw'
+            ? rawBody
+            : progressBody;
 
         const panel = !open ? null : h('div', {
           ref: panelRef,
@@ -11065,20 +11123,12 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
               'aria-label': t('progress.close'), onClick: close,
             }, '×'),
           ),
-          requirementsEditor,
-          h('div', { className: 'dsh-powerup-progress-body' }, body),
+          tabBar,
+          h('div', { className: 'dsh-powerup-progress-body' }, activeBody),
           h('div', { className: 'dsh-powerup-progress-foot' },
             h('span', { className: 'dsh-powerup-progress-time' },
               view?.updatedAt ? format(t('progress.updated'), { time: new Date(view.updatedAt).toLocaleTimeString() }) : '',
             ),
-            h('button', {
-              type: 'button', className: 'dsh-powerup-progress-mini',
-              onClick: () => setShowReq((v) => !v),
-            }, t('progress.requirements')),
-            report?.raw ? h('button', {
-              type: 'button', className: 'dsh-powerup-progress-mini',
-              onClick: () => setShowRaw((v) => !v),
-            }, t('progress.viewRaw')) : null,
             history.length > 0 ? h('button', {
               type: 'button', className: 'dsh-powerup-progress-mini',
               onClick: () => void clearHistory(),
@@ -11276,14 +11326,15 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           PROMPTS_CSS,
           PROGRESS_CSS,
           ProgressControl,
+          ProgressItem,
+          ProgressStructure,
+          ProgressDisplay,
           RequirementManager,
           RequirementCreateModal,
           RequirementForm,
           RequirementPicker,
           requirementForWorkspace: requirementsForWorkspace,
           DirectAskButton,
-          ProgressStructure,
-          ProgressDisplay,
           progressRequest,
           PROMPTS_LAST_KEY,
           promptCreateDraft,

@@ -1311,6 +1311,11 @@ assert.ok(JSON.stringify(scrollTopTree).includes('currentColor'), 'the back-to-t
 // ---------------------------------------------------------------------------
 const update = moduleExports.__test;
 
+assert.ok(update.PROGRESS_CSS.includes('.dsh-powerup-progress-tabs{'), 'progress panel uses a top tab bar');
+assert.ok(update.PROGRESS_CSS.includes('.dsh-powerup-progress-item-toggle{'), 'progress stage cards are collapsible');
+assert.ok(typeof update.ProgressItem === 'function', 'collapsible progress item is exported');
+assert.ok(typeof update.RequirementCreateModal === 'function', 'session-side requirement modal is exported');
+
 // Every feature defaults on; a stored false (from older settings or the page
 // switches) wins. The legacy `enabled` flag migrates to `contextMenu`.
 const ALL_ON_SETTINGS = {
@@ -2214,7 +2219,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.15.0');
+assert.equal(host.__test.SELF_VERSION, '0.16.0');
 
 const installFailSpecs = [];
 const installFailManager = {
