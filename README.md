@@ -408,6 +408,29 @@ record carrying its own workspace id, so the settings page can manage every
 workspace together. Older per-workspace files are migrated automatically on
 first access.
 
+### Task progress snapshot
+
+A **Progress** button in the session header generates a structured view of
+what the current task has accomplished so far, without blocking or disturbing
+the running agent:
+
+- **Off to the side.** Clicking the button asks the Host to start a separate
+  model call that reuses the session's own provider/model. That call reads a
+  compact copy of the recent conversation, runs under its own abort/timeout,
+  writes **nothing** to the session log, and never touches the agent's turn —
+  you can keep working while it runs. The panel polls until it settles.
+- **Model picks the structure.** The report is one JSON object whose `mode`
+  the model chooses from `checklist`, `phases`, `milestones`, or `tree`, with
+  status badges, progress meter, blockers, and per-node details rendered for
+  that shape. The Host validates and normalizes the result before it reaches
+  the UI.
+- **Model-rendered extras.** The report may include a `display` array of blocks
+  (`text`, `kv`, `callout`, `bars`, `code`) that the panel renders directly, so
+  the model can surface any additional user-facing content it finds useful
+  without the plugin needing to anticipate every format.
+- The feature is on by default and can be switched off on the Power-Up page;
+  reports are cached per session in memory and marked stale after a minute.
+
 ### Dual send buttons
 
 When enabled on the Power-Up page, two compact controls appear at the right of

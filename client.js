@@ -83,7 +83,7 @@
       const promptCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.10.7';
+      const VERSION = '0.11.0';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -344,6 +344,22 @@
           'update.invalidVersion': '请输入有效版本号（例如 1.2.3）',
           'update.stopProfile': '当前 profile 不能热卸载该插件，请重启 DSH 后再试。',
           'update.unsupportedTitle': '无法自动安装',
+          'page.taskProgressTitle': '任务进度速览',
+          'page.taskProgressDesc': '在会话顶部加一个「进度」按钮，点击后用当前会话的模型在后台分析会话记录，生成结构化的任务进度并用浮层展示。调用在旁路进行，不写入会话、不打断正在运行的任务；模型会按任务类型选择清单、阶段、里程碑或任务树，并可补充一段直接渲染给用户看的内容。',
+          'page.taskProgressHow': '在任意会话顶部点击「进度」按钮，面板会显示最近一次结果；首次使用点「生成进度」。生成期间可继续正常操作会话。',
+          'progress.title': '任务进度',
+          'progress.label': '进度',
+          'progress.subtitle': '由当前会话模型在后台生成',
+          'progress.hint': '还没有进度报告，点「生成进度」开始分析。',
+          'progress.empty': '还没有生成过进度报告。',
+          'progress.generate': '生成进度',
+          'progress.refresh': '重新生成',
+          'progress.retry': '重试',
+          'progress.loading': '正在后台分析会话进度…',
+          'progress.close': '关闭',
+          'progress.failed': '生成进度失败',
+          'progress.stale': '报告已过期',
+          'progress.updated': '更新于 {time}',
           'page.promptsTitle': '工作区提示词',
           'page.promptsDesc': '为每个工作区保存可复用的提示词。开启后，新会话行的 Agent 预设右侧会出现一个下拉列表，选择即可把提示词填入输入框（可继续编辑），或点提示词右侧的发送按钮直接发出。',
           'page.promptsHow': '先启用本功能，再切到「工作区提示词」标签页创建提示词；提示词按工作区隔离，没有标题时显示开头几个字。',
@@ -650,6 +666,22 @@
           'update.invalidVersion': 'Enter a valid version, for example 1.2.3.',
           'update.stopProfile': 'This profile cannot hot-remove the plugin; restart DSH and try again.',
           'update.unsupportedTitle': 'Cannot install automatically',
+          'page.taskProgressTitle': 'Task progress snapshot',
+          'page.taskProgressDesc': 'Adds a Progress button to the session header. Clicking it asks the current session model to analyze the session in the background and produce a structured progress report shown in a floating panel. The call is off to the side: nothing is written to the session and the running task is never interrupted. The model picks a checklist, phases, milestones, or task tree to fit the work, and may add content rendered directly in the panel.',
+          'page.taskProgressHow': 'Click Progress in any session header to see the last report; on first use press Generate. You can keep working in the session while it runs.',
+          'progress.title': 'Task progress',
+          'progress.label': 'Progress',
+          'progress.subtitle': 'Generated in the background by this session model',
+          'progress.hint': 'No progress report yet. Press Generate to analyze the session.',
+          'progress.empty': 'No progress report generated yet.',
+          'progress.generate': 'Generate progress',
+          'progress.refresh': 'Regenerate',
+          'progress.retry': 'Retry',
+          'progress.loading': 'Analyzing session progress in the background…',
+          'progress.close': 'Close',
+          'progress.failed': 'Could not generate progress',
+          'progress.stale': 'Stale report',
+          'progress.updated': 'Updated at {time}',
           'page.promptsTitle': 'Workspace prompts',
           'page.promptsDesc': 'Save reusable prompts per workspace. When enabled, a dropdown appears next to the Agent preset in the New Session row: pick a prompt to fill the composer (still editable), or click its send button to send it right away.',
           'page.promptsHow': 'Enable this feature, then open the "Workspace prompts" tab to create prompts. Prompts are scoped per workspace; without a title the first few characters are shown.',
@@ -747,6 +779,7 @@
         contentRendering: true,
         dualSend: false,
         workspacePrompts: true,
+        taskProgress: true,
         oneClickEnable: true,
         oneClickRestart: true,
       };
@@ -769,6 +802,7 @@
               contentRendering: parsed.contentRendering !== false,
               dualSend: parsed.dualSend === true,
               workspacePrompts: parsed.workspacePrompts !== false,
+              taskProgress: parsed.taskProgress !== false,
               oneClickEnable: parsed.oneClickEnable !== false,
               oneClickRestart: parsed.oneClickRestart !== false,
             };
@@ -3816,6 +3850,16 @@
         );
       }
 
+      /** A radar/target glyph for the task-progress side call. */
+      function ProgressIcon({ size = 16 }) {
+        return h(Icon, { size },
+          h('circle', { cx: '8', cy: '8', r: '5.8', fill: 'none', stroke: 'currentColor', strokeWidth: '1.2' }),
+          h('circle', { cx: '8', cy: '8', r: '2.6', fill: 'none', stroke: 'currentColor', strokeWidth: '1.2' }),
+          h('path', { d: 'M8 8 12.4 3.6', stroke: 'currentColor', strokeWidth: '1.2', strokeLinecap: 'round' }),
+          h('circle', { cx: '8', cy: '8', r: '.9', fill: 'currentColor' }),
+        );
+      }
+
       function ChevronDownIcon({ size = 12 }) {
         return h(Icon, { size },
           h('path', {
@@ -4342,6 +4386,69 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-prompt-modal-close:focus-visible,.dsh-powerup-prompt-modal-cancel:focus-visible,.dsh-powerup-prompt-modal-save:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:1px}
 @media (max-width:560px){.dsh-powerup-prompt-modal-mask{padding:12px}.dsh-powerup-prompt-modal-head{padding:16px 12px 8px 16px}.dsh-powerup-prompt-modal-body{padding:0 16px 4px}.dsh-powerup-prompt-modal-foot{padding:12px 16px 16px}}
 @media (prefers-reduced-motion:reduce){.dsh-powerup-prompt-pop,.dsh-powerup-prompt-trigger-chevron,.dsh-powerup-prompt-modal-mask,.dsh-powerup-prompt-modal,.dsh-powerup-prompt-modal-mask.is-closing,.dsh-powerup-prompt-modal.is-closing{transition:none;animation:none}}
+`;
+
+      const PROGRESS_CSS = `
+/* Task-progress header button + floating panel. */
+.dsh-powerup-progress-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-width:26px;height:26px;padding:0 7px;border:.5px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font:inherit;font-size:11.5px;line-height:1;cursor:pointer;transition:background .12s ease,color .12s ease,border-color .12s ease}
+.dsh-powerup-progress-btn:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-border-l3)}
+.dsh-powerup-progress-btn:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:1px}
+.dsh-powerup-progress-btn.is-running{color:var(--dsw-alias-brand-primary);border-color:var(--dsw-alias-brand-primary)}
+.dsh-powerup-progress-btn.is-running svg{animation:dsh-powerup-progress-spin 1.4s linear infinite}
+@keyframes dsh-powerup-progress-spin{to{transform:rotate(360deg)}}
+.dsh-powerup-progress-btn-dot{flex:none;width:6px;height:6px;border-radius:50%;background:var(--dsw-alias-state-success-primary)}
+.dsh-powerup-progress-panel{position:fixed;z-index:1500;box-sizing:border-box;display:flex;flex-direction:column;width:360px;max-width:calc(100vw - 24px);max-height:min(72vh,620px);border:0;border-radius:var(--dsw-radius-panel,14px);background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);font-size:12px;line-height:1.55;pointer-events:auto;overflow:hidden;--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2);animation:dsh-powerup-progress-in .15s ease-out}
+@keyframes dsh-powerup-progress-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.dsh-powerup-progress-head{display:flex;align-items:flex-start;gap:8px;padding:14px 14px 10px 16px;border-bottom:.5px solid var(--dsw-alias-border-l1)}
+.dsh-powerup-progress-heading{display:flex;flex:1 1 auto;flex-direction:column;gap:2px;min-width:0}
+.dsh-powerup-progress-title{font-size:14px;font-weight:600;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dsh-powerup-progress-sub{color:var(--dsw-alias-label-tertiary);font-size:10.5px;line-height:1.4}
+.dsh-powerup-progress-close{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;margin:-2px -2px 0 0;padding:0;border:0;border-radius:var(--dsw-radius-sm);background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:17px;line-height:1;cursor:pointer}
+.dsh-powerup-progress-close:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
+.dsh-powerup-progress-body{flex:1 1 auto;min-height:0;overflow-y:auto;padding:12px 16px 16px}
+.dsh-powerup-progress-loading{display:flex;align-items:center;gap:9px;color:var(--dsw-alias-label-secondary);font-size:12px}
+.dsh-powerup-progress-error{margin:0;color:var(--dsw-alias-state-error-primary);font-size:11.5px;line-height:1.6;overflow-wrap:anywhere}
+.dsh-powerup-progress-empty{color:var(--dsw-alias-label-tertiary);font-size:11.5px;line-height:1.6}
+.dsh-powerup-progress-summary{margin:0 0 12px;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.6;overflow-wrap:anywhere}
+.dsh-powerup-progress-meter{display:flex;flex-direction:column;gap:5px;margin:0 0 14px}
+.dsh-powerup-progress-meter-head{display:flex;align-items:center;justify-content:space-between;color:var(--dsw-alias-label-tertiary);font-size:10.5px}
+.dsh-powerup-progress-meter-head strong{color:var(--dsw-alias-brand-primary);font-size:12px;font-variant-numeric:tabular-nums}
+.dsh-powerup-progress-track{height:6px;border-radius:999px;background:var(--dsw-alias-border-l2);overflow:hidden}
+.dsh-powerup-progress-fill{height:100%;border-radius:999px;background:var(--dsw-alias-brand-primary);transition:width .3s ease}
+.dsh-powerup-progress-section{margin:12px 0 6px;color:var(--dsw-alias-label-tertiary);font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.dsh-powerup-progress-items{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
+.dsh-powerup-progress-item{display:flex;align-items:flex-start;gap:8px;padding:6px 8px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-1)}
+.dsh-powerup-progress-badge{flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 5px;border-radius:8px;font-size:9.5px;font-weight:700;letter-spacing:.02em}
+.dsh-powerup-progress-badge[data-status=pending]{background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-tertiary)}
+.dsh-powerup-progress-badge[data-status=in-progress]{background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 14%,transparent);color:var(--dsw-alias-state-business-primary)}
+.dsh-powerup-progress-badge[data-status=done]{background:color-mix(in srgb,var(--dsw-alias-state-success-primary) 14%,transparent);color:var(--dsw-alias-state-success-primary)}
+.dsh-powerup-progress-badge[data-status=blocked]{background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 14%,transparent);color:var(--dsw-alias-state-error-primary)}
+.dsh-powerup-progress-item-copy{display:flex;flex:1 1 auto;flex-direction:column;gap:2px;min-width:0}
+.dsh-powerup-progress-item-title{color:var(--dsw-alias-label-primary);font-size:11.5px;line-height:1.5;overflow-wrap:anywhere}
+.dsh-powerup-progress-item-detail{color:var(--dsw-alias-label-tertiary);font-size:10.5px;line-height:1.5;overflow-wrap:anywhere}
+.dsh-powerup-progress-children{margin:4px 0 0 6px;padding-left:10px;border-left:1px solid var(--dsw-alias-border-l2)}
+.dsh-powerup-progress-blockers{margin:12px 0 0;padding:8px 10px;border:1px solid color-mix(in srgb,var(--dsw-alias-state-error-primary) 30%,transparent);border-radius:8px;background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 7%,transparent);color:var(--dsw-alias-state-error-primary);font-size:11px;line-height:1.55}
+.dsh-powerup-progress-blockers ul{margin:4px 0 0;padding-left:16px}
+.dsh-powerup-progress-display{display:flex;flex-direction:column;gap:10px;margin-top:14px;padding-top:12px;border-top:.5px solid var(--dsw-alias-border-l1)}
+.dsh-powerup-progress-display-head{color:var(--dsw-alias-label-tertiary);font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.dsh-powerup-progress-display-text{color:var(--dsw-alias-label-secondary);font-size:11.5px;line-height:1.65;overflow-wrap:anywhere;white-space:pre-wrap}
+.dsh-powerup-progress-kv{display:flex;flex-direction:column;gap:4px}
+.dsh-powerup-progress-kv-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.dsh-powerup-progress-kv-row dt{flex:none;color:var(--dsw-alias-label-tertiary);font-size:11px}
+.dsh-powerup-progress-kv-row dd{margin:0;min-width:0;text-align:right;color:var(--dsw-alias-label-primary);font-size:11.5px;overflow-wrap:anywhere}
+.dsh-powerup-progress-callout{padding:8px 10px;border-radius:8px;font-size:11.5px;line-height:1.6;overflow-wrap:anywhere}
+.dsh-powerup-progress-callout[data-tone=info]{background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-secondary)}
+.dsh-powerup-progress-callout[data-tone=warn]{background:color-mix(in srgb,var(--dsw-alias-state-warning-primary,var(--dsw-alias-state-error-primary)) 10%,transparent);color:var(--dsw-alias-state-warning-primary,var(--dsw-alias-state-error-primary))}
+.dsh-powerup-progress-callout[data-tone=success]{background:color-mix(in srgb,var(--dsw-alias-state-success-primary) 10%,transparent);color:var(--dsw-alias-state-success-primary)}
+.dsh-powerup-progress-bar{display:flex;flex-direction:column;gap:3px;margin-bottom:6px}
+.dsh-powerup-progress-bar-head{display:flex;justify-content:space-between;color:var(--dsw-alias-label-secondary);font-size:10.5px}
+.dsh-powerup-progress-code{margin:0;padding:8px 10px;border-radius:8px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);font-family:var(--dsw-font-family-code,ui-monospace,SFMono-Regular,Consolas,monospace);font-size:11px;line-height:1.5;overflow-x:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+.dsh-powerup-progress-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 16px;border-top:.5px solid var(--dsw-alias-border-l1)}
+.dsh-powerup-progress-refresh{height:28px;padding:0 12px;border:.5px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);font:inherit;font-size:11.5px;line-height:1.5;cursor:pointer}
+.dsh-powerup-progress-refresh:hover{border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-brand-primary)}
+.dsh-powerup-progress-refresh:disabled{opacity:.45;cursor:not-allowed}
+.dsh-powerup-progress-time{color:var(--dsw-alias-label-caption);font-size:10px}
+@media (prefers-reduced-motion:reduce){.dsh-powerup-progress-panel,.dsh-powerup-progress-btn.is-running svg,.dsh-powerup-progress-fill{animation:none;transition:none}}
 `;
 
       /** Max display length of a session option, in Unicode code points. */
@@ -5558,7 +5665,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         try {
           const style = document.createElement('style');
           style.setAttribute('data-dsh-powerup', '');
-          style.textContent = CSS + '\n' + LAUNCHER_CSS + '\n' + SESSION_SWITCH_CSS + '\n' + LOCATE_CSS + '\n' + SCROLL_TOP_CSS + '\n' + RENDERING_CSS + '\n' + PROMPTS_CSS;
+          style.textContent = CSS + '\n' + LAUNCHER_CSS + '\n' + SESSION_SWITCH_CSS + '\n' + LOCATE_CSS + '\n' + SCROLL_TOP_CSS + '\n' + RENDERING_CSS + '\n' + PROMPTS_CSS + '\n' + PROGRESS_CSS;
           document.head.appendChild(style);
           ctx.effect(() => () => style.remove(), 'dsh-powerup: styles');
         } catch (error) {
@@ -9470,6 +9577,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           featureCard('scrollToTop', ScrollTopIcon, 'page.scrollToTopTitle', 'page.scrollToTopDesc', 'page.scrollToTopHow'),
           featureCard('contentRendering', PowerUpLineIcon, 'page.renderingTitle', 'page.renderingDesc', 'page.renderingHow'),
           featureCard('dualSend', LauncherIcon, 'page.dualSendTitle', 'page.dualSendDesc', 'page.dualSendHow'),
+          featureCard('taskProgress', ProgressIcon, 'page.taskProgressTitle', 'page.taskProgressDesc', 'page.taskProgressHow'),
           featureCard('workspacePrompts', TagIcon, 'page.promptsTitle', 'page.promptsDesc', 'page.promptsHow'),
           featureCard('jobStop', StopIcon, 'page.jobStopTitle', 'page.jobStopDesc', 'page.jobStopHow'),
           featureCard('update', UpdateIcon, 'page.updateTitle', 'page.updateDesc', 'page.updateHow', oneClickDetail),
@@ -9524,6 +9632,343 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
       }
 
       // ------------------------------------------------------------------
+      // Task progress: header button + body-portal panel
+      // ------------------------------------------------------------------
+      const PROGRESS_API = '/dsh-powerup/api/progress';
+
+      /** POST to the progress route; returns the parsed body. */
+      async function progressRequest(sessionId, action) {
+        const response = await fetch(PROGRESS_API, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ sessionId, action }),
+        });
+        const body = await response.json();
+        if (!body?.ok) throw new Error(body?.error ?? `HTTP ${response.status}`);
+        return body;
+      }
+
+      const STATUS_LABEL = {
+        pending: '待办', 'in-progress': '进行中', done: '完成', blocked: '受阻',
+      };
+      const MODE_LABEL = {
+        checklist: '任务清单', phases: '阶段', milestones: '里程碑', tree: '任务树',
+      };
+
+      /** One status badge. */
+      function ProgressBadge(status) {
+        return h('span', {
+          className: 'dsh-powerup-progress-badge',
+          'data-status': status,
+        }, STATUS_LABEL[status] ?? status);
+      }
+
+      /** Render one node (checklist step / phase / milestone / tree node). */
+      function ProgressItem(title, status, detail, children, key) {
+        return h('li', { key, className: 'dsh-powerup-progress-item' },
+          ProgressBadge(status),
+          h('div', { className: 'dsh-powerup-progress-item-copy' },
+            h('span', { className: 'dsh-powerup-progress-item-title' }, title),
+            detail ? h('span', { className: 'dsh-powerup-progress-item-detail' }, detail) : null,
+            Array.isArray(children) && children.length > 0
+              ? h('ul', { className: 'dsh-powerup-progress-children' }, children)
+              : null,
+          ),
+        );
+      }
+
+      /** Render the model-chosen structured body. */
+      function ProgressStructure(report) {
+        if (report === null || typeof report !== 'object') return null;
+        const sections = [];
+        const mode = report.mode ?? 'checklist';
+        if (mode === 'phases' && Array.isArray(report.phases) && report.phases.length > 0) {
+          sections.push(h('div', { key: 'phases' },
+            h('div', { className: 'dsh-powerup-progress-section' }, MODE_LABEL.phases),
+            h('ul', { className: 'dsh-powerup-progress-items' }, report.phases.map((phase, i) => ProgressItem(
+              phase.name, phase.status, phase.detail,
+              Array.isArray(phase.steps) && phase.steps.length > 0
+                ? phase.steps.map((s, j) => ProgressItem(s.title, s.status, '', null, `p${i}-s${j}`))
+                : null,
+              `phase-${i}`,
+            ))),
+          ));
+        } else if (mode === 'milestones' && Array.isArray(report.milestones) && report.milestones.length > 0) {
+          sections.push(h('div', { key: 'milestones' },
+            h('div', { className: 'dsh-powerup-progress-section' }, MODE_LABEL.milestones),
+            h('ul', { className: 'dsh-powerup-progress-items' }, report.milestones.map((m, i) => ProgressItem(
+              m.name, m.status, m.criteria ? `${m.detail ?? ''} · ${m.criteria}`.trim() : m.detail,
+              null, `m-${i}`,
+            ))),
+          ));
+        } else if (mode === 'tree' && report.tree !== null && report.tree !== undefined) {
+          const node = (n, key) => ProgressItem(
+            n.title, n.status, n.detail,
+            Array.isArray(n.children) && n.children.length > 0 ? n.children.map((c, i) => node(c, `${key}-${i}`)) : null,
+            key,
+          );
+          sections.push(h('div', { key: 'tree' },
+            h('div', { className: 'dsh-powerup-progress-section' }, MODE_LABEL.tree),
+            h('ul', { className: 'dsh-powerup-progress-items' }, [node(report.tree, 'root')]),
+          ));
+        } else if (Array.isArray(report.steps) && report.steps.length > 0) {
+          sections.push(h('div', { key: 'steps' },
+            h('div', { className: 'dsh-powerup-progress-section' }, MODE_LABEL.checklist),
+            h('ul', { className: 'dsh-powerup-progress-items' }, report.steps.map((s, i) => ProgressItem(
+              s.title, s.status, s.detail, null, `step-${i}`,
+            ))),
+          ));
+        }
+        if (Array.isArray(report.blockers) && report.blockers.length > 0) {
+          sections.push(h('div', { key: 'blockers', className: 'dsh-powerup-progress-blockers' },
+            h('strong', null, '阻碍'),
+            h('ul', null, report.blockers.map((b, i) => h('li', { key: i }, b))),
+          ));
+        }
+        return sections.length > 0 ? h('div', null, sections) : null;
+      }
+
+      /** Render the model-authored free-form display blocks verbatim. */
+      function ProgressDisplay(report) {
+        const blocks = Array.isArray(report?.display) ? report.display : [];
+        if (blocks.length === 0) return null;
+        const rendered = blocks.map((block, i) => {
+          if (block.kind === 'text') {
+            return h('div', { key: i, className: 'dsh-powerup-progress-display-text' }, block.text);
+          }
+          if (block.kind === 'kv') {
+            return h('dl', { key: i, className: 'dsh-powerup-progress-kv' },
+              block.items.map((item, j) => h('div', { key: j, className: 'dsh-powerup-progress-kv-row' },
+                h('dt', null, item.label),
+                h('dd', null, item.value),
+              )),
+            );
+          }
+          if (block.kind === 'callout') {
+            return h('div', { key: i, className: 'dsh-powerup-progress-callout', 'data-tone': block.tone }, block.text);
+          }
+          if (block.kind === 'bars') {
+            return h('div', { key: i },
+              block.items.map((item, j) => h('div', { key: j, className: 'dsh-powerup-progress-bar' },
+                h('div', { className: 'dsh-powerup-progress-bar-head' },
+                  h('span', null, item.label),
+                  h('span', null, `${item.value}%`),
+                ),
+                h('div', { className: 'dsh-powerup-progress-track' },
+                  h('div', { className: 'dsh-powerup-progress-fill', style: { width: `${item.value}%` } }),
+                ),
+              )),
+            );
+          }
+          if (block.kind === 'code') {
+            return h('pre', { key: i, className: 'dsh-powerup-progress-code' }, block.text);
+          }
+          return null;
+        }).filter(Boolean);
+        if (rendered.length === 0) return null;
+        return h('div', { className: 'dsh-powerup-progress-display' },
+          h('div', { className: 'dsh-powerup-progress-display-head' }, '模型补充'),
+          rendered,
+        );
+      }
+
+      /**
+       * Header utility: a button that opens a body-portal panel. The panel polls
+       * the Host route while a side call runs, and reuses the last report after
+       * it finishes. All work is fire-and-forget on the Host, so the running
+       * task is never blocked or interrupted.
+       */
+      function ProgressControl({ sessionId }) {
+        const settings = useSettings();
+        const [open, setOpen] = useState(false);
+        const [view, setView] = useState(null);
+        const [busy, setBusy] = useState(false);
+        const panelRef = useRef(null);
+        const buttonRef = useRef(null);
+        const sessionRef = useRef(sessionId);
+        sessionRef.current = sessionId;
+        const t = useCallback((key, params) => translateCurrent(key, params), []);
+
+        const refresh = useCallback(async () => {
+          const id = sessionRef.current;
+          if (typeof id !== 'string' || id === '') return null;
+          try {
+            const body = await progressRequest(id, 'poll');
+            setView(body);
+            return body;
+          } catch {
+            return null;
+          }
+        }, []);
+
+        // While the panel is open, keep polling until the side call settles.
+        useEffect(() => {
+          if (!open) return undefined;
+          let disposed = false;
+          const tick = async () => {
+            if (disposed) return;
+            const body = await refresh();
+            if (disposed) return;
+            if (body?.status === 'running') {
+              window.setTimeout(tick, 900);
+            }
+          };
+          void tick();
+          return () => { disposed = true; };
+        }, [open, refresh]);
+
+        const run = useCallback(async () => {
+          const id = sessionRef.current;
+          if (typeof id !== 'string' || id === '') return;
+          setBusy(true);
+          try {
+            const body = await progressRequest(id, 'start');
+            setView(body);
+          } catch (error) {
+            setView({ status: 'error', error: error?.message ?? String(error) });
+          } finally {
+            setBusy(false);
+            // Kick the polling loop even if it was already mounted.
+            if (!open) setOpen(true);
+          }
+        }, [open]);
+
+        const close = useCallback(() => setOpen(false), []);
+
+        // Esc and outside click close the panel.
+        useEffect(() => {
+          if (!open) return undefined;
+          const onKey = (event) => {
+            if (event.key === 'Escape') { event.stopPropagation(); close(); }
+          };
+          const onPointer = (event) => {
+            const panel = panelRef.current;
+            const button = buttonRef.current;
+            if (panel !== null && event.target instanceof Node && panel.contains(event.target)) return;
+            if (button !== null && event.target instanceof Node && button.contains(event.target)) return;
+            close();
+          };
+          document.addEventListener('keydown', onKey, true);
+          document.addEventListener('pointerdown', onPointer, true);
+          return () => {
+            document.removeEventListener('keydown', onKey, true);
+            document.removeEventListener('pointerdown', onPointer, true);
+          };
+        }, [open, close]);
+
+        if (settings.taskProgress === false) return null;
+        const running = view?.status === 'running' || busy;
+        const report = view?.report;
+
+        const button = h('button', {
+          ref: buttonRef,
+          type: 'button',
+          className: 'dsh-powerup-progress-btn' + (running ? ' is-running' : ''),
+          title: t('progress.title'),
+          'aria-label': t('progress.title'),
+          onClick: () => {
+            if (open) { close(); return; }
+            setOpen(true);
+            void refresh();
+          },
+        },
+          h(ProgressIcon, { size: 15 }),
+          h('span', null, t('progress.label')),
+          running ? h('span', { className: 'dsh-powerup-progress-btn-dot' }) : null,
+        );
+
+        const body = (() => {
+          if (view === null) return h('div', { className: 'dsh-powerup-progress-empty' }, t('progress.hint'));
+          if (view.status === 'error') return h('p', { className: 'dsh-powerup-progress-error' }, view.error ?? t('progress.failed'));
+          if (view.status === 'idle' || view.status === 'expired') {
+            return h('div', null,
+              h('p', { className: 'dsh-powerup-progress-empty' }, t('progress.empty')),
+              h('button', {
+                type: 'button', className: 'dsh-powerup-progress-refresh',
+                disabled: busy, onClick: () => void run(),
+              }, t('progress.generate')),
+            );
+          }
+          if (view.status === 'running') {
+            return h('div', null,
+              h('div', { className: 'dsh-powerup-progress-loading' }, t('progress.loading')),
+              report ? h('div', null,
+                h('p', { className: 'dsh-powerup-progress-summary' }, report.summary),
+                ProgressStructure(report),
+              ) : null,
+            );
+          }
+          if (report === null || report === undefined) {
+            return h('div', null,
+              h('p', { className: 'dsh-powerup-progress-empty' }, t('progress.failed')),
+              h('button', {
+                type: 'button', className: 'dsh-powerup-progress-refresh',
+                disabled: busy, onClick: () => void run(),
+              }, t('progress.retry')),
+            );
+          }
+          return h('div', null,
+            h('p', { className: 'dsh-powerup-progress-summary' }, report.summary),
+            h('div', { className: 'dsh-powerup-progress-meter' },
+              h('div', { className: 'dsh-powerup-progress-meter-head' },
+                h('span', null, MODE_LABEL[report.mode] ?? report.mode),
+                h('strong', null, `${report.percent}%`),
+              ),
+              h('div', { className: 'dsh-powerup-progress-track' },
+                h('div', { className: 'dsh-powerup-progress-fill', style: { width: `${report.percent}%` } }),
+              ),
+            ),
+            ProgressStructure(report),
+            ProgressDisplay(report),
+          );
+        })();
+
+        const panel = !open ? null : h('div', {
+          ref: panelRef,
+          className: 'dsh-powerup-progress-panel',
+          style: {
+            top: (() => {
+              const rect = buttonRef.current?.getBoundingClientRect?.();
+              return `${Math.round((rect?.bottom ?? 44) + 6)}px`;
+            })(),
+            right: (() => {
+              const rect = buttonRef.current?.getBoundingClientRect?.();
+              return `${Math.round(Math.max(12, window.innerWidth - (rect?.right ?? window.innerWidth - 12)))}px`;
+            })(),
+          },
+        },
+          h('div', { className: 'dsh-powerup-progress-head' },
+            h('div', { className: 'dsh-powerup-progress-heading' },
+              h('span', { className: 'dsh-powerup-progress-title' }, report?.title ?? t('progress.title')),
+              h('span', { className: 'dsh-powerup-progress-sub' },
+                view?.stale ? `${t('progress.stale')} · ` : '',
+                t('progress.subtitle'),
+              ),
+            ),
+            h('button', {
+              type: 'button', className: 'dsh-powerup-progress-close',
+              'aria-label': t('progress.close'), onClick: close,
+            }, '×'),
+          ),
+          h('div', { className: 'dsh-powerup-progress-body' }, body),
+          h('div', { className: 'dsh-powerup-progress-foot' },
+            h('span', { className: 'dsh-powerup-progress-time' },
+              view?.updatedAt ? format(t('progress.updated'), { time: new Date(view.updatedAt).toLocaleTimeString() }) : '',
+            ),
+            h('button', {
+              type: 'button', className: 'dsh-powerup-progress-refresh',
+              disabled: busy || running, onClick: () => void run(),
+            }, t('progress.refresh')),
+          ),
+        );
+
+        return h('span', { style: { display: 'inline-flex', alignItems: 'center' } },
+          button,
+          renderInBody(panel),
+        );
+      }
+
+      // ------------------------------------------------------------------
       // Plugin body
       // ------------------------------------------------------------------
       function apply(ctx) {
@@ -9573,6 +10018,11 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           id: 'powerup-bridge',
           order: 50,
         }, PowerUpBridge, 'dsh-powerup: session bridge');
+
+        register('conversation.session.header.utilities', {
+          id: 'powerup-progress',
+          order: 52,
+        }, (props) => h(ProgressControl, { sessionId: props?.sessionId }), 'dsh-powerup: task progress');
 
         register('conversation.hero.options', {
           id: 'powerup-prompts',
@@ -9671,6 +10121,11 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           SCROLL_TOP_CSS,
           RENDERING_CSS,
           PROMPTS_CSS,
+          PROGRESS_CSS,
+          ProgressControl,
+          ProgressStructure,
+          ProgressDisplay,
+          progressRequest,
           PROMPTS_LAST_KEY,
           promptCreateDraft,
           readPrompts,

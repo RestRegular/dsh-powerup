@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Power-Up",
-    "description": "Independently toggleable upgrades for DeepSeek Harness on the Power-Up page: trajectory context menu and step references, job stop reasons, one-click plugin install, sidebar icon grid and back-to-top, session switching and locating, workspace prompts, plus conversation rendering enhancements (regex reply masking) and dual send buttons (queued/interrupt)."
+    "description": "Independently toggleable upgrades for DeepSeek Harness on the Power-Up page: trajectory context menu and step references, job stop reasons, one-click plugin install, sidebar icon grid and back-to-top, session switching and locating, workspace prompts, non-blocking model-generated structured task progress, plus conversation rendering enhancements (regex reply masking) and dual send buttons (queued/interrupt)."
   }
 }

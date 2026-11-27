@@ -346,7 +346,9 @@ const wiredCtx = fakeContext({
   sessionQuery: wiringQuery,
 });
 apply(wiredCtx);
-assert.deepEqual(wiredCtx.injections.map((entry) => entry.deps), [['webServer'], ['tools', 'sessionQuery']]);
+assert.deepEqual(wiredCtx.injections.map((entry) => entry.deps), [
+  ['webServer'], ['tools', 'sessionQuery'], ['llm', 'sessionQuery'],
+]);
 assert.equal(registered.length, 1, 'one tool is registered');
 assert.equal(registered[0].name, STEP_READ_TOOL_NAME);
 const wiredOut = JSON.parse(await registered[0].execute({ ref: 'dsh-step:session-1/seq.5' }, {}));

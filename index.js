@@ -16,6 +16,9 @@
  *                                         removed
  *   POST /dsh-powerup/api/job-kill      → stops one background job with an
  *                                         optional human reason
+ *   POST /dsh-powerup/api/progress      → starts/polls/cancels a side-model
+ *                                         task-progress summary (never writes
+ *                                         to the session log or blocks the turn)
  *   tool powerup_step_read             → resolves a `dsh-step:` reference
  *                                         copied from the Trajectory menu into
  *                                         the raw session events it identifies
@@ -37,6 +40,7 @@ import { homedir } from 'node:os';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import { describeClose, describeRestart, requestRestart, requestShutdown } from './lib/restart.js';
 import { createStepReadTool } from './lib/step-tool.js';
+import { createProgressManager } from './lib/progress-manager.js';
 
 /** Prefix owned by this plugin. */
 const ROUTE = '/dsh-powerup/api';
@@ -434,8 +438,44 @@ async function handle(req, res, ctx) {
 
   const url = new URL(req.url ?? ROUTE, 'http://localhost');
   const op = url.pathname.slice(ROUTE.length).replace(/^\/+/u, '') || url.searchParams.get('op') || '';
-  if (op !== '' && op !== 'restart' && op !== 'close' && op !== 'self-update' && op !== 'audit' && op !== 'job-kill' && op !== 'prompts' && op !== 'mask-rules') {
+  if (op !== '' && op !== 'restart' && op !== 'close' && op !== 'self-update' && op !== 'audit' && op !== 'job-kill' && op !== 'prompts' && op !== 'mask-rules' && op !== 'progress') {
     sendJson(res, { ok: false, error: 'not-found' }, 404);
+    return;
+  }
+
+  if (op === 'progress') {
+    if (req.method !== 'POST') {
+      sendJson(res, { ok: false, error: 'method-not-allowed' }, 405);
+      return;
+    }
+    let body;
+    try {
+      body = await readJsonBody(req);
+    } catch (error) {
+      sendJson(res, { ok: false, error: String(error?.message ?? error) }, 400);
+      return;
+    }
+    const sessionId = typeof body?.sessionId === 'string' ? body.sessionId.trim() : '';
+    if (sessionId === '') {
+      sendJson(res, { ok: false, code: 'invalid-request', error: 'sessionId is required' }, 400);
+      return;
+    }
+    const action = ['start', 'poll', 'cancel'].includes(body?.action) ? body.action : 'poll';
+    const manager = ctx?.__powerupProgress;
+    if (manager === undefined) {
+      sendJson(res, { ok: false, code: 'unavailable', error: 'progress service is not ready' }, 503);
+      return;
+    }
+    try {
+      const view = action === 'start'
+        ? manager.start(sessionId)
+        : action === 'cancel'
+          ? manager.cancel(sessionId)
+          : manager.poll(sessionId);
+      sendJson(res, { ok: true, action, ...view });
+    } catch (error) {
+      sendJson(res, { ok: false, code: 'progress-failed', error: String(error?.message ?? error) }, 500);
+    }
     return;
   }
 
@@ -629,6 +669,26 @@ export function apply(ctx) {
       'dsh-powerup: step reference reader',
     );
   });
+  // The progress side call needs both `llm` and `sessionQuery`. Wait for them
+  // through inject so a late-provided service still creates the manager.
+  ctx.inject(['llm', 'sessionQuery'], (scope) => {
+    const manager = createProgressManager({
+      getLlm: () => scope.get('llm'),
+      getSessionQuery: () => scope.get('sessionQuery'),
+      resolveRoute: (sessionId) => {
+        // Fall back to the default model when a session has no captured header.
+        const defaults = scope.get('agentDefaultModel');
+        const selection = typeof defaults?.currentSelection === 'function' ? defaults.currentSelection() : undefined;
+        return selection !== undefined && typeof selection.provider === 'string'
+          ? selection
+          : undefined;
+      },
+    });
+    ctx.__powerupProgress = manager;
+    scope.effect(() => () => {
+      if (ctx.__powerupProgress === manager) ctx.__powerupProgress = undefined;
+    }, 'dsh-powerup: progress manager');
+  });
 }
 
 /** Exported for tests only; the Host never reads this. */
@@ -655,4 +715,5 @@ export const __test = {
   ROUTE,
   MODULE_ID,
   STORE_DIR_NAME,
+  createProgressManager,
 };
