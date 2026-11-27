@@ -457,15 +457,21 @@ freely modify, and generation/refresh uses the full box text verbatim. The panel
 also has a **New requirement** entry with a modal: pick the workspace (or "all
 workspaces") there, and clicks inside the modal no longer close the progress
 panel.
-The panel uses **tabs** below the header: **Progress**, **Requirements** and
-**Raw output** — requirements and the raw AI text are no longer embedded in the
-progress body. Stage cards (checklist steps, phases, milestones and tree nodes)
-are **collapsible**. The panel is wider by default, resizable from its
-bottom-right corner (size persisted), and its header tint shifts from blue
-toward warning red as the report ages. Every refresh adds a new report to a
-per-session history stored on disk; older reports stay browsable and are never
-discarded. The panel can clear the history explicitly. "Refresh progress"
-generates a new report without dropping the old ones.
+The panel uses **tabs** below the header: **Progress**, **Refresh progress**
+(the requirements box) and **Raw output** — requirements and the raw AI text are
+no longer embedded in the progress body. The header also carries the **same
+model selector as the composer**: changing the model here changes the one used
+for the next progress call. Stage cards (checklist steps, phases, milestones
+and tree nodes) are **collapsible** by clicking anywhere on their row. The panel
+is wider by default, resizable from its bottom-right corner (size persisted),
+and its header tint shifts from blue toward warning red as the report ages.
+Every refresh adds a new report to a per-session history stored on disk; older
+reports stay browsable and are never discarded. The panel can clear the history
+explicitly. The **Refresh** button lives in the "Refresh progress" tab beside
+"New requirement"; while a call runs it becomes **Cancel**, and the panel
+returns to the Progress tab when it settles. A configurable **cooldown**
+(default 5 seconds, set on the Power-Up page) prevents accidental repeat
+refreshes.
 
 ### Direct ask (no Agent)
 

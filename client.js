@@ -85,7 +85,7 @@
       const requirementCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.18.0';
+      const VERSION = '0.19.0';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -362,13 +362,19 @@
           'page.taskProgressTitle': '任务进度速览',
           'page.taskProgressDesc': '在会话顶部加一个「进度」按钮，点击后用当前会话的模型在后台分析会话记录，生成结构化的任务进度并用浮层展示。调用在旁路进行，不写入会话、不打断正在运行的任务；模型会按任务类型选择清单、阶段、里程碑或任务树，并可补充一段直接渲染给用户看的内容。',
           'page.taskProgressHow': '在任意会话顶部点击「进度」按钮，面板会显示最近一次结果；首次使用点「生成进度」。生成期间可继续正常操作会话。',
+          'page.taskProgressCooldown': '刷新冷却（秒）',
+          'page.taskProgressCooldownHint': '两次刷新之间的最短间隔，防止误触；设为 0 表示不限制。',
           'progress.title': '任务进度',
           'progress.label': '进度',
           'progress.subtitle': '由当前会话模型在后台生成',
+          'progress.modelChanging': '正在切换模型…',
           'progress.hint': '还没有进度报告，点「生成进度」开始分析。',
           'progress.empty': '还没有生成过进度报告。',
           'progress.generate': '生成进度',
-          'progress.refresh': '刷新进度',
+          'progress.refresh': '刷新',
+          'progress.tabRefresh': '刷新进度',
+          'progress.cancel': '取消',
+          'progress.refreshCooldown': '请等待 {seconds} 秒后再刷新',
           'progress.retry': '重试',
           'progress.loading': '正在后台分析会话进度…',
           'progress.close': '关闭',
@@ -761,13 +767,19 @@
           'page.taskProgressTitle': 'Task progress snapshot',
           'page.taskProgressDesc': 'Adds a Progress button to the session header. Clicking it asks the current session model to analyze the session in the background and produce a structured progress report shown in a floating panel. The call is off to the side: nothing is written to the session and the running task is never interrupted. The model picks a checklist, phases, milestones, or task tree to fit the work, and may add content rendered directly in the panel.',
           'page.taskProgressHow': 'Click Progress in any session header to see the last report; on first use press Generate. You can keep working in the session while it runs.',
+          'page.taskProgressCooldown': 'Refresh cooldown (seconds)',
+          'page.taskProgressCooldownHint': 'Minimum gap between refreshes to avoid accidental clicks; 0 disables the limit.',
           'progress.title': 'Task progress',
           'progress.label': 'Progress',
           'progress.subtitle': 'Generated in the background by this session model',
+          'progress.modelChanging': 'Switching model…',
           'progress.hint': 'No progress report yet. Press Generate to analyze the session.',
           'progress.empty': 'No progress report generated yet.',
           'progress.generate': 'Generate progress',
-          'progress.refresh': 'Refresh progress',
+          'progress.refresh': 'Refresh',
+          'progress.tabRefresh': 'Refresh progress',
+          'progress.cancel': 'Cancel',
+          'progress.refreshCooldown': 'Please wait {seconds} seconds before refreshing again',
           'progress.retry': 'Retry',
           'progress.loading': 'Analyzing session progress in the background…',
           'progress.close': 'Close',
@@ -936,6 +948,7 @@
         dualSend: false,
         workspacePrompts: true,
         taskProgress: true,
+        taskProgressCooldown: 5,
         directAsk: true,
         directAskAutoTitle: false,
         oneClickEnable: true,
@@ -961,6 +974,10 @@
               dualSend: parsed.dualSend === true,
               workspacePrompts: parsed.workspacePrompts !== false,
               taskProgress: parsed.taskProgress !== false,
+              taskProgressCooldown: (() => {
+                const value = Number(parsed.taskProgressCooldown);
+                return Number.isFinite(value) && value >= 0 ? Math.min(300, Math.max(0, Math.floor(value))) : DEFAULT_SETTINGS.taskProgressCooldown;
+              })(),
               directAsk: parsed.directAsk !== false,
               directAskAutoTitle: parsed.directAskAutoTitle === true,
               oneClickEnable: parsed.oneClickEnable !== false,
@@ -4180,6 +4197,7 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
 .dsh-powerup-setting-label{color:var(--dsw-alias-label-primary);font-size:12.5px;line-height:18px}
 .dsh-powerup-setting-hint{color:var(--dsw-alias-label-tertiary);font-size:10.5px;line-height:15px}
 .dsh-powerup-setting .dsh-powerup-switch{margin-left:auto}
+.dsh-powerup-number-input{flex:none;width:64px;height:28px;margin-left:auto;padding:0 8px;border:.5px solid var(--dsw-alias-border-l2);border-radius:6px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);font:inherit;font-size:12px;text-align:center}
 .dsh-powerup-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:0;padding:0;list-style:none}
 .dsh-powerup-action{display:flex;align-items:flex-start;gap:8px;min-width:0;padding:7px 8px;border-radius:8px}
 .dsh-powerup-action-icon{flex:none;display:flex;align-items:center;justify-content:center;width:20px;height:20px;margin-top:1px;color:var(--dsw-alias-label-tertiary)}
@@ -4586,6 +4604,8 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-progress-heading{display:flex;flex:1 1 auto;flex-direction:column;gap:2px;min-width:0}
 .dsh-powerup-progress-title{font-size:14px;font-weight:600;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dsh-powerup-progress-sub{color:var(--dsw-alias-label-tertiary);font-size:10.5px;line-height:1.4}
+.dsh-powerup-progress-model-seat{flex:none;display:inline-flex;align-items:center;max-width:150px;overflow:hidden}
+.dsh-powerup-progress-model-loading{flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:18px;color:var(--dsw-alias-label-tertiary);font-size:13px}
 .dsh-powerup-progress-close{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;margin:-2px -2px 0 0;padding:0;border:0;border-radius:var(--dsw-radius-sm);background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:17px;line-height:1;cursor:pointer}
 .dsh-powerup-progress-close:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
 .dsh-powerup-progress-body{flex:1 1 auto;min-height:0;overflow-y:auto;padding:12px 16px 16px}
@@ -4602,6 +4622,9 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-progress-items{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
 .dsh-powerup-progress-item{display:flex;flex-direction:column;gap:4px;padding:6px 8px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-1)}
 .dsh-powerup-progress-item-head{display:flex;align-items:center;gap:7px;min-width:0}
+.dsh-powerup-progress-item-head.is-clickable{cursor:pointer;border-radius:6px;outline:none}
+.dsh-powerup-progress-item-head.is-clickable:hover{background:var(--dsw-alias-interactive-bg-hover)}
+.dsh-powerup-progress-item-head.is-clickable:focus-visible{box-shadow:0 0 0 2px var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary))}
 .dsh-powerup-progress-item-toggle{flex:none;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;padding:0;border:0;border-radius:4px;background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer;transition:transform .12s ease}
 .dsh-powerup-progress-item-toggle svg{transform:rotate(-90deg);transition:transform .12s ease}
 .dsh-powerup-progress-item:not(.is-collapsed) .dsh-powerup-progress-item-toggle svg{transform:none}
@@ -4613,6 +4636,8 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-progress-tab.on{color:var(--dsw-alias-brand-primary);font-weight:600}
 .dsh-powerup-progress-tab.on:after{content:"";position:absolute;left:8px;right:8px;bottom:-1px;height:2px;border-radius:2px;background:var(--dsw-alias-brand-primary)}
 .dsh-powerup-progress-req-tab{display:flex;flex-direction:column;gap:6px}
+.dsh-powerup-progress-req-actions{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:8px}
+.dsh-powerup-progress-req-actions .dsh-powerup-req-create{margin-top:0}
 .dsh-powerup-progress-badge{flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 5px;border-radius:8px;font-size:9.5px;font-weight:700;letter-spacing:.02em}
 .dsh-powerup-progress-badge[data-status=pending]{background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-tertiary)}
 .dsh-powerup-progress-badge[data-status=in-progress]{background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 14%,transparent);color:var(--dsw-alias-state-business-primary)}
@@ -10431,6 +10456,26 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           toggle(key, label),
         );
 
+        /** A numeric sub-row inside a card (clamped, persisted on change). */
+        const numberRow = (key, value, label, hint, min = 0, max = 300) => h('div', { key, className: 'dsh-powerup-setting' },
+          h('div', { className: 'dsh-powerup-setting-copy' },
+            h('span', { className: 'dsh-powerup-setting-label' }, label),
+            h('span', { className: 'dsh-powerup-setting-hint' }, hint),
+          ),
+          h('input', {
+            type: 'number',
+            className: 'dsh-powerup-number-input',
+            min, max, step: 1,
+            value: value,
+            'aria-label': label,
+            onChange: (event) => {
+              const parsed = Number(event.target.value);
+              const next = Number.isFinite(parsed) ? Math.min(max, Math.max(min, Math.floor(parsed))) : min;
+              setSettings({ [key]: next });
+            },
+          }),
+        );
+
         const actionsDetail = h('div', { className: 'dsh-powerup-card-detail' },
           h('h3', { className: 'dsh-powerup-section-title' }, t('page.actions')),
           h('ul', { className: 'dsh-powerup-actions' },
@@ -10498,7 +10543,11 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           featureCard('scrollToTop', ScrollTopIcon, 'page.scrollToTopTitle', 'page.scrollToTopDesc', 'page.scrollToTopHow'),
           featureCard('contentRendering', PowerUpLineIcon, 'page.renderingTitle', 'page.renderingDesc', 'page.renderingHow'),
           featureCard('dualSend', LauncherIcon, 'page.dualSendTitle', 'page.dualSendDesc', 'page.dualSendHow'),
-          featureCard('taskProgress', ProgressIcon, 'page.taskProgressTitle', 'page.taskProgressDesc', 'page.taskProgressHow'),
+          featureCard('taskProgress', ProgressIcon, 'page.taskProgressTitle', 'page.taskProgressDesc', 'page.taskProgressHow',
+            h('div', { className: 'dsh-powerup-card-detail' },
+              numberRow('taskProgressCooldown', settings.taskProgressCooldown, t('page.taskProgressCooldown'), t('page.taskProgressCooldownHint')),
+            ),
+          ),
           featureCard('directAsk', TagIcon, 'page.directAskTitle', 'page.directAskDesc', 'page.directAskHow',
             h('div', { className: 'dsh-powerup-card-detail' },
               settingRow('directAsk', settings.directAsk !== false, t('page.directAskToggle'), t('page.directAskToggleHint')),
@@ -10930,17 +10979,25 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
       function ProgressItem({ title, status, detail, children, nodeKey, t: translate }) {
         const [collapsed, setCollapsed] = useState(false);
         const hasBody = Boolean(detail) || (Array.isArray(children) && children.length > 0);
+        const toggle = () => { if (hasBody) setCollapsed((v) => !v); };
         return h('li', { key: nodeKey, className: 'dsh-powerup-progress-item' + (collapsed ? ' is-collapsed' : '') },
-          h('div', { className: 'dsh-powerup-progress-item-head' },
+          h('div', {
+            className: 'dsh-powerup-progress-item-head' + (hasBody ? ' is-clickable' : ''),
+            ...(hasBody ? {
+              role: 'button',
+              tabIndex: 0,
+              'aria-expanded': collapsed ? 'false' : 'true',
+              'aria-label': collapsed ? (translate?.('progress.expand') ?? 'Expand') : (translate?.('progress.collapse') ?? 'Collapse'),
+              onClick: toggle,
+              onKeyDown: (event) => {
+                if (event?.key === 'Enter' || event?.key === ' ') { event.preventDefault?.(); toggle(); }
+              },
+            } : {}),
+          },
             hasBody
-              ? h('button', {
-                type: 'button',
-                className: 'dsh-powerup-progress-item-toggle',
-                'aria-expanded': collapsed ? 'false' : 'true',
-                'aria-label': collapsed ? (translate?.('progress.expand') ?? 'Expand') : (translate?.('progress.collapse') ?? 'Collapse'),
-                onClick: () => setCollapsed((v) => !v),
-              }, h('svg', { width: 10, height: 10, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': 'true' },
-                h('path', { d: 'm4 6 4 4 4-4', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round', strokeLinejoin: 'round' })))
+              ? h('span', { className: 'dsh-powerup-progress-item-toggle', 'aria-hidden': 'true' },
+                h('svg', { width: 10, height: 10, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': 'true' },
+                  h('path', { d: 'm4 6 4 4 4-4', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round', strokeLinejoin: 'round' })))
               : h('span', { className: 'dsh-powerup-progress-item-toggle-spacer' }),
             ProgressBadge(status),
             h('span', { className: 'dsh-powerup-progress-item-title' }, title),
@@ -11061,6 +11118,75 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
        *  - the raw AI text is viewable and copyable;
        *  - one-off requirements can be added in the panel for the next refresh.
        */
+      /**
+       * Find the host's composer model-seat entry. `conversation.input.model`
+       * is a `single` session slot whose occupant is the built-in ModelSelect
+       * component; the entry carries both the component and the injected face
+       * (directory / load / select / resolveText) that the composer uses.
+       * Reading it (never registering a competitor) lets the progress header
+       * render the very same dropdown, and both seats stay in lockstep because
+       * they share the per-session ModelDirectory.
+       */
+      function findModelSelectEntry(slots) {
+        try {
+          if (slots === undefined || typeof slots.entriesOfSlot !== 'function') return null;
+          const entries = slots.entriesOfSlot('conversation.input.model');
+          if (!Array.isArray(entries)) return null;
+          for (const entry of entries) {
+            if (entry !== null && typeof entry === 'object'
+              && typeof entry.component === 'function' && typeof entry.inject === 'function') return entry;
+          }
+        } catch { /* older host without this slot */ }
+        return null;
+      }
+
+      /** Render the host's exact composer model dropdown inside the progress header. */
+      function ProgressModelSelect({ sessionId, ctx, t: translate }) {
+        const slots = ctx?.get?.('slots');
+        const [entry, setEntry] = useState(() => findModelSelectEntry(slots));
+        useEffect(() => {
+          if (entry !== null || slots === undefined) return undefined;
+          const update = () => {
+            const found = findModelSelectEntry(slots);
+            if (found !== null) setEntry(() => found);
+          };
+          update();
+          const off = typeof ctx?.on === 'function'
+            ? ctx.on('slots/changed', (key) => { if (key === 'conversation.input.model') update(); })
+            : null;
+          const timer = window.setInterval(update, 800);
+          return () => { if (typeof off === 'function') off(); window.clearInterval(timer); };
+        }, [entry, slots, ctx]);
+
+        // The injected face is cached per [entry, session] so the directory
+        // store identity stays stable across re-renders (ModelSelect subscribes
+        // to it with useSyncExternalStore).
+        const face = useMemo(() => {
+          if (entry === null || typeof sessionId !== 'string' || sessionId === '') return null;
+          try { return entry.inject(sessionId, {}) ?? null; } catch { return null; }
+        }, [entry, sessionId]);
+        const seatT = useMemo(() => {
+          try {
+            const bound = ctx?.locale?.bind?.('model');
+            return typeof bound === 'function' ? (key, params) => bound(key, params) : null;
+          } catch { return null; }
+        }, [ctx]);
+        // ModelSelect renders two child slots (label + options) with fallbacks;
+        // the label fallback is everything we need here, and options are empty
+        // because no other plugin contributes extra model actions.
+        const seatRenderSlot = useCallback((key, owner, opts) => opts?.fallback ?? null, []);
+
+        if (entry === null || face === null || seatT === null) {
+          return h('span', {
+            className: 'dsh-powerup-progress-model-loading',
+            title: translate?.('progress.modelChanging') ?? '',
+          }, '…');
+        }
+        return h('span', { className: 'dsh-powerup-progress-model-seat' },
+          h(entry.component, { ...face, t: seatT, renderSlot: seatRenderSlot, locked: false }),
+        );
+      }
+
       function ProgressControl({ sessionId }) {
         const settings = useSettings();
         const [open, setOpen] = useState(false);
@@ -11068,6 +11194,9 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         const [busy, setBusy] = useState(false);
         const [historyIndex, setHistoryIndex] = useState(0);
         const [activeTab, setActiveTab] = useState('progress');
+        // Cooldown state: last refresh timestamp + a ticking clock for the label.
+        const lastRefreshRef = useRef(0);
+        const [cooldownLeft, setCooldownLeft] = useState(0);
         // Selected requirement ids + the free-editable combined text.
         const [selectedReqIds, setSelectedReqIds] = useState([]);
         const [reqText, setReqText] = useState('');
@@ -11132,6 +11261,28 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           }
         }, []);
 
+        // Cooldown clock: decrement the remaining seconds once a second while open.
+        useEffect(() => {
+          if (!open || cooldownLeft <= 0) return undefined;
+          const timer = window.setTimeout(() => setCooldownLeft((n) => Math.max(0, n - 1)), 1000);
+          return () => window.clearTimeout(timer);
+        }, [open, cooldownLeft]);
+
+        /** Cancel the in-flight side call, then refresh the settled view. */
+        const cancel = useCallback(async () => {
+          const id = sessionRef.current;
+          if (typeof id !== 'string' || id === '') return;
+          setBusy(true);
+          try {
+            const body = await progressRequest(id, 'cancel');
+            setView(body);
+            setHistoryIndex(0);
+          } catch { /* keep the current view */ } finally {
+            setBusy(false);
+            setActiveTab('progress');
+          }
+        }, []);
+
         // While the panel is open, keep polling until the side call settles.
         useEffect(() => {
           if (!open) return undefined;
@@ -11156,6 +11307,15 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         const run = useCallback(async () => {
           const id = sessionRef.current;
           if (typeof id !== 'string' || id === '') return;
+          // Cooldown guard: refuse a refresh started too soon after the last one.
+          const cooldown = Math.max(0, Math.floor(Number(settings.taskProgressCooldown) || 0));
+          const elapsed = Date.now() - lastRefreshRef.current;
+          if (lastRefreshRef.current > 0 && elapsed < cooldown * 1000) {
+            setCooldownLeft(Math.ceil((cooldown * 1000 - elapsed) / 1000));
+            return;
+          }
+          lastRefreshRef.current = Date.now();
+          if (cooldown > 0) setCooldownLeft(cooldown);
           setBusy(true);
           try {
             // Send the full, possibly user-edited text verbatim.
@@ -11166,9 +11326,11 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             setView({ status: 'error', error: error?.message ?? String(error) });
           } finally {
             setBusy(false);
+            // Once the refresh settles, show the result on the progress tab.
+            setActiveTab('progress');
             if (!open) setOpen(true);
           }
-        }, [open, reqText]);
+        }, [open, reqText, settings.taskProgressCooldown]);
 
         const clearHistory = useCallback(async () => {
           const id = sessionRef.current;
@@ -11286,9 +11448,12 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         })();
 
         // Three tabs below the header: progress / requirements / raw output.
+        // The requirements tab is labelled "刷新进度": it holds the generation
+        // requirements and the refresh action that consumes them. The refresh
+        // button lives here only (not in the footer), beside "新建要求".
         const tabs = [
           { id: 'progress', label: t('progress.tabProgress') },
-          { id: 'requirements', label: t('progress.requirements') },
+          { id: 'requirements', label: t('progress.tabRefresh') },
           { id: 'raw', label: t('progress.viewRaw') },
         ];
         const tabBar = h('div', { className: 'dsh-powerup-progress-tabs', role: 'tablist' },
@@ -11340,6 +11505,10 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           );
         })();
 
+        const cooldownActive = cooldownLeft > 0 && !running;
+        const refreshLabel = cooldownActive
+          ? t('progress.refreshCooldown', { seconds: cooldownLeft })
+          : t('progress.refresh');
         const requirementsBody = h('div', { className: 'dsh-powerup-progress-req-tab' },
           h(RequirementPicker, {
             reqs: visibleReqs,
@@ -11349,10 +11518,22 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             onToggle: toggleReq,
             onTextChange: setReqText,
           }),
-          h('button', {
-            type: 'button', className: 'dsh-powerup-prompt-new dsh-powerup-req-create',
-            onClick: () => setCreatingReq(true),
-          }, t('progress.reqNew')),
+          h('div', { className: 'dsh-powerup-progress-req-actions' },
+            running
+              ? h('button', {
+                type: 'button', className: 'dsh-powerup-progress-refresh',
+                onClick: () => void cancel(),
+              }, t('progress.cancel'))
+              : h('button', {
+                type: 'button', className: 'dsh-powerup-progress-refresh',
+                disabled: busy || cooldownActive, title: cooldownActive ? refreshLabel : undefined,
+                onClick: () => void run(),
+              }, refreshLabel),
+            h('button', {
+              type: 'button', className: 'dsh-powerup-prompt-new dsh-powerup-req-create',
+              onClick: () => setCreatingReq(true),
+            }, t('progress.reqNew')),
+          ),
         );
 
         const rawBody = h('div', null,
@@ -11396,6 +11577,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
                 t('progress.subtitle'),
               ),
             ),
+            h(ProgressModelSelect, { sessionId, ctx: ctxRef.current, t }),
             h('button', {
               type: 'button', className: 'dsh-powerup-progress-close',
               'aria-label': t('progress.close'), onClick: close,
@@ -11411,10 +11593,6 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
               type: 'button', className: 'dsh-powerup-progress-mini',
               onClick: () => void clearHistory(),
             }, t('progress.clearHistory')) : null,
-            h('button', {
-              type: 'button', className: 'dsh-powerup-progress-refresh',
-              disabled: busy || running, onClick: () => void run(),
-            }, t('progress.refresh')),
           ),
           h('div', {
             className: 'dsh-powerup-progress-resizer',
@@ -11605,6 +11783,8 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           PROGRESS_CSS,
           ProgressControl,
           ProgressItem,
+          ProgressModelSelect,
+          findModelSelectEntry,
           ProgressStructure,
           ProgressDisplay,
           RequirementManager,

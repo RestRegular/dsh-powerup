@@ -1330,13 +1330,17 @@ assert.ok(update.PROGRESS_CSS.includes('.dsh-powerup-progress-tabs{'), 'progress
 assert.ok(update.PROGRESS_CSS.includes('.dsh-powerup-progress-item-toggle{'), 'progress stage cards are collapsible');
 assert.ok(typeof update.ProgressItem === 'function', 'collapsible progress item is exported');
 assert.ok(typeof update.RequirementCreateModal === 'function', 'session-side requirement modal is exported');
+assert.ok(typeof update.ProgressModelSelect === 'function', 'progress header mounts the host model selector');
+assert.ok(typeof update.findModelSelectEntry === 'function', 'host model slot entry lookup is exported');
+assert.ok(update.PROGRESS_CSS.includes('.dsh-powerup-progress-req-actions{'), 'refresh button shares the requirements action row');
+assert.ok(update.PROGRESS_CSS.includes('.dsh-powerup-progress-model-seat{'), 'progress model seat is styled');
 
 // Every feature defaults on; a stored false (from older settings or the page
 // switches) wins. The legacy `enabled` flag migrates to `contextMenu`.
 const ALL_ON_SETTINGS = {
   contextMenu: true, launcher: true, sessionSwitch: true, jobStop: true,
   update: true, locateSession: true, scrollToTop: true, contentRendering: true, dualSend: false, workspacePrompts: true,
-  taskProgress: true, directAsk: true, directAskAutoTitle: false, oneClickEnable: true, oneClickRestart: true,
+  taskProgress: true, taskProgressCooldown: 5, directAsk: true, directAskAutoTitle: false, oneClickEnable: true, oneClickRestart: true,
 };
 const savedGetItem = globalThis.localStorage.getItem;
 globalThis.localStorage.getItem = () => null;
@@ -1351,7 +1355,7 @@ globalThis.localStorage.getItem = () => JSON.stringify({
 assert.deepEqual(update.readSettings(), {
   contextMenu: false, launcher: false, sessionSwitch: false, jobStop: false,
   update: false, locateSession: false, scrollToTop: false, contentRendering: false, dualSend: true, workspacePrompts: false,
-  taskProgress: false, directAsk: false, directAskAutoTitle: true, oneClickEnable: false, oneClickRestart: false,
+  taskProgress: false, taskProgressCooldown: 5, directAsk: false, directAskAutoTitle: true, oneClickEnable: false, oneClickRestart: false,
 });
 globalThis.localStorage.getItem = savedGetItem;
 
@@ -2234,7 +2238,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.18.0');
+assert.equal(host.__test.SELF_VERSION, '0.19.0');
 
 const installFailSpecs = [];
 const installFailManager = {
