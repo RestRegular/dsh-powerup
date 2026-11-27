@@ -1329,6 +1329,9 @@ assert.ok(/data-powerup-ws-menu/u.test(source) && /\[data-powerup-model-menu\], 
 assert.ok(/scopeOptions/u.test(source) && /prompts\.workspaceCurrent/u.test(source), 'requirement scope offers only current and all workspaces');
 assert.ok(/useWorkspaces: props\?\.useWorkspaces/u.test(source) && /function ProgressControl\(\{ sessionId, useWorkspaces \}\)/u.test(source), 'progress control receives the scoped useWorkspaces hook');
 assert.ok(/typeof useWorkspaces === 'function'\s*\? useWorkspaces\(workspaceSelector\)/u.test(source), 'workspace id resolves through the client useWorkspaces hook, not Host-only ctx.workspaces.list');
+assert.ok(/function findModelDirectory\(/u.test(source) && /modelDirectories/u.test(source), 'direct-ask locates the host model directory for snapshot/restore');
+assert.ok(/snap\.modelDir\.select\(snap\.model\)/u.test(source), 'direct-ask restores the previous model selection on close');
+assert.ok(/@media \(max-width:767px\)\{\s*\.dsh-powerup-progress-panel\{left:8px !important/u.test(update.PROGRESS_CSS), 'progress panel becomes a full-width sheet on mobile');
 assert.ok(/generateTitle/u.test(fs.readFileSync(new URL('../lib/direct-ask.js', import.meta.url), 'utf8')), 'LLM title generation exists');
 {
   const nodes = update.renderMarkdown('# Title\n\n- one\n- two\n\n**bold** and `code`');
@@ -2256,7 +2259,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.19.3');
+assert.equal(host.__test.SELF_VERSION, '0.19.4');
 
 const installFailSpecs = [];
 const installFailManager = {

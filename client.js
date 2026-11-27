@@ -85,7 +85,7 @@
       const requirementCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.19.3';
+      const VERSION = '0.19.4';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -4696,6 +4696,20 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-req-form-foot{display:flex;justify-content:flex-end;gap:8px}
 .dsh-powerup-progress-resizer{position:absolute;right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,var(--dsw-alias-border-l3) 50%,transparent 62%,var(--dsw-alias-border-l3) 62%,var(--dsw-alias-border-l3) 72%,transparent 72%)}
 .dsh-powerup-progress-req-editor{display:flex;flex-direction:column;gap:10px;padding:8px 0}
+/* Mobile: the panel's width/top/right come from inline styles (resizable on
+   desktop), so override them here to make it a near-full-width sheet that fits
+   the viewport. No backdrop-filter on the root — the host's right-side panel is
+   full-screen on phones and blurring it would blur the whole conversation. */
+@media (max-width:767px){
+  .dsh-powerup-progress-panel{left:8px !important;right:8px !important;width:auto !important;max-width:none !important;max-height:calc(100dvh - 88px) !important;border-radius:12px !important}
+  .dsh-powerup-progress-head{padding:12px 12px 8px}
+  .dsh-powerup-progress-model-seat{max-width:120px}
+  .dsh-powerup-progress-body{padding:10px 12px 12px}
+  .dsh-powerup-progress-tabs{padding:0 4px}
+  .dsh-powerup-progress-tab{padding:8px 9px}
+  .dsh-powerup-progress-foot{padding:8px 12px}
+  .dsh-powerup-progress-resizer{display:none}
+}
 @media (prefers-reduced-motion:reduce){.dsh-powerup-progress-panel,.dsh-powerup-progress-btn.is-running svg,.dsh-powerup-progress-fill{animation:none;transition:none}}
 /* Direct-ask button + dialog */
 .dsh-powerup-directask-btn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0;border:.5px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font:inherit;line-height:1;cursor:pointer}
@@ -9415,6 +9429,32 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
       }
 
       /**
+       * The host model directory owns the committed model selection per session
+       * (the composer dropdown writes through `directory.select`, which calls
+       * `sessions.selectModel`). Snapshot its `current` on Direct Ask open and
+       * select it back on close so a model picked for light Q&A never leaks into
+       * the real session.
+       */
+      function findModelDirectory(ctx, sessionId) {
+        try {
+          const service = ctx?.get?.('modelDirectories');
+          if (service === undefined || typeof service.directoryFor !== 'function') return null;
+          const directory = service.directoryFor(sessionId);
+          if (directory === null || typeof directory !== 'object'
+            || directory.store === undefined || typeof directory.store.getSnapshot !== 'function'
+            || typeof directory.select !== 'function') return null;
+          return directory;
+        } catch { return null; }
+      }
+      /** Copy just the selection fields so the snapshot cannot mutate later. */
+      function copyModelSelection(selection) {
+        if (selection === null || typeof selection !== 'object') return null;
+        const copy = { provider: selection.provider, model: selection.model };
+        if (typeof selection.reasoningEffort === 'string') copy.reasoningEffort = selection.reasoningEffort;
+        return copy;
+      }
+
+      /**
        * Hide every other plugin's controls in the composer while Direct Ask is
        * open, and put them back byte-for-byte on close. Host controls (add file
        * / command, permission, model, send) and our lightning button are kept.
@@ -9581,7 +9621,9 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         // files the user picks through the real composer's file input.
         useEffect(() => {
           if (!open || seat === null) return undefined;
-          snapshotRef.current = { draft: draftRef.current };
+          const modelDir = findModelDirectory(ctx, sessionRef.current);
+          const savedModel = modelDir === null ? null : copyModelSelection(modelDir.store.getSnapshot()?.current);
+          snapshotRef.current = { draft: draftRef.current, modelDir, model: savedModel };
           attachSnapshotRef.current = attachmentIdsRef.current.slice();
           filesRef.current = [];
           const takeover = createComposerTakeover(seat);
@@ -9612,10 +9654,20 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             if (snap !== null && typeof inputActions?.setDraft === 'function') {
               inputActions.setDraft(snap.draft);
             }
+            // Restore the model that was selected before Direct Ask opened. The
+            // model directory writes through to the session on select, so a
+            // model changed while Q&A was open must be put back explicitly.
+            if (snap !== null && snap.model !== null && snap.modelDir !== null) {
+              const current = copyModelSelection(snap.modelDir.store.getSnapshot()?.current);
+              const changed = current === null || current.provider !== snap.model.provider
+                || current.model !== snap.model.model
+                || current.reasoningEffort !== snap.model.reasoningEffort;
+              if (changed) void snap.modelDir.select(snap.model).catch(() => { /* best effort restore */ });
+            }
             pruneAddedAttachments();
             attachSnapshotRef.current = [];
           };
-        }, [open, seat, inputActions, pruneAddedAttachments]);
+        }, [open, seat, inputActions, pruneAddedAttachments, ctx]);
 
         useEffect(() => {
           if (bottomRef.current !== null) bottomRef.current.scrollIntoView?.({ block: 'nearest' });
