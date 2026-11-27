@@ -142,6 +142,18 @@ entries other plugins add) become an icon grid instead of a one-per-row list:
   its own (chat glyph + label) that calls `layout.selectPanel(null)` to return
   to the Conversation; it highlights when no global panel is selected and can be
   placed anywhere by dragging, including into a folder.
+- **Task-aware restart and close.** `GET /dsh-powerup/api/restart|close` also
+  reports `runningTasks` (live running Agents and running background jobs). When
+  any task is unfinished the normal confirm is blocked: the dialog lists the
+  sessions and offers a **Force restart / Force close** path that stops every
+  running Agent and job first. That forced path has an extra **Resume tasks after
+  restart / Resume tasks on next launch** option (on by default, with an optional
+  custom continuation prompt). With resume enabled the Host cancels each running
+  Agent, kills running jobs, and records the affected sessions in
+  `~/.dsh/dsh-powerup/task-resume.json`; on the next successful startup it sends
+  each session a queued "continue" prompt through `sessionController.prompt`
+  (which resumes cold sessions), then removes the delivered records. With resume
+  disabled the forced path only stops the work and keeps no records.
 - **A synthetic "Restart DSH" tile.** A second Power-Up tile (a ring with the
   arrowhead tangent to the top, i.e. the arrow lines up with the arc) plus
   `重启` / `Restart` opens the same restart confirmation the pending-restart

@@ -2029,6 +2029,54 @@ await host.__test.handle(
 assert.equal(failedKillResponse.status, 404);
 assert.equal(JSON.parse(failedKillResponse.body).code, 'kill-failed');
 
+// ---------------------------------------------------------------------------
+// Host half: task-aware restart / close gate and forced resume
+// ---------------------------------------------------------------------------
+const runningAgents = {
+  list() {
+    return [
+      { id: 'session-running', status: 'running', session: { title: () => 'build' }, cancel: () => {} },
+      { id: 'session-idle', status: 'idle', session: { title: () => 'idle' }, cancel: () => {} },
+    ];
+  },
+};
+const ctxWithTasks = { get: (name) => name === 'agents' ? runningAgents : undefined };
+
+const gatedGet = fakeResponse();
+await host.__test.handle({
+  method: 'GET', url: '/dsh-powerup/api/restart', headers: {},
+  socket: { remoteAddress: '127.0.0.1' },
+}, gatedGet, ctxWithTasks);
+const gatedGetBody = JSON.parse(gatedGet.body);
+assert.equal(gatedGetBody.hasRunningTasks, true);
+assert.deepEqual(gatedGetBody.runningTasks.map((task) => task.id), ['session-running']);
+
+const gatedPost = fakeResponse();
+await host.__test.handle(
+  fakeJsonRequest('/dsh-powerup/api/restart', { action: 'restart' }),
+  gatedPost,
+  ctxWithTasks,
+);
+assert.equal(gatedPost.status, 409);
+assert.equal(JSON.parse(gatedPost.body).code, 'tasks-running', 'normal restart refuses unfinished tasks');
+
+let cancelled = 0;
+const forceAgents = {
+  list() {
+    return [{ id: 'session-running', status: 'running', session: { title: () => 'build' }, cancel: () => { cancelled += 1; } }];
+  },
+};
+const forcedPost = fakeResponse();
+await host.__test.handle(
+  fakeJsonRequest('/dsh-powerup/api/close', { action: 'close', force: true, resume: true, resumePrompt: '  继续任务  ' }),
+  forcedPost,
+  { get: (name) => name === 'agents' ? forceAgents : undefined },
+);
+const forcedBody = JSON.parse(forcedPost.body);
+assert.equal(forcedBody.ok, false, 'plain Node cannot schedule a shutdown');
+assert.equal(forcedBody.code, 'shutdown-unsupported');
+assert.equal(cancelled, 1, 'forced action cancels the running agent before the runtime guard');
+
 // Prompts and mask rules live in one central ~/.dsh/dsh-powerup file holding
 // every workspace's records; no per-workspace path lookup is needed.
 {
@@ -2122,7 +2170,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.11.0');
+assert.equal(host.__test.SELF_VERSION, '0.12.0');
 
 const installFailSpecs = [];
 const installFailManager = {

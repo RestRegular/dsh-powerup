@@ -39,6 +39,15 @@ import { dirname, join, resolve as resolvePath, sep } from 'node:path';
 import { homedir } from 'node:os';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import { describeClose, describeRestart, requestRestart, requestShutdown } from './lib/restart.js';
+import {
+  TASK_RESUME_FILE,
+  collectRunningTasks,
+  createResumeRecord,
+  mergeResumeQueue,
+  readResumeQueue,
+  replayPendingResumes,
+  stopUnfinishedTasks,
+} from './lib/task-resume.js';
 import { createStepReadTool } from './lib/step-tool.js';
 import { createProgressManager } from './lib/progress-manager.js';
 
@@ -64,6 +73,8 @@ const BODY_LIMIT = 16 * 1024;
 const STORE_DIR_NAME = 'dsh-powerup';
 const PROMPTS_FILE = 'prompts.json';
 const MASK_RULES_FILE = 'mask-rules.json';
+/** Pending continuation prompts recorded by forced restart / close. */
+const TASK_RESUME_FILE_NAME = TASK_RESUME_FILE;
 /** Legacy relative location inside a workspace, used only for migration. */
 const LEGACY_STORE_DIR = join('.dsh', 'dsh-powerup');
 
@@ -163,6 +174,8 @@ function sendJson(res, payload, status = 200) {
  * @returns {Promise<unknown>}
  */
 async function readJsonBody(req) {
+  // Some callers (and older test doubles) send no stream at all.
+  if (req === null || typeof req !== 'object' || typeof req[Symbol.asyncIterator] !== 'function') return {};
   const chunks = [];
   let size = 0;
   for await (const chunk of req) {
@@ -247,6 +260,12 @@ function normalizeStopReason(value) {
  * @param {unknown} value
  * @returns {string}
  */
+/** Bound the optional resume prompt supplied by the UI. */
+function cleanResumePrompt(value) {
+  if (typeof value !== 'string') return '';
+  return value.replace(/[\u0000-\u001f\u007f]+/gu, ' ').replace(/\s+/gu, ' ').trim().slice(0, 4000);
+}
+
 function killReasonFor(value) {
   const reason = normalizeStopReason(value);
   return reason === '' ? HUMAN_KILL_REASON : `${HUMAN_KILL_REASON}: ${reason}`;
@@ -618,14 +637,85 @@ async function handle(req, res, ctx) {
 
   if (op === '' || op === 'restart' || op === 'close') {
     const action = op === 'close' ? 'close' : 'restart';
+    const capability = action === 'close' ? describeClose() : describeRestart();
     if (req.method === 'GET') {
-      sendJson(res, { ok: true, action, ...(action === 'close' ? describeClose() : describeRestart()) });
+      // Expose unfinished work so the UI can gate the normal action and offer
+      // the forced variant. A runtime that cannot restart still reports tasks.
+      const tasks = collectRunningTasks({ agents: ctx?.get?.('agents'), jobs: ctx?.get?.('jobs') });
+      sendJson(res, {
+        ok: true,
+        action,
+        ...capability,
+        runningTasks: tasks,
+        hasRunningTasks: tasks.length > 0,
+      });
       return;
     }
     if (req.method === 'POST') {
+      let body;
+      try {
+        body = await readJsonBody(req);
+      } catch (error) {
+        sendJson(res, { ok: false, error: String(error?.message ?? error) }, 400);
+        return;
+      }
+      // A client that sends no body (older UI, plugin self-update flow) keeps
+      // the historical behaviour: scheduled directly, no task gate.
+      const force = body?.force === true;
+      const requested = body?.force === true || body?.resume === true || body?.action !== undefined;
+      const tasks = requested
+        ? collectRunningTasks({ agents: ctx?.get?.('agents'), jobs: ctx?.get?.('jobs') })
+        : [];
+      if (requested && tasks.length > 0 && !force) {
+        sendJson(res, {
+          ok: false,
+          code: 'tasks-running',
+          error: 'unfinished tasks are running; use force to stop them',
+          runningTasks: tasks,
+        }, 409);
+        return;
+      }
+      let stopped = { cancelledAgents: [], killedJobs: [], errors: [] };
+      let recorded = 0;
+      if (requested && tasks.length > 0 && force) {
+        stopped = stopUnfinishedTasks(
+          { agents: ctx?.get?.('agents'), jobs: ctx?.get?.('jobs') },
+          `dsh-powerup forced ${action}`,
+        );
+        if (body?.resume === true) {
+          try {
+            const filePath = storePath(TASK_RESUME_FILE_NAME);
+            const records = [];
+            const seen = new Set();
+            for (const task of tasks) {
+              if (task.kind !== 'agent' || seen.has(task.id)) continue;
+              seen.add(task.id);
+              records.push(createResumeRecord({
+                sessionId: task.id,
+                title: task.title,
+                prompt: cleanResumePrompt(body?.resumePrompt),
+              }, randomUUID));
+            }
+            if (records.length > 0) {
+              mkdirSync(dirname(filePath), { recursive: true });
+              const queue = mergeResumeQueue(readResumeQueue(filePath, readFileSync), records);
+              writeFileSync(filePath, JSON.stringify(queue, null, 2) + '\n', 'utf8');
+              recorded = records.length;
+            }
+          } catch (error) {
+            appendSelfUpdateLog(`task-resume: could not record resumes: ${String(error?.message ?? error)}`);
+          }
+        }
+      }
       try {
         const scheduled = action === 'close' ? requestShutdown() : requestRestart();
-        sendJson(res, { ok: true, [action === 'close' ? 'closing' : 'restarting']: true, ...scheduled });
+        sendJson(res, {
+          ok: true,
+          [action === 'close' ? 'closing' : 'restarting']: true,
+          ...scheduled,
+          stopped,
+          recorded,
+        });
       } catch (error) {
         sendJson(res, { ok: false, code: error?.code, error: String(error?.message ?? error) }, 409);
       }
@@ -689,6 +779,29 @@ export function apply(ctx) {
       if (ctx.__powerupProgress === manager) ctx.__powerupProgress = undefined;
     }, 'dsh-powerup: progress manager');
   });
+  // Replay continuation prompts recorded by a forced restart/close once the
+  // application has fully started. `sessionController.prompt` resumes cold
+  // sessions internally, so no session needs to be opened by the user first.
+  ctx.inject(['sessionController'], (scope) => {
+    const controller = scope.get('sessionController');
+    if (controller === null || typeof controller?.prompt !== 'function') return;
+    const ready = ctx.appReady;
+    if (ready === null || typeof ready?.onReady !== 'function') return;
+    scope.effect(() => ready.onReady(() => {
+      void replayPendingResumes({
+        filePath: storePath(TASK_RESUME_FILE_NAME),
+        sessionController: controller,
+        readFile: readFileSync,
+        writeFile: writeFileSync,
+        mkdir: mkdirSync,
+        dirname,
+        randomUUID,
+        logger: (line) => appendSelfUpdateLog(line),
+      }).catch((error) => {
+        appendSelfUpdateLog(`task-resume: uncaught ${String(error?.stack ?? error)}`);
+      });
+    }), 'dsh-powerup: resume tasks after restart');
+  });
 }
 
 /** Exported for tests only; the Host never reads this. */
@@ -715,5 +828,7 @@ export const __test = {
   ROUTE,
   MODULE_ID,
   STORE_DIR_NAME,
+  TASK_RESUME_FILE_NAME,
   createProgressManager,
+  cleanResumePrompt,
 };

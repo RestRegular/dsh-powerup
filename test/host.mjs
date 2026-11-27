@@ -347,7 +347,7 @@ const wiredCtx = fakeContext({
 });
 apply(wiredCtx);
 assert.deepEqual(wiredCtx.injections.map((entry) => entry.deps), [
-  ['webServer'], ['tools', 'sessionQuery'], ['llm', 'sessionQuery'],
+  ['webServer'], ['tools', 'sessionQuery'], ['llm', 'sessionQuery'], ['sessionController'],
 ]);
 assert.equal(registered.length, 1, 'one tool is registered');
 assert.equal(registered[0].name, STEP_READ_TOOL_NAME);

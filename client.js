@@ -310,6 +310,18 @@
           'restart.desc': '重启会关闭并重新打开 DSH，正在运行的任务会中断。',
           'restart.cancel': '取消',
           'restart.confirm': '立即重启',
+          'restart.tasksTitle': '有 {count} 个任务尚未完成',
+          'restart.tasksHint': '普通重启不允许中断未完成任务。可以强制停止它们后再重启。',
+          'restart.forceLabel': '强制重启',
+          'restart.forceCloseLabel': '强制关闭',
+          'restart.resumeLabel': '重启后自动继续任务',
+          'restart.resumeLabelClose': '下次打开后自动继续任务',
+          'restart.resumeHint': '停止前记录这些会话，下次打开 DSH 时自动发送「继续」提示词。',
+          'restart.resumePromptLabel': '继续提示词（可选）',
+          'restart.resumePromptPlaceholder': '默认：继续之前未完成的任务。',
+          'restart.taskLine': '会话 {id}',
+          'restart.forceConfirm': '强制停止并重启',
+          'force.done': '已停止 {count} 个任务，将自动继续 {resumed} 个会话。',
           'update.doneTitle': '安装完成',
           'update.doneInstalled': '{name} 已安装 {version}。',
           'update.doneDisabled': '{name} 已安装 {version}，尚未启用。',
@@ -632,6 +644,18 @@
           'restart.desc': 'Restarting closes and reopens DSH; running tasks are interrupted.',
           'restart.cancel': 'Cancel',
           'restart.confirm': 'Restart now',
+          'restart.tasksTitle': '{count} unfinished task(s)',
+          'restart.tasksHint': 'A normal restart cannot interrupt unfinished tasks. Force-stop them first, then restart.',
+          'restart.forceLabel': 'Force restart',
+          'restart.forceCloseLabel': 'Force close',
+          'restart.resumeLabel': 'Resume tasks after restart',
+          'restart.resumeLabelClose': 'Resume tasks on next launch',
+          'restart.resumeHint': 'Record these sessions before stopping; on next launch DSH sends a "continue" prompt automatically.',
+          'restart.resumePromptLabel': 'Continuation prompt (optional)',
+          'restart.resumePromptPlaceholder': 'Default: Continue the previous unfinished task.',
+          'restart.taskLine': 'Session {id}',
+          'restart.forceConfirm': 'Force-stop and restart',
+          'force.done': 'Stopped {count} task(s); {resumed} session(s) will resume automatically.',
           'update.doneTitle': 'Install complete',
           'update.doneInstalled': '{name} installed {version}.',
           'update.doneDisabled': '{name} {version} is installed but not enabled.',
@@ -1237,11 +1261,21 @@
             window.alert(t(options.unsupportedKey, { reason: capability?.reason ?? '' }));
             return;
           }
+          const tasks = Array.isArray(capability?.runningTasks) ? capability.runningTasks : [];
           if (window.confirm(t(options.titleKey) + ' ' + t(options.descKey)) !== true) return;
+          // With unfinished tasks, the last-resort path offers the forced
+          // variant through a second confirmation and resumes by default.
+          let force = false;
+          let resume = false;
+          if (tasks.length > 0) {
+            if (window.confirm(t('restart.tasksTitle', { count: tasks.length }) + '\n' + t('restart.tasksHint')) !== true) return;
+            force = true;
+            resume = window.confirm(t(options.action === 'close' ? 'restart.resumeLabelClose' : 'restart.resumeLabel') + '\n' + t('restart.resumeHint')) === true;
+          }
           const response = await fetch(options.api, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ action: options.action }),
+            body: JSON.stringify({ action: options.action, force, resume }),
           });
           const data = await response.json().catch(() => null);
           if (!response.ok || data?.ok !== true) throw new Error(data?.error ?? 'HTTP ' + response.status);
@@ -4097,6 +4131,17 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
 .dsh-powerup-update-field{display:flex;flex-direction:column;gap:8px;min-width:0}
 .dsh-powerup-update-label{display:block;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px;font-weight:500}
 .dsh-powerup-update-note{margin:0;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px;overflow-wrap:anywhere}
+.dsh-powerup-update-tasks{display:flex;flex-direction:column;gap:8px;padding:12px;border:.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-2)}
+.dsh-powerup-update-tasks>strong{color:var(--dsw-alias-label-primary);font-size:12.5px;line-height:18px}
+.dsh-powerup-update-task-list{display:flex;flex-direction:column;gap:4px;max-height:150px;overflow-y:auto;margin:2px 0;padding:0;list-style:none}
+.dsh-powerup-update-task-list li{display:flex;align-items:center;gap:7px;min-width:0;padding:4px 8px;border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-secondary);font-size:11.5px;line-height:16px}
+.dsh-powerup-update-task-list code{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--dsw-font-family-code,ui-monospace,SFMono-Regular,Consolas,monospace);font-size:11px}
+.dsh-powerup-update-task-dot{flex:none;width:6px;height:6px;border-radius:50%;background:var(--dsw-alias-state-warning-foreground,var(--dsw-alias-brand-primary))}
+.dsh-powerup-app-check{display:flex;align-items:flex-start;gap:9px;padding:4px 0;cursor:pointer}
+.dsh-powerup-app-check input{flex:none;margin:2px 0 0;accent-color:var(--dsw-alias-brand-primary)}
+.dsh-powerup-app-check span{display:flex;flex-direction:column;gap:1px;min-width:0}
+.dsh-powerup-app-check strong{color:var(--dsw-alias-label-primary);font-size:12px;line-height:18px;font-weight:500}
+.dsh-powerup-app-check small{color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:16px}
 .dsh-powerup-update-name{color:var(--dsw-alias-label-tertiary);font-family:var(--dsw-font-family-code,ui-monospace,SFMono-Regular,Consolas,monospace);font-size:11.5px;line-height:18px;overflow-wrap:anywhere}
 .dsh-powerup-update-summary{display:flex;flex-direction:column;gap:2px;min-width:0}
 .dsh-powerup-update-list-state{display:flex;flex-direction:column;gap:10px;padding:12px}
@@ -7137,6 +7182,12 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         const [appCapability, setAppCapability] = useState(null);
         const [appBusy, setAppBusy] = useState(false);
         const [appError, setAppError] = useState(null);
+        /** Running tasks reported by the Host for the app action dialog. */
+        const [appTasks, setAppTasks] = useState([]);
+        /** Checkbox: force-stopped tasks are resumed on next launch. */
+        const [appResume, setAppResume] = useState(true);
+        /** Optional custom continuation prompt. */
+        const [appResumePrompt, setAppResumePrompt] = useState('');
         const tokenRef = useRef(null);
         const abortRef = useRef(null);
         const buttonsRef = useRef(new Set());
@@ -7822,15 +7873,31 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         const readRestartCapability = () => readAppCapability(UPDATE_API);
 
         /** POST one app-control command; throws when the Host refuses. */
-        const requestAppAction = async (action) => {
+        const requestAppAction = async (action, options = {}) => {
           const api = action === 'close' ? CLOSE_API : UPDATE_API;
+          // Sending a body opts into the task-aware path. The plugin self-update
+          // flow calls requestAppRestart() with no options and keeps its old
+          // behaviour (no task gate) by not sending a body.
+          const aware = options.aware === true;
+          const body = aware ? JSON.stringify({
+            action,
+            force: options.force === true,
+            resume: options.resume === true,
+            resumePrompt: typeof options.resumePrompt === 'string' ? options.resumePrompt : '',
+          }) : undefined;
           const response = await fetch(api, {
             method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ action }),
+            headers: body === undefined ? undefined : { 'content-type': 'application/json' },
+            ...(body === undefined ? {} : { body }),
           });
           const data = await response.json().catch(() => null);
-          if (!response.ok || data?.ok !== true) throw new Error(data?.error ?? `HTTP ${response.status}`);
+          if (!response.ok || data?.ok !== true) {
+            if (data?.code === 'tasks-running' && Array.isArray(data.runningTasks)) {
+              setAppTasks(data.runningTasks);
+            }
+            throw new Error(data?.error ?? `HTTP ${response.status}`);
+          }
+          return data;
         };
 
         /** The restart command, as the install flow spells it. */
@@ -7842,8 +7909,20 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           setAppCapability(null);
           setAppError(null);
           setAppBusy(false);
-          void readAppCapability(action === 'close' ? CLOSE_API : UPDATE_API)
-            .then((capability) => setAppCapability(capability));
+          setAppTasks([]);
+          setAppResume(true);
+          setAppResumePrompt('');
+          const api = action === 'close' ? CLOSE_API : UPDATE_API;
+          void fetch(api, { headers: { accept: 'application/json' } })
+            .then((response) => response.json())
+            .then((data) => {
+              setAppCapability({
+                supported: data?.ok === true && data.supported === true,
+                reason: typeof data?.reason === 'string' ? data.reason : '',
+              });
+              if (Array.isArray(data?.runningTasks)) setAppTasks(data.runningTasks);
+            })
+            .catch((error) => setAppCapability({ supported: false, reason: errorText(error) }));
         };
         const openAppActionRef = useRef(() => {});
         openAppActionRef.current = openAppAction;
@@ -7863,12 +7942,20 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         }, []);
 
         /** Confirm the app-level action (restart or close). */
-        const confirmAppAction = async () => {
+        const confirmAppAction = async (forced = false) => {
           if (appBusy) return;
+          if (!forced && appTasks.length > 0) return;
           setAppBusy(true);
           setAppError(null);
           try {
-            await requestAppAction(appAsk === 'close' ? 'close' : 'restart');
+            const data = await requestAppAction(appAsk === 'close' ? 'close' : 'restart', {
+              aware: true,
+              force: forced,
+              resume: forced && appResume,
+              resumePrompt: appResumePrompt,
+            });
+            // The app is about to exit; nothing more to render.
+            void data;
           } catch (error) {
             setAppBusy(false);
             setAppError(errorText(error) || tRef.current('update.unknown'));
@@ -7961,6 +8048,41 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         ),
         h('div', { className: 'dsh-powerup-update-body' },
           h('p', { className: 'dsh-powerup-update-note' }, t(appAction === 'close' ? 'close.desc' : 'restart.desc')),
+          appTasks.length > 0
+            ? h('div', { className: 'dsh-powerup-update-tasks' },
+              h('strong', null, t('restart.tasksTitle', { count: appTasks.length })),
+              h('p', { className: 'dsh-powerup-update-note' }, t('restart.tasksHint')),
+              h('ul', { className: 'dsh-powerup-update-task-list' },
+                appTasks.slice(0, 8).map((task, index) => h('li', { key: `${task.kind}-${task.id}-${index}` },
+                  h('span', { className: 'dsh-powerup-update-task-dot' }),
+                  h('code', null, t('restart.taskLine', { id: task.id })),
+                  task.title && task.title !== 'session' ? h('span', null, ` — ${task.title}`) : null,
+                )),
+              ),
+              h('label', { className: 'dsh-powerup-app-check' },
+                h('input', {
+                  type: 'checkbox',
+                  checked: appResume,
+                  onChange: (event) => setAppResume(event.target.checked === true),
+                  disabled: appBusy,
+                }),
+                h('span', null,
+                  h('strong', null, t(appAction === 'close' ? 'restart.resumeLabelClose' : 'restart.resumeLabel')),
+                  h('small', null, t('restart.resumeHint')),
+                ),
+              ),
+              appResume
+                ? h('input', {
+                  className: 'dsh-powerup-prompt-input',
+                  type: 'text',
+                  value: appResumePrompt,
+                  placeholder: t('restart.resumePromptPlaceholder'),
+                  disabled: appBusy,
+                  onChange: (event) => setAppResumePrompt(event.target.value),
+                })
+                : null,
+            )
+            : null,
           appCapability !== null && appCapability.supported !== true
             ? notice('warn', h(WarnIcon, { size: 14 }), null, t(appAction === 'close' ? 'close.unsupported' : 'update.restartUnsupported', { reason: appCapability.reason ?? '' }))
             : null,
@@ -7974,12 +8096,19 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         ),
         h('div', { className: 'dsh-powerup-update-foot' },
           h('button', { type: 'button', className: 'dsh-powerup-update-ghost', disabled: appBusy, onClick: () => setAppAsk(null) }, t(appAction === 'close' ? 'close.cancel' : 'restart.cancel')),
-          h('button', {
-            type: 'button',
-            className: 'dsh-powerup-update-primary',
-            disabled: appBusy || appCapability?.supported !== true,
-            onClick: confirmAppAction,
-          }, appBusy ? t(appAction === 'close' ? 'close.closing' : 'update.restarting') : t(appAction === 'close' ? 'close.confirm' : 'restart.confirm')),
+          appTasks.length > 0
+            ? h('button', {
+              type: 'button',
+              className: 'dsh-powerup-update-primary',
+              disabled: appBusy || appCapability?.supported !== true,
+              onClick: () => void confirmAppAction(true),
+            }, appBusy ? t(appAction === 'close' ? 'close.closing' : 'update.restarting') : t(appAction === 'close' ? 'restart.forceCloseLabel' : 'restart.forceLabel'))
+            : h('button', {
+              type: 'button',
+              className: 'dsh-powerup-update-primary',
+              disabled: appBusy || appCapability?.supported !== true,
+              onClick: () => void confirmAppAction(false),
+            }, appBusy ? t(appAction === 'close' ? 'close.closing' : 'update.restarting') : t(appAction === 'close' ? 'close.confirm' : 'restart.confirm')),
         ),
         ),
         );
