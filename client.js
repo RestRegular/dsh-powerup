@@ -81,9 +81,11 @@
        * of resetting it. Cleared once the prompt is actually created.
        */
       const promptCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
+      /** In-progress "new requirement" dialog draft (progress panel). */
+      const requirementCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.11.0';
+      const VERSION = '0.15.0';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -387,7 +389,10 @@
           'progress.reqHint': '每条要求可设置语言、结构、必须包含的数据、额外展示区要回答的问题等；按工作区隔离，留空工作区则对所有工作区生效。生成进度时可勾选本次要应用哪些要求。',
           'progress.reqNew': '新建要求',
           'progress.reqSelect': '本次应用的要求',
-          'progress.reqSelectHint': '勾选本次生成要使用要求；不选则不附加任何要求。',
+          'progress.reqSelectHint': '勾选要求后内容会填入下方输入框，可自由修改；生成/刷新时会使用输入框里的完整要求。',
+          'progress.reqEditPlaceholder': '在这里编辑本次生成要使用的要求…',
+          'progress.reqTextLabel': '要求内容',
+          'progress.sectionTitle': '生成要求',
           'progress.reqGlobal': '通用要求（设置页）',
           'progress.reqWorkspace': '工作区要求',
           'progress.reqSession': '会话要求',
@@ -774,7 +779,10 @@
           'progress.reqHint': 'Each requirement sets language, structure, required data, questions for the display area, etc. Scoped per workspace; a blank workspace applies everywhere. Choose which ones to apply when generating progress.',
           'progress.reqNew': 'New requirement',
           'progress.reqSelect': 'Requirements for this run',
-          'progress.reqSelectHint': 'Check the requirements to apply this time; none selected means no extra requirements.',
+          'progress.reqSelectHint': 'Checked requirements fill the box below; edit freely. Generation uses the full text in the box.',
+          'progress.reqEditPlaceholder': 'Edit the requirements to use for this generation…',
+          'progress.reqTextLabel': 'Requirement text',
+          'progress.sectionTitle': 'Generation requirements',
           'progress.reqGlobal': 'Global requirements (settings)',
           'progress.reqWorkspace': 'Workspace requirements',
           'progress.reqSession': 'Session requirements',
@@ -4614,6 +4622,9 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-req-option{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);font-size:11.5px;cursor:pointer}
 .dsh-powerup-req-option:hover{background:var(--dsw-alias-interactive-bg-hover)}
 .dsh-powerup-req-option input{flex:none;accent-color:var(--dsw-alias-brand-primary)}
+.dsh-powerup-req-textarea{min-height:96px;margin-top:6px}
+.dsh-powerup-req-create{margin-top:8px}
+.dsh-powerup-prompt-scope-options{display:flex;flex-wrap:wrap;gap:8px}
 .dsh-powerup-req-manager{display:flex;flex-direction:column;gap:16px}
 .dsh-powerup-req-list{display:flex;flex-direction:column;gap:8px;margin:0;padding:0;list-style:none}
 .dsh-powerup-req-item{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1)}
@@ -9625,7 +9636,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
               ),
             ),
             h(MaskRuleEditor, { scope: 'workspace', t, workspaceId }),
-            h(RequirementManager, { ctx, workspaceOnly: true, workspaceId }),
+            h(RequirementManager, { ctx }),
           ),
         );
       }
@@ -10326,31 +10337,56 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           .filter((r) => r.workspaceId === '' || r.workspaceId === id);
       }
 
-      /** Textarea field for one requirements layer. */
-      function RequirementField({ label, hint, value, placeholder, onChange }) {
-        return h('label', { className: 'dsh-powerup-prompt-field' },
-          h('span', { className: 'dsh-powerup-prompt-field-label' }, label),
-          hint ? h('span', { className: 'dsh-powerup-setting-hint' }, hint) : null,
-          h('textarea', {
-            className: 'dsh-powerup-prompt-input dsh-powerup-prompt-textarea',
-            value: value ?? '',
-            placeholder: placeholder ?? '',
-            onChange: (event) => onChange(event.target.value),
+      /**
+       * Create/edit form for one requirement record. On creation the workspace
+       * is chosen here (any workspace, or global) — exactly like the prompt form.
+       */
+      function RequirementForm({ draft, setDraft, workspaces, t, save, cancel }) {
+        const field = (key, placeholder, className) => h('label', { className: 'dsh-powerup-prompt-field' },
+          h('input', {
+            className: 'dsh-powerup-prompt-input' + (className ? ' ' + className : ''),
+            type: 'text', value: draft?.[key] ?? '', placeholder,
+            onChange: (event) => setDraft({ ...draft, [key]: event.target.value }),
           }),
+        );
+        return h('div', { className: 'dsh-powerup-req-form' },
+          field('title', t('prompts.titlePlaceholder')),
+          h('label', { className: 'dsh-powerup-prompt-field' },
+            h('span', { className: 'dsh-powerup-prompt-field-label' }, t('prompts.workspaceLabel')),
+            h(WorkspaceSelect, {
+              value: draft?.workspaceId ?? '',
+              options: [
+                { value: '', label: t('prompts.anyWorkspace') },
+                ...workspaces.map((ws) => ({ value: ws.workspaceId, label: ws.title || ws.workspaceId, hint: ws.title ? ws.workspaceId : undefined })),
+              ],
+              onChange: (value) => setDraft({ ...draft, workspaceId: value }),
+              t,
+            }),
+          ),
+          h('label', { className: 'dsh-powerup-prompt-field' },
+            h('span', { className: 'dsh-powerup-prompt-field-label' }, t('progress.reqTextLabel')),
+            h('textarea', {
+              className: 'dsh-powerup-prompt-input dsh-powerup-prompt-textarea',
+              value: draft?.text ?? '', placeholder: t('progress.reqPlaceholder'),
+              onChange: (event) => setDraft({ ...draft, text: event.target.value }),
+            }),
+          ),
+          h('div', { className: 'dsh-powerup-prompt-form-actions' },
+            h('button', { type: 'button', className: 'dsh-powerup-prompt-new', onClick: cancel }, t('prompts.cancel')),
+            h('button', { type: 'button', className: 'dsh-powerup-prompt-new', onClick: save }, t('prompts.save')),
+          ),
         );
       }
 
       /**
-       * Multi-record requirement manager, modelled on PromptManager: records are
-       * scoped to a workspace ('' = global) and can be enabled/disabled, edited
-       * and deleted. Used in the Power-Up page's new "Requirements" tab and as
-       * the workspace-scoped editor in the conversation settings tab.
+       * Settings-page manager, modelled on PromptManager: "New requirement"
+       * opens the form where the workspace is picked; only scopes that actually
+       * contain requirements are listed (global first, then each such workspace).
        */
-      function RequirementManager({ ctx, workspaceOnly, workspaceId }) {
+      function RequirementManager({ ctx }) {
         const reqs = useRequirements();
         const [, forceLocale] = useState(0);
         const [draft, setDraft] = useState(null);
-        const [expanded, setExpanded] = useState(null);
         const t = (key, params) => translateCurrent(key, params);
         useEffect(() => {
           const locale = ctx?.get?.('locale');
@@ -10363,22 +10399,9 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             return Array.isArray(snapshot?.items) ? snapshot.items : [];
           } catch { return []; }
         })();
-        const visible = workspaceOnly
-          ? reqs.filter((r) => r.workspaceId === (typeof workspaceId === 'string' ? workspaceId : ''))
-          : reqs;
+        const titleOf = (id) => id === '' ? t('prompts.anyWorkspace') : (workspaces.find((ws) => ws.workspaceId === id)?.title || id);
 
-        const sections = workspaceOnly
-          ? [{ id: workspaceId ?? '', label: t('progress.reqWorkspace'), items: visible }]
-          : [
-            { id: '', label: t('prompts.scopeGlobal'), items: reqs.filter((r) => r.workspaceId === '') },
-            ...workspaces.map((ws) => ({
-              id: ws.workspaceId,
-              label: ws.title ?? ws.workspaceId,
-              items: reqs.filter((r) => r.workspaceId === ws.workspaceId),
-            })),
-          ];
-
-        const cancel = () => { setDraft(null); setExpanded(null); };
+        const cancel = () => setDraft(null);
         const save = () => {
           if (draft === null) return;
           const text = typeof draft.text === 'string' ? draft.text.trim() : '';
@@ -10404,12 +10427,41 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           saveRequirements(reqs.map((r) => (r.id === record.id ? { ...r, enabled: r.enabled === false } : r)));
         };
 
-        return h('div', { className: 'dsh-powerup-req-manager' },
-          h('p', { className: 'dsh-powerup-card-desc' }, t('progress.reqHint')),
-          ...sections.map((section) => h('div', { key: `sec-${section.id}` },
-            h('h3', { className: 'dsh-powerup-section-title' }, section.label),
-            h('ul', { className: 'dsh-powerup-req-list' },
-              section.items.map((r) => h('li', { key: r.id, className: 'dsh-powerup-req-item' + (r.enabled === false ? ' off' : '') },
+        // Only show scopes that have requirements (plus orphaned ids).
+        const scopeIds = [];
+        if (reqs.some((r) => r.workspaceId === '')) scopeIds.push('');
+        for (const ws of workspaces) {
+          if (reqs.some((r) => r.workspaceId === ws.workspaceId)) scopeIds.push(ws.workspaceId);
+        }
+        for (const r of reqs) {
+          if (!scopeIds.includes(r.workspaceId)) scopeIds.push(r.workspaceId);
+        }
+
+        return h('div', null,
+          h('div', { className: 'dsh-powerup-prompt-head' },
+            h('div', null,
+              h('div', { className: 'dsh-powerup-prompt-head-title' }, t('progress.sectionTitle')),
+              h('div', { className: 'dsh-powerup-prompt-head-sub' }, t('progress.reqHint')),
+            ),
+            h('button', {
+              type: 'button', className: 'dsh-powerup-prompt-new',
+              onClick: () => setDraft({ id: '', title: '', text: '', workspaceId: '', enabled: true }),
+            }, t('progress.reqNew')),
+          ),
+          draft !== null ? h('section', { className: 'dsh-powerup-prompt-card' },
+            h(RequirementForm, { draft, setDraft, workspaces, t, save, cancel }),
+          ) : null,
+          scopeIds.length === 0
+            ? h('div', { className: 'dsh-powerup-prompt-empty' }, t('progress.reqEmpty'))
+            : h('div', { className: 'dsh-powerup-prompt-scopes' }, scopeIds.map((scopeId) => h('section', {
+              key: 'scope:' + scopeId, className: 'dsh-powerup-prompt-scope',
+            },
+              h('div', { className: 'dsh-powerup-prompt-scope-head' },
+                h('span', { className: 'dsh-powerup-prompt-scope-title' }, titleOf(scopeId)),
+              ),
+              h('div', { className: 'dsh-powerup-req-list' }, reqs.filter((r) => r.workspaceId === scopeId).map((r) => h('div', {
+                key: r.id, className: 'dsh-powerup-req-item' + (r.enabled === false ? ' off' : ''),
+              },
                 h('button', {
                   type: 'button', role: 'switch', 'aria-checked': r.enabled !== false ? 'true' : 'false',
                   className: 'dsh-powerup-switch', title: t('page.enabled'),
@@ -10420,61 +10472,131 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
                   h('span', { className: 'dsh-powerup-req-text' }, r.text),
                 ),
                 h('button', {
-                  type: 'button', className: 'dsh-powerup-prompt-new', onClick: () => { setDraft({ ...r }); setExpanded(r.id); },
+                  type: 'button', className: 'dsh-powerup-linkbtn',
+                  onClick: () => setDraft({ ...r }),
                 }, t('prompts.edit')),
                 h('button', {
-                  type: 'button', className: 'dsh-powerup-prompt-new', onClick: () => remove(r),
+                  type: 'button', className: 'dsh-powerup-linkbtn danger',
+                  onClick: () => remove(r),
                 }, t('prompts.delete')),
-              )),
+              ))),
+            ))),
+        );
+      }
+
+      /**
+       * Create-requirement modal for the session progress panel, mirroring
+       * PromptCreateModal: pinned to the session's workspace, choose keep or
+       * "all workspaces", with an in-memory draft that survives reopening.
+       */
+      function RequirementCreateModal({ workspaceId, workspaceTitle, onClose, onCreated }) {
+        const t = (key, params) => translateCurrent(key, params);
+        const fixedScope = typeof workspaceId !== 'string' || workspaceId === '';
+        const key = fixedScope ? '' : workspaceId;
+        if (requirementCreateDraft.workspaceId !== key) {
+          requirementCreateDraft.workspaceId = key;
+          requirementCreateDraft.title = '';
+          requirementCreateDraft.text = '';
+          requirementCreateDraft.scope = fixedScope ? 'all' : 'current';
+        }
+        const [title, setTitle] = useState(requirementCreateDraft.title);
+        const [text, setText] = useState(requirementCreateDraft.text);
+        const [scope, setScope] = useState(requirementCreateDraft.scope);
+        const [closing, setClosing] = useState(false);
+        const closingRef = useRef(false);
+        const requestClose = () => {
+          if (closingRef.current) return;
+          closingRef.current = true;
+          setClosing(true);
+          setTimeout(() => { try { onClose(); } catch { /* parent owns unmount */ } }, 140);
+        };
+        useEffect(() => {
+          requirementCreateDraft.title = title;
+          requirementCreateDraft.text = text;
+          requirementCreateDraft.scope = scope;
+        }, [title, text, scope]);
+        useEffect(() => {
+          const onKey = (event) => { if (event.key === 'Escape') { event.preventDefault(); requestClose(); } };
+          document.addEventListener('keydown', onKey, true);
+          return () => document.removeEventListener('keydown', onKey, true);
+        }, []);
+        const save = () => {
+          const body = typeof text === 'string' ? text.trim() : '';
+          if (body === '') return;
+          const record = {
+            id: newId(),
+            title: typeof title === 'string' ? title.trim() : '',
+            text: body,
+            workspaceId: scope === 'current' && typeof workspaceId === 'string' ? workspaceId : '',
+            enabled: true,
+          };
+          saveRequirements([...requirementsCache, record]);
+          requirementCreateDraft.title = '';
+          requirementCreateDraft.text = '';
+          requirementCreateDraft.scope = fixedScope ? 'all' : 'current';
+          if (!closingRef.current) { closingRef.current = true; setClosing(true); }
+          setTimeout(() => { try { onCreated(record); } catch { /* ignore */ } }, 140);
+        };
+        return renderInBody(h('div', {
+          className: 'dsh-powerup-prompt-modal-mask' + (closing ? ' is-closing' : ''),
+          onPointerDown: (event) => { if (event.target === event.currentTarget) requestClose(); },
+        },
+          h('div', { className: 'dsh-powerup-prompt-modal' + (closing ? ' is-closing' : ''), role: 'dialog', 'aria-modal': 'true' },
+            h('div', { className: 'dsh-powerup-prompt-modal-head' },
+              h('div', null,
+                h('div', { className: 'dsh-powerup-prompt-modal-heading' }, t('progress.reqNew')),
+                h('p', { className: 'dsh-powerup-prompt-modal-sub' }, t('prompts.createScopeHint')),
+              ),
+              h('button', { type: 'button', className: 'dsh-powerup-prompt-modal-close', 'aria-label': t('prompts.cancel'), onClick: requestClose }, '×'),
             ),
-            expanded === `new-${section.id}` && draft !== null
-              ? h(RequirementForm, { draft, setDraft, workspaces, workspaceOnly, scopeId: section.id, t, save, cancel })
-              : null,
-            h('button', {
-              type: 'button', className: 'dsh-powerup-prompt-new',
-              onClick: () => { setDraft({ id: '', title: '', text: '', workspaceId: section.id, enabled: true }); setExpanded(`new-${section.id}`); },
-            }, t('progress.reqNew')),
-          )),
-        );
-      }
-
-      /** Inline create/edit form for one requirement record. */
-      function RequirementForm({ draft, setDraft, workspaces, workspaceOnly, scopeId, t, save, cancel }) {
-        return h('div', { className: 'dsh-powerup-req-form' },
-          h('input', {
-            className: 'dsh-powerup-prompt-input', type: 'text',
-            value: draft.title ?? '', placeholder: t('prompts.titlePlaceholder'),
-            onChange: (e) => setDraft({ ...draft, title: e.target.value }),
-          }),
-          h('textarea', {
-            className: 'dsh-powerup-prompt-input dsh-powerup-prompt-textarea',
-            value: draft.text ?? '', placeholder: t('progress.reqPlaceholder'),
-            onChange: (e) => setDraft({ ...draft, text: e.target.value }),
-          }),
-          !workspaceOnly ? h(WorkspaceSelect, {
-            value: draft.workspaceId ?? '',
-            options: [{ value: '', label: t('prompts.anyWorkspace') }, ...workspaces.map((ws) => ({ value: ws.workspaceId, label: ws.title ?? ws.workspaceId }))],
-            onChange: (value) => setDraft({ ...draft, workspaceId: value }),
-            t,
-          }) : null,
-          h('div', { className: 'dsh-powerup-req-form-foot' },
-            h('button', { type: 'button', className: 'dsh-powerup-update-ghost', onClick: cancel }, t('prompts.cancel')),
-            h('button', { type: 'button', className: 'dsh-powerup-update-primary', onClick: save }, t('prompts.save')),
+            h('div', { className: 'dsh-powerup-prompt-modal-body' },
+              h('label', { className: 'dsh-powerup-prompt-field' },
+                h('span', { className: 'dsh-powerup-prompt-field-label' }, t('prompts.titleLabel')),
+                h('input', { className: 'dsh-powerup-prompt-input', type: 'text', value: title, placeholder: t('prompts.titlePlaceholder'), onChange: (e) => setTitle(e.target.value) }),
+              ),
+              h('label', { className: 'dsh-powerup-prompt-field' },
+                h('span', { className: 'dsh-powerup-prompt-field-label' }, t('prompts.workspaceLabel')),
+                h('div', { className: 'dsh-powerup-prompt-scope-options' },
+                  h('button', {
+                    type: 'button', role: 'switch', 'aria-checked': scope === 'all' ? 'true' : 'false',
+                    className: 'dsh-powerup-switch', onClick: () => setScope('all'),
+                  }, t('prompts.anyWorkspace')),
+                  fixedScope ? null : h('button', {
+                    type: 'button', role: 'switch', 'aria-checked': scope === 'current' ? 'true' : 'false',
+                    className: 'dsh-powerup-switch', onClick: () => setScope('current'),
+                  }, workspaceTitle || t('prompts.workspaceCurrent')),
+                ),
+              ),
+              h('label', { className: 'dsh-powerup-prompt-field' },
+                h('span', { className: 'dsh-powerup-prompt-field-label' }, t('progress.reqTextLabel')),
+                h('textarea', { className: 'dsh-powerup-prompt-input dsh-powerup-prompt-textarea', value: text, placeholder: t('progress.reqPlaceholder'), onChange: (e) => setText(e.target.value) }),
+              ),
+            ),
+            h('div', { className: 'dsh-powerup-prompt-modal-foot' },
+              h('button', { type: 'button', className: 'dsh-powerup-update-ghost', onClick: requestClose }, t('prompts.cancel')),
+              h('button', { type: 'button', className: 'dsh-powerup-update-primary', disabled: text.trim() === '', onClick: save }, t('prompts.create')),
+            ),
           ),
-        );
+        ));
       }
 
-      /** Panel picker: choose which visible requirements to apply for this generation. */
-      function RequirementPicker({ reqs, selectedIds, onToggle, t }) {
-        if (reqs.length === 0) return h('p', { className: 'dsh-powerup-progress-empty' }, t('progress.reqEmpty'));
+      /**
+       * Panel editor: check requirements to fill the text box, then freely edit
+       * the combined text. On generate/refresh the full text is sent verbatim.
+       */
+      function RequirementPicker({ reqs, selectedIds, text, onToggle, onTextChange, t }) {
         return h('div', { className: 'dsh-powerup-req-picker' },
-          reqs.map((r) => h('label', { key: r.id, className: 'dsh-powerup-req-option' },
-            h('input', {
-              type: 'checkbox', checked: selectedIds.includes(r.id),
-              onChange: () => onToggle(r.id),
-            }),
-            h('span', null, r.title || (r.text.slice(0, 50) + (r.text.length > 50 ? '…' : ''))),
-          )),
+          reqs.length === 0
+            ? h('p', { className: 'dsh-powerup-progress-empty' }, t('progress.reqEmpty'))
+            : reqs.map((r) => h('label', { key: r.id, className: 'dsh-powerup-req-option' },
+              h('input', { type: 'checkbox', checked: selectedIds.includes(r.id), onChange: () => onToggle(r.id) }),
+              h('span', null, r.title || (r.text.slice(0, 50) + (r.text.length > 50 ? '…' : ''))),
+            )),
+          h('textarea', {
+            className: 'dsh-powerup-prompt-input dsh-powerup-prompt-textarea dsh-powerup-req-textarea',
+            value: text ?? '', placeholder: t('progress.reqEditPlaceholder'),
+            onChange: (event) => onTextChange(event.target.value),
+          }),
         );
       }
 
@@ -10633,17 +10755,41 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         const [historyIndex, setHistoryIndex] = useState(0);
         const [showRaw, setShowRaw] = useState(false);
         const [showReq, setShowReq] = useState(false);
-        // Ids of requirement records selected for the next generation.
+        // Selected requirement ids + the free-editable combined text.
         const [selectedReqIds, setSelectedReqIds] = useState([]);
+        const [reqText, setReqText] = useState('');
+        const [creatingReq, setCreatingReq] = useState(false);
         const reqs = useRequirements();
-        // Resolve the owning workspace for requirement filtering.
+        // Resolve the owning workspace for requirement filtering + create modal.
         const workspaceId = useMemo(() => {
           try {
             const snapshot = ctxRef.current?.get?.('workspaces')?.list?.getSnapshot?.();
             return resolveWorkspaceIdFromSnapshot(snapshot, sessionRef.current) ?? '';
           } catch { return ''; }
         }, [sessionId, open]);
+        const workspaceTitle = useMemo(() => {
+          try {
+            const items = ctxRef.current?.get?.('workspaces')?.list?.getSnapshot?.()?.items ?? [];
+            const found = items.find((ws) => ws?.workspaceId === workspaceId);
+            return found?.title ?? '';
+          } catch { return ''; }
+        }, [workspaceId, open]);
         const visibleReqs = requirementsForWorkspace(reqs, workspaceId);
+        /** Concatenate the enabled+selected requirements into editable text. */
+        const composeReqText = useCallback((ids) => {
+          return visibleReqs
+            .filter((r) => ids.includes(r.id) && r.enabled !== false && typeof r.text === 'string' && r.text.trim() !== '')
+            .map((r) => r.text.trim())
+            .join('\n\n');
+        }, [visibleReqs]);
+        /** Toggle one requirement: rebuild the box from the current selection. */
+        const toggleReq = useCallback((id) => {
+          setSelectedReqIds((cur) => {
+            const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+            setReqText(composeReqText(next));
+            return next;
+          });
+        }, [composeReqText]);
         const [size, setSize] = useState(() => {
           try {
             const saved = JSON.parse(localStorage.getItem('dsh-powerup:progress:size:v1') || 'null');
@@ -10699,7 +10845,8 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           if (typeof id !== 'string' || id === '') return;
           setBusy(true);
           try {
-            const body = await progressRequest(id, 'start', { requirementIds: selectedReqIds });
+            // Send the full, possibly user-edited text verbatim.
+            const body = await progressRequest(id, 'start', { requirements: reqText });
             setView(body);
             setHistoryIndex(0);
           } catch (error) {
@@ -10708,7 +10855,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             setBusy(false);
             if (!open) setOpen(true);
           }
-        }, [open, selectedReqIds]);
+        }, [open, reqText]);
 
         const clearHistory = useCallback(async () => {
           const id = sessionRef.current;
@@ -10878,9 +11025,15 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           h(RequirementPicker, {
             reqs: visibleReqs,
             selectedIds: selectedReqIds,
+            text: reqText,
             t,
-            onToggle: (id) => setSelectedReqIds((cur) => cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]),
+            onToggle: toggleReq,
+            onTextChange: setReqText,
           }),
+          h('button', {
+            type: 'button', className: 'dsh-powerup-prompt-new dsh-powerup-req-create',
+            onClick: () => setCreatingReq(true),
+          }, t('progress.reqNew')),
         ) : null;
 
         const panel = !open ? null : h('div', {
@@ -10948,6 +11101,18 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         return h('span', { style: { display: 'inline-flex', alignItems: 'center' } },
           button,
           renderInBody(panel),
+          creatingReq ? h(RequirementCreateModal, {
+            workspaceId,
+            workspaceTitle,
+            onClose: () => setCreatingReq(false),
+            onCreated: (record) => {
+              setCreatingReq(false);
+              // Auto-select the freshly created requirement and append its text
+              // to the editable box (the cache may not have re-rendered yet).
+              setSelectedReqIds((cur) => cur.includes(record.id) ? cur : [...cur, record.id]);
+              setReqText((cur) => record.text ? (cur ? `${cur}\n\n${record.text.trim()}` : record.text.trim()) : cur);
+            },
+          }) : null,
         );
       }
 
@@ -11112,6 +11277,8 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           PROGRESS_CSS,
           ProgressControl,
           RequirementManager,
+          RequirementCreateModal,
+          RequirementForm,
           RequirementPicker,
           requirementForWorkspace: requirementsForWorkspace,
           DirectAskButton,

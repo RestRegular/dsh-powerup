@@ -449,10 +449,13 @@ the running agent:
 
 Requirements are a **list of records** (just like prompts), managed in the
 Power-Up page's dedicated **Requirements** tab and in the conversation's
-Power-Up settings tab. Each record is scoped to a workspace (`''` = global), can
-be enabled/disabled, and describes language, structure, required data or
-questions for the display area. When generating progress you **choose which
-requirements to apply** in the panel — nothing is added unless you check it.
+Power-Up settings tab. On creation you pick the workspace (or "all workspaces");
+only scopes that actually contain requirements are listed. Each record can be
+enabled/disabled, edited and deleted. When generating progress you **check the
+requirements you want** — checked ones fill an editable text box that you may
+freely modify, and generation/refresh uses the full box text verbatim. The panel
+also has a **New requirement** entry with a modal pinned to the session's
+workspace (like the prompt picker).
 The panel is wider by default, resizable from its bottom-right corner (size
 persisted), and its header tint shifts from blue toward warning red as the
 report ages. Every refresh adds a new report to a per-session history stored on

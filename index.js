@@ -627,9 +627,13 @@ async function handle(req, res, ctx) {
       return;
     }
     try {
-      // A one-off requirements selection from the progress panel is kept for
-      // the next start; it does not modify the persisted records.
-      if (Array.isArray(body?.requirementIds)) {
+      // The panel sends the full (possibly user-edited) requirements text in
+      // `requirements`. It is used verbatim. The older `requirementIds`
+      // selection remains as a fallback for clients that send it.
+      if (typeof body?.requirements === 'string') {
+        ctx.__powerupProgressText = ctx.__powerupProgressText ?? {};
+        ctx.__powerupProgressText[sessionId] = body.requirements;
+      } else if (Array.isArray(body?.requirementIds)) {
         ctx.__powerupProgressSelection = ctx.__powerupProgressSelection ?? {};
         ctx.__powerupProgressSelection[sessionId] = body.requirementIds.map(String);
       }
@@ -922,7 +926,11 @@ export function apply(ctx) {
     // Requirements are a flat list of records: {id,title,text,workspaceId,enabled}.
     // workspaceId '' = global. The panel sends the ids it wants; the Host only
     // includes records visible to the session's workspace and explicitly picked.
-    const requirementsFor = (sessionId, selectedIds) => {
+    const requirementsFor = (sessionId, selectedIds, editedText) => {
+      // A panel-edited full text wins verbatim (the user may freely modify the
+      // concatenated requirements before generating).
+      if (typeof editedText === 'string' && editedText.trim() !== '') return editedText;
+      if (editedText === '') return ''; // user cleared everything on purpose
       const file = storePath(PROGRESS_REQUIREMENTS_FILE);
       let raw;
       try {
@@ -986,7 +994,11 @@ export function apply(ctx) {
           ? selection
           : undefined;
       },
-      getRequirements: (sessionId) => requirementsFor(sessionId, ctx.__powerupProgressSelection?.[sessionId]),
+      getRequirements: (sessionId) => requirementsFor(
+        sessionId,
+        ctx.__powerupProgressSelection?.[sessionId],
+        ctx.__powerupProgressText?.[sessionId],
+      ),
       onHistoryChange: (sessionId, history) => {
         try {
           const all = readJsonObject(historyPath);
@@ -1015,6 +1027,7 @@ export function apply(ctx) {
     };
     ctx.__powerupProgress = manager;
     ctx.__powerupProgressSelection = ctx.__powerupProgressSelection ?? {};
+    ctx.__powerupProgressText = ctx.__powerupProgressText ?? {};
     scope.effect(() => () => {
       if (ctx.__powerupProgress === manager) ctx.__powerupProgress = undefined;
     }, 'dsh-powerup: progress manager');
