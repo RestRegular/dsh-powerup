@@ -9,8 +9,8 @@ panel list into an adaptive icon grid with drag sorting, folders, a
 back-to-conversation tile, and restart/close tiles. It also adds a
 **task-progress panel** with three-layer requirements and browsable history, a
 **direct-ask button** for one-shot model answers without an Agent, and
-**quick-reply options** that let the Agent offer tappable text buttons above the
-composer.
+**quick-reply options** that let the Agent offer tappable text buttons under its
+last reply.
 
 ## Install
 
@@ -123,11 +123,29 @@ of tappable options for the current session:
 ] }
 ```
 
-Up to 8 options appear as stacked buttons above the copy/like actions of the last assistant message. Tapping one sends its
-`message` as a normal user message. The options disappear as soon as the user
-sends any message — tapping an option, pressing Enter, or clicking the host's
-Send button. The Agent can also pass an empty `options` array to clear them
-immediately.
+Each entry has a `label` (the short button text) and a `message` (the full text
+sent when it is tapped). A short instruction for this tool is injected into the
+system prompt, so the Agent knows when and how to offer options without extra
+setup.
+
+- **Where they appear.** Up to 8 options render as stacked buttons directly
+  above the copy / like / dislike / branch actions of the **last assistant
+  message** — visually attached to the reply they follow. The buttons follow
+  the newest message as the conversation advances.
+- **What a tap does.** Tapping an option sends its `message` as a normal user
+  message through the session controller. It is a real message: it enters the
+  transcript and the Agent responds to it.
+- **When they clear.** The options disappear as soon as the user sends *any*
+  message — tapping an option, pressing Enter in the composer, or clicking the
+  host's Send button. The Agent can also pass an empty `options` array to clear
+  them immediately, without waiting for a message.
+- **Scoped and safe.** Options are keyed by session id, so one conversation's
+  buttons never leak into another. A version guard prevents a stale clear from
+  erasing a newer set of options.
+- **Toggle.** The **Quick reply options** switch on the Power-Up page controls
+  both halves: turning it off removes the tool from the Agent and withdraws the
+  injected system-prompt section; turning it back on restores both. The switch
+  is kept in sync between the browser and the Host and persists across restarts.
 
 ### Sidebar launcher
 
@@ -532,6 +550,30 @@ system "busy Enter" preference:
 
 Plain Shift+Enter still inserts a newline, IME composition and slash/mention
 menus are left to the host, and an empty draft keeps the host's retry behavior.
+
+### Quick replies implementation notes
+
+The Agent publishes options through a Host tool; the browser only renders them.
+`powerup_quick_replies` writes a bounded, session-keyed record to
+`~/.dsh/dsh-powerup/quick-replies.json` (at most 8 options) and derives the
+calling session from `exec.agent.id`. A short how-to section is registered with
+`ctx.systemPrompt.section` so the tool is discoverable without a setup step.
+
+On the Client side, a `conversation.input.right` contribution polls the
+`/dsh-powerup/api/quick-replies` route and portals a mount node into the host's
+last `[data-turn-tail]` — the container around the assistant message's
+`IconActions` row — inserted before its first child so the options sit above
+the copy/like buttons. The mount re-elects the tail as new turns arrive. A
+capture-phase click listener on the host Send button and a capture-phase keydown
+listener on Enter clear the options through the Host (version-guarded), so any
+user message retires them; tapping an option sends it via `session.prompt` and
+clears them the same way.
+
+Disabling the feature is a real teardown, not just visual hiding: the Client
+POSTs the switch to the Host, whose controller unregisters the tool and disposes
+the prompt section together; re-enabling re-registers both. The effects follow
+the host's `ctx.effect` contract (registration in the effect body, disposal
+returned as the cleanup), so a toggle cannot leave stale registrations behind.
 
 ## Development
 

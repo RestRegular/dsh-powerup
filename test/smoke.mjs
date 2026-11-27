@@ -2315,7 +2315,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.19.9');
+assert.equal(host.__test.SELF_VERSION, '0.19.10');
 
 const installFailSpecs = [];
 const installFailManager = {
