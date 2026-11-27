@@ -1,6 +1,6 @@
 {
   "name": "@restregular/dsh-powerup",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "为 DeepSeek Harness 提供一组可选的小型增强：轨迹右键菜单与步骤引用、后台任务停止原因、插件一键安装、侧边栏图标网格、会话切换、定位当前会话、工作区提示词、旁路模型生成的结构化任务进度；所有功能均可在 Power-Up 页面独立开关。 · Opt-in upgrades for DeepSeek Harness: Trajectory context menu and step references, job stop reasons, one-click plugin install, an adaptive sidebar launcher, session switching, locating the current session, workspace prompts, and non-blocking model-generated structured task progress — each toggled independently on the Power-Up page.",
   "icon": "./icon.svg",
   "type": "module",
@@ -24,6 +24,7 @@
     "lib/progress-tool.js",
     "lib/progress-manager.js",
     "lib/task-resume.js",
+    "lib/direct-ask.js",
     "locale/*.json",
     "icon.svg",
     "README.md",
@@ -97,7 +98,7 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "test": "node test/smoke.mjs && node test/host.mjs && node test/progress.mjs && node test/task-resume.mjs"
+    "test": "node test/smoke.mjs && node test/host.mjs && node test/progress.mjs && node test/task-resume.mjs && node test/direct-ask.mjs"
   },
   "license": "MIT",
   "author": "RestRegular"

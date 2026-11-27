@@ -50,6 +50,7 @@ import {
 } from './lib/task-resume.js';
 import { createStepReadTool } from './lib/step-tool.js';
 import { createProgressManager } from './lib/progress-manager.js';
+import { buildAskPrompt, cleanAskText, directAsk } from './lib/direct-ask.js';
 
 /** Prefix owned by this plugin. */
 const ROUTE = '/dsh-powerup/api';
@@ -75,6 +76,10 @@ const PROMPTS_FILE = 'prompts.json';
 const MASK_RULES_FILE = 'mask-rules.json';
 /** Pending continuation prompts recorded by forced restart / close. */
 const TASK_RESUME_FILE_NAME = TASK_RESUME_FILE;
+/** Persisted progress-generation requirements (global + per workspace/session). */
+const PROGRESS_REQUIREMENTS_FILE = 'progress-requirements.json';
+/** Story of generated progress reports, kept on disk so refreshes never drop history. */
+const PROGRESS_HISTORY_FILE = 'progress-history.json';
 /** Legacy relative location inside a workspace, used only for migration. */
 const LEGACY_STORE_DIR = join('.dsh', 'dsh-powerup');
 
@@ -173,14 +178,14 @@ function sendJson(res, payload, status = 200) {
  * @param {import('node:http').IncomingMessage} req
  * @returns {Promise<unknown>}
  */
-async function readJsonBody(req) {
+async function readJsonBody(req, limit = BODY_LIMIT) {
   // Some callers (and older test doubles) send no stream at all.
   if (req === null || typeof req !== 'object' || typeof req[Symbol.asyncIterator] !== 'function') return {};
   const chunks = [];
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > BODY_LIMIT) throw new Error('body-too-large');
+    if (size > limit) throw new Error('body-too-large');
     chunks.push(chunk);
   }
   if (size === 0) return {};
@@ -396,6 +401,17 @@ function promptStorePath() {
   return storePath(PROMPTS_FILE);
 }
 
+/** Read one JSON object from disk; a missing or invalid file becomes an empty object. */
+function readJsonObject(filePath) {
+  try {
+    const parsed = JSON.parse(readFileSync(filePath, 'utf8'));
+    return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch (error) {
+    if (error?.code === 'ENOENT') return {};
+    return {};
+  }
+}
+
 /** Read one JSON list from disk; a missing file is an empty list. */
 function readJsonStore(filePath) {
   try {
@@ -457,8 +473,118 @@ async function handle(req, res, ctx) {
 
   const url = new URL(req.url ?? ROUTE, 'http://localhost');
   const op = url.pathname.slice(ROUTE.length).replace(/^\/+/u, '') || url.searchParams.get('op') || '';
-  if (op !== '' && op !== 'restart' && op !== 'close' && op !== 'self-update' && op !== 'audit' && op !== 'job-kill' && op !== 'prompts' && op !== 'mask-rules' && op !== 'progress') {
+  if (op !== '' && op !== 'restart' && op !== 'close' && op !== 'self-update' && op !== 'audit' && op !== 'job-kill' && op !== 'prompts' && op !== 'mask-rules' && op !== 'progress' && op !== 'progress-requirements' && op !== 'progress-history' && op !== 'direct-ask') {
     sendJson(res, { ok: false, error: 'not-found' }, 404);
+    return;
+  }
+
+  if (op === 'progress-requirements') {
+    const filePath = storePath(PROGRESS_REQUIREMENTS_FILE);
+    if (req.method === 'POST') {
+      try {
+        const body = await readJsonBody(req);
+        const requirements = body?.requirements !== null && typeof body?.requirements === 'object'
+          ? body.requirements
+          : {};
+        mkdirSync(dirname(filePath), { recursive: true });
+        writeFileSync(filePath, JSON.stringify(requirements, null, 2) + '\n', 'utf8');
+        sendJson(res, { ok: true, requirements });
+      } catch (error) {
+        sendJson(res, { ok: false, error: String(error?.message ?? error) }, 500);
+      }
+      return;
+    }
+    if (req.method !== 'GET') {
+      sendJson(res, { ok: false, error: 'method-not-allowed' }, 405);
+      return;
+    }
+    try {
+      sendJson(res, { ok: true, requirements: readJsonObject(filePath) });
+    } catch (error) {
+      sendJson(res, { ok: false, error: String(error?.message ?? error) }, 500);
+    }
+    return;
+  }
+
+  if (op === 'progress-history') {
+    const filePath = storePath(PROGRESS_HISTORY_FILE);
+    if (req.method === 'GET') {
+      try {
+        const all = readJsonObject(filePath);
+        sendJson(res, { ok: true, records: all.records ?? {} });
+      } catch (error) {
+        sendJson(res, { ok: false, error: String(error?.message ?? error) }, 500);
+      }
+      return;
+    }
+    if (req.method === 'POST') {
+      try {
+        const body = await readJsonBody(req, 4 * 1024 * 1024);
+        const records = body?.records !== null && typeof body?.records === 'object' ? body.records : {};
+        mkdirSync(dirname(filePath), { recursive: true });
+        writeFileSync(filePath, JSON.stringify({ records }, null, 2) + '\n', 'utf8');
+        sendJson(res, { ok: true, records });
+      } catch (error) {
+        sendJson(res, { ok: false, error: String(error?.message ?? error) }, 500);
+      }
+      return;
+    }
+    sendJson(res, { ok: false, error: 'method-not-allowed' }, 405);
+    return;
+  }
+
+  if (op === 'direct-ask') {
+    if (req.method !== 'POST') {
+      sendJson(res, { ok: false, error: 'method-not-allowed' }, 405);
+      return;
+    }
+    let body;
+    try {
+      body = await readJsonBody(req, 4 * 1024 * 1024);
+    } catch (error) {
+      sendJson(res, { ok: false, error: String(error?.message ?? error) }, 400);
+      return;
+    }
+    const sessionId = typeof body?.sessionId === 'string' ? body.sessionId.trim() : '';
+    const context = Array.isArray(body?.context) ? body.context : [];
+    const prompt = buildAskPrompt({ question: cleanAskText(body?.question), context });
+    if (prompt === '') {
+      sendJson(res, { ok: false, code: 'invalid-request', error: 'question is required' }, 400);
+      return;
+    }
+    const llm = ctx?.get?.('llm');
+    if (llm === null || typeof llm?.prepareCall !== 'function') {
+      sendJson(res, { ok: false, code: 'llm-unavailable', error: 'the llm service is unavailable' }, 503);
+      return;
+    }
+    // Prefer the current session's model; fall back to the default selection.
+    let route;
+    try {
+      const query = ctx?.get?.('sessionQuery');
+      if (sessionId !== '' && typeof query?.inspectSession === 'function') {
+        route = await query.inspectSession(sessionId, (session) => session?.requestHeader?.()?.config ?? undefined);
+      }
+    } catch {
+      /* fall through to default */
+    }
+    if (route === null || typeof route !== 'object' || typeof route.provider !== 'string') {
+      const defaults = ctx?.get?.('agentDefaultModel');
+      const selection = typeof defaults?.currentSelection === 'function' ? defaults.currentSelection() : undefined;
+      route = selection !== null && typeof selection === 'object' && typeof selection.provider === 'string'
+        ? selection
+        : undefined;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 90_000);
+    timer.unref?.();
+    try {
+      const answer = await directAsk({ llm, route, prompt, signal: controller.signal });
+      sendJson(res, { ok: true, answer: answer.text, finish: answer.finish ?? null });
+    } catch (error) {
+      sendJson(res, { ok: false, code: error?.code ?? 'ask-failed', error: String(error?.message ?? error) }, 500);
+    } finally {
+      clearTimeout(timer);
+    }
     return;
   }
 
@@ -479,18 +605,26 @@ async function handle(req, res, ctx) {
       sendJson(res, { ok: false, code: 'invalid-request', error: 'sessionId is required' }, 400);
       return;
     }
-    const action = ['start', 'poll', 'cancel'].includes(body?.action) ? body.action : 'poll';
+    const action = ['start', 'poll', 'cancel', 'clear'].includes(body?.action) ? body.action : 'poll';
     const manager = ctx?.__powerupProgress;
     if (manager === undefined) {
       sendJson(res, { ok: false, code: 'unavailable', error: 'progress service is not ready' }, 503);
       return;
     }
     try {
+      // A one-off requirements override from the progress panel is kept for
+      // the next start; it does not modify the persisted layers.
+      if (typeof body?.requirements === 'string') {
+        ctx.__powerupProgressOverride = ctx.__powerupProgressOverride ?? {};
+        ctx.__powerupProgressOverride[sessionId] = body.requirements;
+      }
       const view = action === 'start'
         ? manager.start(sessionId)
         : action === 'cancel'
           ? manager.cancel(sessionId)
-          : manager.poll(sessionId);
+          : action === 'clear'
+            ? { ...manager.poll(sessionId), history: manager.clearHistory(sessionId) }
+            : manager.poll(sessionId);
       sendJson(res, { ok: true, action, ...view });
     } catch (error) {
       sendJson(res, { ok: false, code: 'progress-failed', error: String(error?.message ?? error) }, 500);
@@ -641,7 +775,11 @@ async function handle(req, res, ctx) {
     if (req.method === 'GET') {
       // Expose unfinished work so the UI can gate the normal action and offer
       // the forced variant. A runtime that cannot restart still reports tasks.
-      const tasks = collectRunningTasks({ agents: ctx?.get?.('agents'), jobs: ctx?.get?.('jobs') });
+      const tasks = collectRunningTasks({
+          agents: ctx?.get?.('agents'),
+          jobs: ctx?.get?.('jobs'),
+          sessionTitle: ctx?.get?.('sessionTitle'),
+        });
       sendJson(res, {
         ok: true,
         action,
@@ -664,7 +802,11 @@ async function handle(req, res, ctx) {
       const force = body?.force === true;
       const requested = body?.force === true || body?.resume === true || body?.action !== undefined;
       const tasks = requested
-        ? collectRunningTasks({ agents: ctx?.get?.('agents'), jobs: ctx?.get?.('jobs') })
+        ? collectRunningTasks({
+          agents: ctx?.get?.('agents'),
+          jobs: ctx?.get?.('jobs'),
+          sessionTitle: ctx?.get?.('sessionTitle'),
+        })
         : [];
       if (requested && tasks.length > 0 && !force) {
         sendJson(res, {
@@ -762,6 +904,40 @@ export function apply(ctx) {
   // The progress side call needs both `llm` and `sessionQuery`. Wait for them
   // through inject so a late-provided service still creates the manager.
   ctx.inject(['llm', 'sessionQuery'], (scope) => {
+    // Requirements are stored as { global, workspaces: {id: text}, sessions: {id: text} }.
+    // The active requirements for a session are the concatenation of the global,
+    // workspace and session layers; the UI may pass a one-off override too.
+    const requirementsFor = (sessionId, override) => {
+      const saved = readJsonObject(storePath(PROGRESS_REQUIREMENTS_FILE));
+      const parts = [];
+      if (typeof saved.global === 'string' && saved.global.trim() !== '') parts.push(saved.global.trim());
+      const workspaces = saved.workspaces !== null && typeof saved.workspaces === 'object' ? saved.workspaces : {};
+      const sessions = saved.sessions !== null && typeof saved.sessions === 'object' ? saved.sessions : {};
+      // Resolve the session's workspace id without activating an Agent.
+      let workspaceId = '';
+      try {
+        const registry = scope.get('workspaceRegistry');
+        const ws = typeof registry?.list === 'function' ? registry.list() : [];
+        for (const item of Array.isArray(ws) ? ws : []) {
+          if (Array.isArray(item?.sessionIds) && item.sessionIds.includes(sessionId)) {
+            workspaceId = typeof item.id === 'string' ? item.id : '';
+            break;
+          }
+        }
+      } catch {
+        /* workspace layer is optional */
+      }
+      if (workspaceId !== '' && typeof workspaces[workspaceId] === 'string' && workspaces[workspaceId].trim() !== '') {
+        parts.push(workspaces[workspaceId].trim());
+      }
+      if (typeof sessions[sessionId] === 'string' && sessions[sessionId].trim() !== '') {
+        parts.push(sessions[sessionId].trim());
+      }
+      if (typeof override === 'string' && override.trim() !== '') parts.push(override.trim());
+      return parts.join('\n\n');
+    };
+    // Persist progress history to disk so it survives restarts and refreshes.
+    const historyPath = storePath(PROGRESS_HISTORY_FILE);
     const manager = createProgressManager({
       getLlm: () => scope.get('llm'),
       getSessionQuery: () => scope.get('sessionQuery'),
@@ -773,8 +949,35 @@ export function apply(ctx) {
           ? selection
           : undefined;
       },
+      getRequirements: (sessionId) => requirementsFor(sessionId, ctx.__powerupProgressOverride?.[sessionId]),
+      onHistoryChange: (sessionId, history) => {
+        try {
+          const all = readJsonObject(historyPath);
+          const records = all.records !== null && typeof all.records === 'object' ? all.records : {};
+          records[sessionId] = history;
+          mkdirSync(dirname(historyPath), { recursive: true });
+          writeFileSync(historyPath, JSON.stringify({ records }, null, 2) + '\n', 'utf8');
+        } catch {
+          /* history is best-effort persistence */
+        }
+      },
     });
+    // Load persisted history lazily when a session is first polled.
+    const originalPoll = manager.poll;
+    manager.poll = (sessionId) => {
+      if (!manager.__test.histories.has(sessionId)) {
+        try {
+          const all = readJsonObject(historyPath);
+          const records = all.records !== null && typeof all.records === 'object' ? all.records : {};
+          if (Array.isArray(records[sessionId])) manager.loadHistory(sessionId, records[sessionId]);
+        } catch {
+          /* ignore */
+        }
+      }
+      return originalPoll(sessionId);
+    };
     ctx.__powerupProgress = manager;
+    ctx.__powerupProgressOverride = ctx.__powerupProgressOverride ?? {};
     scope.effect(() => () => {
       if (ctx.__powerupProgress === manager) ctx.__powerupProgress = undefined;
     }, 'dsh-powerup: progress manager');
@@ -829,6 +1032,9 @@ export const __test = {
   MODULE_ID,
   STORE_DIR_NAME,
   TASK_RESUME_FILE_NAME,
+  PROGRESS_REQUIREMENTS_FILE,
+  PROGRESS_HISTORY_FILE,
   createProgressManager,
   cleanResumePrompt,
+  readJsonObject,
 };

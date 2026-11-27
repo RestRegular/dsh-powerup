@@ -320,6 +320,7 @@
           'restart.resumePromptLabel': '继续提示词（可选）',
           'restart.resumePromptPlaceholder': '默认：继续之前未完成的任务。',
           'restart.taskLine': '会话 {id}',
+          'restart.taskFallback': '未命名会话',
           'restart.forceConfirm': '强制停止并重启',
           'force.done': '已停止 {count} 个任务，将自动继续 {resumed} 个会话。',
           'update.doneTitle': '安装完成',
@@ -365,13 +366,56 @@
           'progress.hint': '还没有进度报告，点「生成进度」开始分析。',
           'progress.empty': '还没有生成过进度报告。',
           'progress.generate': '生成进度',
-          'progress.refresh': '重新生成',
+          'progress.refresh': '刷新进度',
           'progress.retry': '重试',
           'progress.loading': '正在后台分析会话进度…',
           'progress.close': '关闭',
           'progress.failed': '生成进度失败',
           'progress.stale': '报告已过期',
           'progress.updated': '更新于 {time}',
+          'progress.history': '历史进度',
+          'progress.historyEmpty': '暂无历史记录',
+          'progress.viewRaw': '查看原始内容',
+          'progress.rawTitle': 'AI 原始生成内容',
+          'progress.rawHint': '这是模型返回的原始文本，未经解析处理。',
+          'progress.copyRaw': '复制原文',
+          'progress.clearHistory': '清空历史',
+          'progress.clearHistoryConfirm': '确定清空全部历史进度？此操作不可撤销。',
+          'progress.cleared': '历史已清空',
+          'progress.requirements': '生成要求',
+          'progress.reqHint': '设置语言、结构、必须包含的数据、额外展示区要回答的问题等；设置后会作为后续生成的默认要求。',
+          'progress.reqGlobal': '通用要求（设置页）',
+          'progress.reqWorkspace': '工作区要求',
+          'progress.reqSession': '会话要求',
+          'progress.reqTemporary': '本次临时要求',
+          'progress.reqTemporaryHint': '仅本次生成生效，不会保存。',
+          'progress.reqPlaceholder': '例如：用中文回答，包含每步耗时，展示区回答「下一步做什么」',
+          'progress.reqSaved': '要求已保存',
+          'progress.reqEmpty': '还没有设置任何要求',
+          'progress.ageWarning': '已过去 {minutes} 分钟',
+          'progress.resizeHint': '拖动右下角调整窗口大小',
+          'page.directAskTitle': '轻量问答按钮',
+          'page.directAskDesc': '在底部输入区新增一个按钮，直接把问题发给模型。不启动 Agent，不加载系统提示词、工具和技能，仅用于简单问答，回答更快、更省 token。可在弹窗里附带文件作为上下文。',
+          'page.directAskHow': '点底部输入区的闪电按钮，输入问题后发送；回答会显示在一个可开关的弹窗里。这个能力不是 Agent，不能调用工具或加载技能。',
+          'page.directAskToggle': '启用轻量问答按钮',
+          'page.directAskToggleHint': '关闭后底部输入区不再显示该按钮。',
+          'directAsk.label': '直接问答',
+          'directAsk.hint': '不启动 Agent，直接问模型（无工具/技能）',
+          'directAsk.title': '轻量问答',
+          'directAsk.subtitle': '不加载系统提示词、工具或技能，仅回答问题',
+          'directAsk.placeholder': '输入你的问题…',
+          'directAsk.send': '发送',
+          'directAsk.sending': '正在回答…',
+          'directAsk.attach': '添加文件上下文',
+          'directAsk.attachHint': '选择文本文件，内容会作为参考附加在问题前（不会写入会话）。',
+          'directAsk.removeFile': '移除',
+          'directAsk.empty': '请输入问题',
+          'directAsk.answer': '回答',
+          'directAsk.copy': '复制回答',
+          'directAsk.copied': '已复制',
+          'directAsk.close': '关闭',
+          'directAsk.hide': '隐藏弹窗',
+          'directAsk.showHint': '再次点击闪电按钮可显示/隐藏弹窗',
           'page.promptsTitle': '工作区提示词',
           'page.promptsDesc': '为每个工作区保存可复用的提示词。开启后，新会话行的 Agent 预设右侧会出现一个下拉列表，选择即可把提示词填入输入框（可继续编辑），或点提示词右侧的发送按钮直接发出。',
           'page.promptsHow': '先启用本功能，再切到「工作区提示词」标签页创建提示词；提示词按工作区隔离，没有标题时显示开头几个字。',
@@ -654,6 +698,7 @@
           'restart.resumePromptLabel': 'Continuation prompt (optional)',
           'restart.resumePromptPlaceholder': 'Default: Continue the previous unfinished task.',
           'restart.taskLine': 'Session {id}',
+          'restart.taskFallback': 'Untitled session',
           'restart.forceConfirm': 'Force-stop and restart',
           'force.done': 'Stopped {count} task(s); {resumed} session(s) will resume automatically.',
           'update.doneTitle': 'Install complete',
@@ -699,13 +744,56 @@
           'progress.hint': 'No progress report yet. Press Generate to analyze the session.',
           'progress.empty': 'No progress report generated yet.',
           'progress.generate': 'Generate progress',
-          'progress.refresh': 'Regenerate',
+          'progress.refresh': 'Refresh progress',
           'progress.retry': 'Retry',
           'progress.loading': 'Analyzing session progress in the background…',
           'progress.close': 'Close',
           'progress.failed': 'Could not generate progress',
           'progress.stale': 'Stale report',
           'progress.updated': 'Updated at {time}',
+          'progress.history': 'History',
+          'progress.historyEmpty': 'No history yet',
+          'progress.viewRaw': 'View raw output',
+          'progress.rawTitle': 'Raw AI output',
+          'progress.rawHint': 'This is the exact text returned by the model, before parsing.',
+          'progress.copyRaw': 'Copy raw',
+          'progress.clearHistory': 'Clear history',
+          'progress.clearHistoryConfirm': 'Clear all progress history? This cannot be undone.',
+          'progress.cleared': 'History cleared',
+          'progress.requirements': 'Requirements',
+          'progress.reqHint': 'Set language, structure, required data, questions for the display area, etc. Saved requirements apply to future generations.',
+          'progress.reqGlobal': 'Global requirements (settings)',
+          'progress.reqWorkspace': 'Workspace requirements',
+          'progress.reqSession': 'Session requirements',
+          'progress.reqTemporary': 'One-off requirements',
+          'progress.reqTemporaryHint': 'Applies to this generation only; not saved.',
+          'progress.reqPlaceholder': 'e.g. Answer in Chinese, include per-step timing, answer "what is next" in the display area',
+          'progress.reqSaved': 'Requirements saved',
+          'progress.reqEmpty': 'No requirements configured',
+          'progress.ageWarning': '{minutes} minutes elapsed',
+          'progress.resizeHint': 'Drag the bottom-right corner to resize',
+          'page.directAskTitle': 'Direct-ask button',
+          'page.directAskDesc': 'Adds a button to the bottom composer that sends a question straight to the model. No Agent is started: no system prompt, tools or skills are loaded — just a fast, cheap answer. You can attach files as context in the dialog.',
+          'page.directAskHow': 'Click the lightning button in the composer, type a question and send; the answer appears in a dialog you can show or hide. This is not an Agent — it cannot call tools or load skills.',
+          'page.directAskToggle': 'Enable direct-ask button',
+          'page.directAskToggleHint': 'When off, the composer button is hidden.',
+          'directAsk.label': 'Direct ask',
+          'directAsk.hint': 'Ask the model without an Agent (no tools or skills)',
+          'directAsk.title': 'Direct ask',
+          'directAsk.subtitle': 'No system prompt, tools or skills — just an answer',
+          'directAsk.placeholder': 'Type your question…',
+          'directAsk.send': 'Send',
+          'directAsk.sending': 'Answering…',
+          'directAsk.attach': 'Add file context',
+          'directAsk.attachHint': 'Pick a text file; its content is attached before the question as reference (never written to the session).',
+          'directAsk.removeFile': 'Remove',
+          'directAsk.empty': 'Enter a question first',
+          'directAsk.answer': 'Answer',
+          'directAsk.copy': 'Copy answer',
+          'directAsk.copied': 'Copied',
+          'directAsk.close': 'Close',
+          'directAsk.hide': 'Hide dialog',
+          'directAsk.showHint': 'Click the lightning button again to show/hide the dialog',
           'page.promptsTitle': 'Workspace prompts',
           'page.promptsDesc': 'Save reusable prompts per workspace. When enabled, a dropdown appears next to the Agent preset in the New Session row: pick a prompt to fill the composer (still editable), or click its send button to send it right away.',
           'page.promptsHow': 'Enable this feature, then open the "Workspace prompts" tab to create prompts. Prompts are scoped per workspace; without a title the first few characters are shown.',
@@ -804,6 +892,7 @@
         dualSend: false,
         workspacePrompts: true,
         taskProgress: true,
+        directAsk: true,
         oneClickEnable: true,
         oneClickRestart: true,
       };
@@ -827,6 +916,7 @@
               dualSend: parsed.dualSend === true,
               workspacePrompts: parsed.workspacePrompts !== false,
               taskProgress: parsed.taskProgress !== false,
+              directAsk: parsed.directAsk !== false,
               oneClickEnable: parsed.oneClickEnable !== false,
               oneClickRestart: parsed.oneClickRestart !== false,
             };
@@ -4135,7 +4225,8 @@ nav.dsh-powerup-launcher.dsh-powerup-launcher-wide>[data-powerup-grid]:hover [cl
 .dsh-powerup-update-tasks>strong{color:var(--dsw-alias-label-primary);font-size:12.5px;line-height:18px}
 .dsh-powerup-update-task-list{display:flex;flex-direction:column;gap:4px;max-height:150px;overflow-y:auto;margin:2px 0;padding:0;list-style:none}
 .dsh-powerup-update-task-list li{display:flex;align-items:center;gap:7px;min-width:0;padding:4px 8px;border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-secondary);font-size:11.5px;line-height:16px}
-.dsh-powerup-update-task-list code{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--dsw-font-family-code,ui-monospace,SFMono-Regular,Consolas,monospace);font-size:11px}
+.dsh-powerup-update-task-title{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-primary)}
+.dsh-powerup-update-task-list code{flex:none;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-tertiary);font-family:var(--dsw-font-family-code,ui-monospace,SFMono-Regular,Consolas,monospace);font-size:11px}
 .dsh-powerup-update-task-dot{flex:none;width:6px;height:6px;border-radius:50%;background:var(--dsw-alias-state-warning-foreground,var(--dsw-alias-brand-primary))}
 .dsh-powerup-app-check{display:flex;align-items:flex-start;gap:9px;padding:4px 0;cursor:pointer}
 .dsh-powerup-app-check input{flex:none;margin:2px 0 0;accent-color:var(--dsw-alias-brand-primary)}
@@ -4493,7 +4584,31 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-progress-refresh:hover{border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-brand-primary)}
 .dsh-powerup-progress-refresh:disabled{opacity:.45;cursor:not-allowed}
 .dsh-powerup-progress-time{color:var(--dsw-alias-label-caption);font-size:10px}
+.dsh-powerup-progress-mini{height:26px;padding:0 8px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;font-size:11px;line-height:1.5;cursor:pointer}
+.dsh-powerup-progress-mini:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
+.dsh-powerup-progress-history{margin-bottom:12px}
+.dsh-powerup-progress-history-list{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+.dsh-powerup-progress-history-item{padding:3px 9px;border:.5px solid var(--dsw-alias-border-l2);border-radius:999px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-secondary);font:inherit;font-size:10.5px;line-height:1.5;cursor:pointer}
+.dsh-powerup-progress-history-item.on{border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-brand-primary);background:color-mix(in srgb,var(--dsw-alias-brand-primary) 10%,transparent)}
+.dsh-powerup-progress-age{margin:0 0 10px;padding:6px 10px;border-radius:7px;background:color-mix(in srgb,var(--dsw-alias-state-warning-primary,var(--dsw-alias-state-error-primary)) 10%,transparent);color:var(--dsw-alias-state-warning-primary,var(--dsw-alias-state-error-primary));font-size:11px;line-height:1.5}
+.dsh-powerup-progress-req-pop{padding:10px 16px 0;border-bottom:.5px solid var(--dsw-alias-border-l1)}
+.dsh-powerup-progress-req-pop .dsh-powerup-prompt-textarea{min-height:64px}
+.dsh-powerup-progress-resizer{position:absolute;right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,var(--dsw-alias-border-l3) 50%,transparent 62%,var(--dsw-alias-border-l3) 62%,var(--dsw-alias-border-l3) 72%,transparent 72%)}
+.dsh-powerup-progress-req-editor{display:flex;flex-direction:column;gap:10px;padding:8px 0}
 @media (prefers-reduced-motion:reduce){.dsh-powerup-progress-panel,.dsh-powerup-progress-btn.is-running svg,.dsh-powerup-progress-fill{animation:none;transition:none}}
+/* Direct-ask button + dialog */
+.dsh-powerup-directask-btn{display:inline-flex;align-items:center;gap:4px;height:26px;padding:0 8px;border:.5px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font:inherit;font-size:11.5px;line-height:1;cursor:pointer}
+.dsh-powerup-directask-btn:hover,.dsh-powerup-directask-btn.on{border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-brand-primary)}
+.dsh-powerup-directask-mask{position:fixed;z-index:1600;display:flex;box-sizing:border-box;max-height:calc(100dvh - 24px);pointer-events:none}
+.dsh-powerup-directask-dialog{box-sizing:border-box;display:flex;flex-direction:column;width:100%;max-height:min(80vh,760px);border-radius:var(--dsw-radius-panel,14px);background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2);pointer-events:auto;animation:dsh-powerup-progress-in .15s ease-out}
+.dsh-powerup-directask-files{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.dsh-powerup-directask-file{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:999px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-secondary);font-size:11px}
+.dsh-powerup-directask-file button{border:0;background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer;font-size:13px;line-height:1}
+.dsh-powerup-directask-label{display:block}
+.dsh-powerup-directask-label textarea{min-height:90px}
+.dsh-powerup-directask-attach{display:inline-flex;align-items:center;gap:6px;width:fit-content;margin-top:8px;color:var(--dsw-alias-label-secondary);font-size:11.5px;cursor:pointer}
+.dsh-powerup-directask-answer{margin-top:12px;padding-top:10px;border-top:.5px solid var(--dsw-alias-border-l1)}
+.dsh-powerup-directask-answer-body{margin:6px 0;padding:12px;border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);font-size:12.5px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow-y:auto}
 `;
 
       /** Max display length of a session option, in Unicode code points. */
@@ -8055,8 +8170,10 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
               h('ul', { className: 'dsh-powerup-update-task-list' },
                 appTasks.slice(0, 8).map((task, index) => h('li', { key: `${task.kind}-${task.id}-${index}` },
                   h('span', { className: 'dsh-powerup-update-task-dot' }),
-                  h('code', null, t('restart.taskLine', { id: task.id })),
-                  task.title && task.title !== 'session' ? h('span', null, ` — ${task.title}`) : null,
+                  h('span', { className: 'dsh-powerup-update-task-title' },
+                    task.title && task.title !== 'session' ? task.title : t('restart.taskFallback'),
+                  ),
+                  h('code', { title: task.id }, task.id),
                 )),
               ),
               h('label', { className: 'dsh-powerup-app-check' },
@@ -8993,6 +9110,164 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         return behavior;
       }
 
+      /**
+       * Lighting-bolt button in the composer. Opens a dialog that sends a
+       * question straight to the model — no Agent, system prompt, tools or
+       * skills. The dialog can be hidden/shown by clicking the button again.
+       */
+      function DirectAskButton({ sessionId }) {
+        const settings = useSettings();
+        const [open, setOpen] = useState(false);
+        const [question, setQuestion] = useState('');
+        const [files, setFiles] = useState([]);
+        const [answer, setAnswer] = useState('');
+        const [busy, setBusy] = useState(false);
+        const [error, setError] = useState('');
+        const [copied, setCopied] = useState(false);
+        const dialogRef = useRef(null);
+        const sessionRef = useRef(sessionId);
+        sessionRef.current = sessionId;
+        const t = useCallback((key, params) => translateCurrent(key, params), []);
+
+        useEffect(() => {
+          if (!open) return undefined;
+          const onKey = (event) => {
+            if (event.key === 'Escape') { event.stopPropagation(); setOpen(false); }
+          };
+          document.addEventListener('keydown', onKey, true);
+          return () => document.removeEventListener('keydown', onKey, true);
+        }, [open]);
+
+        const send = useCallback(async () => {
+          const q = question.trim();
+          if (q === '') { setError(t('directAsk.empty')); return; }
+          setBusy(true);
+          setError('');
+          setAnswer('');
+          setCopied(false);
+          try {
+            const response = await fetch(DIRECT_ASK_API, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                sessionId: sessionRef.current ?? '',
+                question: q,
+                context: files.map((f) => ({ name: f.name, text: f.text })),
+              }),
+            });
+            const body = await response.json();
+            if (!body?.ok) throw new Error(body?.error ?? `HTTP ${response.status}`);
+            setAnswer(typeof body.answer === 'string' ? body.answer : '');
+          } catch (err) {
+            setError(err?.message ?? String(err));
+          } finally {
+            setBusy(false);
+          }
+        }, [question, files, t]);
+
+        const pickFiles = useCallback(async (event) => {
+          const picked = Array.from(event?.target?.files ?? []);
+          const loaded = [];
+          for (const file of picked) {
+            try {
+              const text = await file.text();
+              loaded.push({ name: file.name, text: String(text).slice(0, 40_000) });
+            } catch {
+              /* skip unreadable files */
+            }
+          }
+          setFiles((current) => [...current, ...loaded]);
+          if (event?.target) event.target.value = '';
+        }, []);
+
+        if (settings.directAsk === false) return null;
+
+        const lightning = h('svg', { viewBox: '0 0 16 16', width: 15, height: 15, 'aria-hidden': 'true' },
+          h('path', { d: 'M9 1.5 3.5 9H7l-1 5.5L12.5 7H9l1-5.5Z', fill: 'currentColor' }),
+        );
+
+        const button = h('button', {
+          type: 'button',
+          className: 'dsh-powerup-directask-btn' + (open ? ' on' : ''),
+          title: t('directAsk.hint'),
+          'aria-label': t('directAsk.label'),
+          onClick: () => setOpen((v) => !v),
+        }, lightning, h('span', null, t('directAsk.label')));
+
+        const dialog = !open ? null : h('div', {
+          className: 'dsh-powerup-directask-mask',
+          style: {
+            bottom: '72px',
+            right: '18px',
+            width: 'min(600px, calc(100vw - 36px))',
+          },
+        },
+          h('div', {
+            ref: dialogRef,
+            className: 'dsh-powerup-directask-dialog',
+            role: 'dialog',
+            'aria-label': t('directAsk.title'),
+          },
+            h('div', { className: 'dsh-powerup-update-head' },
+              h('div', { className: 'dsh-powerup-update-heading' },
+                h('h2', null, t('directAsk.title')),
+                h('p', { className: 'dsh-powerup-update-note' }, t('directAsk.subtitle')),
+              ),
+              h('button', {
+                type: 'button', className: 'dsh-powerup-update-close',
+                'aria-label': t('directAsk.close'), onClick: () => setOpen(false),
+              }, '×'),
+            ),
+            h('div', { className: 'dsh-powerup-update-body' },
+              files.length > 0 ? h('div', { className: 'dsh-powerup-directask-files' },
+                files.map((f, i) => h('span', { key: i, className: 'dsh-powerup-directask-file' },
+                  f.name,
+                  h('button', {
+                    type: 'button', 'aria-label': t('directAsk.removeFile'),
+                    onClick: () => setFiles((cur) => cur.filter((_, j) => j !== i)),
+                  }, '×'),
+                )),
+              ) : null,
+              h('label', { className: 'dsh-powerup-directask-label' },
+                h('textarea', {
+                  className: 'dsh-powerup-prompt-input dsh-powerup-prompt-textarea',
+                  value: question,
+                  placeholder: t('directAsk.placeholder'),
+                  disabled: busy,
+                  onChange: (event) => setQuestion(event.target.value),
+                }),
+              ),
+              h('label', { className: 'dsh-powerup-directask-attach' },
+                h('input', { type: 'file', multiple: true, onChange: (e) => void pickFiles(e) }),
+                h('span', null, t('directAsk.attach')),
+              ),
+              h('p', { className: 'dsh-powerup-setting-hint' }, t('directAsk.attachHint')),
+              error ? h('p', { className: 'dsh-powerup-progress-error' }, error) : null,
+              answer !== '' ? h('div', { className: 'dsh-powerup-directask-answer' },
+                h('h4', { className: 'dsh-powerup-section' }, t('directAsk.answer')),
+                h('div', { className: 'dsh-powerup-directask-answer-body' }, answer),
+                h('button', {
+                  type: 'button', className: 'dsh-powerup-progress-mini',
+                  onClick: async () => {
+                    const ok = await copyText(answer);
+                    if (ok) { setCopied(true); setTimeout(() => setCopied(false), 1500); }
+                  },
+                }, copied ? t('directAsk.copied') : t('directAsk.copy')),
+              ) : null,
+            ),
+            h('div', { className: 'dsh-powerup-update-foot' },
+              h('span', { className: 'dsh-powerup-setting-hint' }, t('directAsk.showHint')),
+              h('button', {
+                type: 'button', className: 'dsh-powerup-update-primary',
+                disabled: busy || question.trim() === '', onClick: () => void send(),
+              }, busy ? t('directAsk.sending') : t('directAsk.send')),
+            ),
+          ),
+        );
+
+        return h(React.Fragment, null, button, renderInBody(dialog));
+      }
+
       function DualSendButtons({ sessionId, useInput, inputActions, ctx, t }) {
         const settings = useSettings();
         const draft = typeof useInput === 'function' ? useInput((s) => s.draft) : '';
@@ -9144,6 +9419,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
               ),
             ),
             h(MaskRuleEditor, { scope: 'workspace', t, workspaceId }),
+            h(ProgressScopeRequirements, { t, workspaceId, sessionId: ownerId }),
           ),
         );
       }
@@ -9706,7 +9982,16 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           featureCard('scrollToTop', ScrollTopIcon, 'page.scrollToTopTitle', 'page.scrollToTopDesc', 'page.scrollToTopHow'),
           featureCard('contentRendering', PowerUpLineIcon, 'page.renderingTitle', 'page.renderingDesc', 'page.renderingHow'),
           featureCard('dualSend', LauncherIcon, 'page.dualSendTitle', 'page.dualSendDesc', 'page.dualSendHow'),
-          featureCard('taskProgress', ProgressIcon, 'page.taskProgressTitle', 'page.taskProgressDesc', 'page.taskProgressHow'),
+          featureCard('taskProgress', ProgressIcon, 'page.taskProgressTitle', 'page.taskProgressDesc', 'page.taskProgressHow',
+            h('div', { className: 'dsh-powerup-card-detail' },
+              h(ProgressRequirementsEditor, { t }),
+            ),
+          ),
+          featureCard('directAsk', TagIcon, 'page.directAskTitle', 'page.directAskDesc', 'page.directAskHow',
+            h('div', { className: 'dsh-powerup-card-detail' },
+              settingRow('directAsk', settings.directAsk !== false, t('page.directAskToggle'), t('page.directAskToggleHint')),
+            ),
+          ),
           featureCard('workspacePrompts', TagIcon, 'page.promptsTitle', 'page.promptsDesc', 'page.promptsHow'),
           featureCard('jobStop', StopIcon, 'page.jobStopTitle', 'page.jobStopDesc', 'page.jobStopHow'),
           featureCard('update', UpdateIcon, 'page.updateTitle', 'page.updateDesc', 'page.updateHow', oneClickDetail),
@@ -9764,13 +10049,125 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
       // Task progress: header button + body-portal panel
       // ------------------------------------------------------------------
       const PROGRESS_API = '/dsh-powerup/api/progress';
+      const REQUIREMENTS_API = '/dsh-powerup/api/progress-requirements';
+      const HISTORY_API = '/dsh-powerup/api/progress-history';
+      const DIRECT_ASK_API = '/dsh-powerup/api/direct-ask';
+
+      /** Module-level requirements cache: {global, workspaces:{}, sessions:{}}. */
+      let requirementsCache = { global: '', workspaces: {}, sessions: {} };
+      let requirementsLoaded = false;
+      const requirementsListeners = new Set();
+      function emitRequirements() {
+        for (const fn of [...requirementsListeners]) {
+          try { fn(); } catch { /* one listener must not break the rest */ }
+        }
+      }
+      async function loadRequirements() {
+        if (requirementsLoaded) return requirementsCache;
+        requirementsLoaded = true;
+        try {
+          const response = await fetch(REQUIREMENTS_API, { headers: { accept: 'application/json' } });
+          const data = await response.json();
+          if (data?.ok && data.requirements !== null && typeof data.requirements === 'object') {
+            requirementsCache = {
+              global: typeof data.requirements.global === 'string' ? data.requirements.global : '',
+              workspaces: data.requirements.workspaces ?? {},
+              sessions: data.requirements.sessions ?? {},
+            };
+          }
+        } catch {
+          /* Host unavailable: keep the last known value. */
+        }
+        emitRequirements();
+        return requirementsCache;
+      }
+      function saveRequirements(next) {
+        requirementsCache = next;
+        emitRequirements();
+        fetch(REQUIREMENTS_API, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', accept: 'application/json' },
+          body: JSON.stringify({ requirements: next }),
+        }).catch(() => { /* in-memory copy still works this session */ });
+      }
+      function useRequirements() {
+        const [, tick] = useState(0);
+        useEffect(() => {
+          void loadRequirements();
+          const listener = () => tick((n) => n + 1);
+          requirementsListeners.add(listener);
+          return () => requirementsListeners.delete(listener);
+        }, []);
+        return requirementsCache;
+      }
+
+      /** Textarea field for one requirements layer. */
+      function RequirementField({ label, hint, value, placeholder, onChange }) {
+        return h('label', { className: 'dsh-powerup-prompt-field' },
+          h('span', { className: 'dsh-powerup-prompt-field-label' }, label),
+          hint ? h('span', { className: 'dsh-powerup-setting-hint' }, hint) : null,
+          h('textarea', {
+            className: 'dsh-powerup-prompt-input dsh-powerup-prompt-textarea',
+            value: value ?? '',
+            placeholder: placeholder ?? '',
+            onChange: (event) => onChange(event.target.value),
+          }),
+        );
+      }
+
+      /** Settings-page editor: global progress requirements. */
+      function ProgressRequirementsEditor({ t }) {
+        const reqs = useRequirements();
+        return h('div', { className: 'dsh-powerup-progress-req-editor' },
+          h('p', { className: 'dsh-powerup-card-desc' }, t('progress.reqHint')),
+          h(RequirementField, {
+            label: t('progress.reqGlobal'),
+            value: reqs.global,
+            placeholder: t('progress.reqPlaceholder'),
+            onChange: (value) => saveRequirements({ ...requirementsCache, global: value }),
+          }),
+        );
+      }
+
+      /** Workspace/session-scoped requirements, shown in the conversation settings tab. */
+      function ProgressScopeRequirements({ t, workspaceId, sessionId }) {
+        const reqs = useRequirements();
+        const ws = typeof workspaceId === 'string' ? workspaceId : '';
+        const sid = typeof sessionId === 'string' ? sessionId : '';
+        const setWorkspace = (value) => {
+          const workspaces = { ...(requirementsCache.workspaces ?? {}) };
+          workspaces[ws] = value;
+          saveRequirements({ ...requirementsCache, workspaces });
+        };
+        const setSession = (value) => {
+          const sessions = { ...(requirementsCache.sessions ?? {}) };
+          sessions[sid] = value;
+          saveRequirements({ ...requirementsCache, sessions });
+        };
+        return h('div', { className: 'dsh-powerup-progress-req-editor' },
+          h('h3', { className: 'dsh-powerup-section-title' }, t('progress.requirements')),
+          h('p', { className: 'dsh-powerup-card-desc' }, t('progress.reqHint')),
+          h(RequirementField, {
+            label: t('progress.reqWorkspace'),
+            value: reqs.workspaces?.[ws] ?? '',
+            placeholder: t('progress.reqPlaceholder'),
+            onChange: setWorkspace,
+          }),
+          sid !== '' ? h(RequirementField, {
+            label: t('progress.reqSession'),
+            value: reqs.sessions?.[sid] ?? '',
+            placeholder: t('progress.reqPlaceholder'),
+            onChange: setSession,
+          }) : null,
+        );
+      }
 
       /** POST to the progress route; returns the parsed body. */
-      async function progressRequest(sessionId, action) {
+      async function progressRequest(sessionId, action, extra = {}) {
         const response = await fetch(PROGRESS_API, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ sessionId, action }),
+          body: JSON.stringify({ sessionId, action, ...extra }),
         });
         const body = await response.json();
         if (!body?.ok) throw new Error(body?.error ?? `HTTP ${response.status}`);
@@ -9902,18 +10299,38 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
       }
 
       /**
-       * Header utility: a button that opens a body-portal panel. The panel polls
-       * the Host route while a side call runs, and reuses the last report after
-       * it finishes. All work is fire-and-forget on the Host, so the running
-       * task is never blocked or interrupted.
+       * Header utility: a resizable, body-portal progress panel.
+       *
+       * Enhancements over the original:
+       *  - wider default panel, user-resizable via a bottom-right drag handle
+       *    (size persisted in localStorage);
+       *  - header background shifts from blue to warning red as the report ages;
+       *  - a per-session history is kept on the Host and can be browsed/cleared;
+       *  - the raw AI text is viewable and copyable;
+       *  - one-off requirements can be added in the panel for the next refresh.
        */
       function ProgressControl({ sessionId }) {
         const settings = useSettings();
         const [open, setOpen] = useState(false);
         const [view, setView] = useState(null);
         const [busy, setBusy] = useState(false);
+        const [historyIndex, setHistoryIndex] = useState(0);
+        const [showRaw, setShowRaw] = useState(false);
+        const [showReq, setShowReq] = useState(false);
+        const [tempReq, setTempReq] = useState('');
+        const [size, setSize] = useState(() => {
+          try {
+            const saved = JSON.parse(localStorage.getItem('dsh-powerup:progress:size:v1') || 'null');
+            if (saved !== null && Number.isFinite(saved.w) && Number.isFinite(saved.h)) {
+              return { w: Math.max(320, Math.min(900, saved.w)), h: Math.max(240, Math.min(900, saved.h)) };
+            }
+          } catch { /* fall through */ }
+          return { w: 520, h: 560 };
+        });
+        const [ageTick, setAgeTick] = useState(0);
         const panelRef = useRef(null);
         const buttonRef = useRef(null);
+        const dragRef = useRef(null);
         const sessionRef = useRef(sessionId);
         sessionRef.current = sessionId;
         const t = useCallback((key, params) => translateCurrent(key, params), []);
@@ -9938,29 +10355,45 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             if (disposed) return;
             const body = await refresh();
             if (disposed) return;
-            if (body?.status === 'running') {
-              window.setTimeout(tick, 900);
-            }
+            if (body?.status === 'running') window.setTimeout(tick, 900);
           };
           void tick();
           return () => { disposed = true; };
         }, [open, refresh]);
+
+        // Repaint the time-based header colour once a minute.
+        useEffect(() => {
+          if (!open) return undefined;
+          const timer = window.setInterval(() => setAgeTick((n) => n + 1), 60_000);
+          return () => window.clearInterval(timer);
+        }, [open]);
 
         const run = useCallback(async () => {
           const id = sessionRef.current;
           if (typeof id !== 'string' || id === '') return;
           setBusy(true);
           try {
-            const body = await progressRequest(id, 'start');
+            const body = await progressRequest(id, 'start', { requirements: tempReq });
             setView(body);
+            setHistoryIndex(0);
           } catch (error) {
             setView({ status: 'error', error: error?.message ?? String(error) });
           } finally {
             setBusy(false);
-            // Kick the polling loop even if it was already mounted.
             if (!open) setOpen(true);
           }
-        }, [open]);
+        }, [open, tempReq]);
+
+        const clearHistory = useCallback(async () => {
+          const id = sessionRef.current;
+          if (typeof id !== 'string' || id === '') return;
+          if (window.confirm(t('progress.clearHistoryConfirm')) !== true) return;
+          try {
+            const body = await progressRequest(id, 'clear');
+            setView(body);
+            setHistoryIndex(0);
+          } catch { /* keep the current view */ }
+        }, [t]);
 
         const close = useCallback(() => setOpen(false), []);
 
@@ -9985,9 +10418,48 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           };
         }, [open, close]);
 
+        // Bottom-right resize handle: ordinary pointer events on the panel node.
+        useEffect(() => {
+          if (!open) return undefined;
+          const onMove = (event) => {
+            const drag = dragRef.current;
+            if (drag === null) return;
+            const w = Math.max(320, Math.min(900, drag.w + drag.x - event.clientX));
+            const h = Math.max(240, Math.min(900, drag.h + drag.y - event.clientY));
+            setSize({ w, h });
+          };
+          const onUp = () => {
+            if (dragRef.current === null) return;
+            dragRef.current = null;
+            try { localStorage.setItem('dsh-powerup:progress:size:v1', JSON.stringify(size)); } catch { /* ignore */ }
+          };
+          document.addEventListener('pointermove', onMove);
+          document.addEventListener('pointerup', onUp);
+          return () => {
+            document.removeEventListener('pointermove', onMove);
+            document.removeEventListener('pointerup', onUp);
+          };
+        }, [open, size]);
+
         if (settings.taskProgress === false) return null;
         const running = view?.status === 'running' || busy;
-        const report = view?.report;
+        const history = Array.isArray(view?.history) ? view.history : [];
+        // The selected history entry is the displayed report; index 0 = latest.
+        const selected = history.length > 0
+          ? history[Math.min(historyIndex, history.length - 1)]
+          : null;
+        const report = selected?.report ?? selected ?? view?.report;
+
+        // Age of the displayed report, used for the blue → red header gradient.
+        // `ageTick` forces this recomputation once a minute while open.
+        void ageTick;
+        const reportAt = selected?.updatedAt ?? view?.updatedAt ?? 0;
+        const ageMinutes = reportAt > 0 ? (Date.now() - reportAt) / 60_000 : 0;
+        // 0 min → blue (210), 60+ min → red (0). Keep a hint of blue until 15 min.
+        const hue = Math.max(0, 210 - Math.min(60, ageMinutes) * 3.5);
+        const headerStyle = reportAt > 0
+          ? { background: `linear-gradient(90deg, hsl(${hue} 70% 42% / 0.22), hsl(${hue} 70% 42% / 0.06))` }
+          : undefined;
 
         const button = h('button', {
           ref: buttonRef,
@@ -10006,36 +10478,8 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           running ? h('span', { className: 'dsh-powerup-progress-btn-dot' }) : null,
         );
 
-        const body = (() => {
-          if (view === null) return h('div', { className: 'dsh-powerup-progress-empty' }, t('progress.hint'));
-          if (view.status === 'error') return h('p', { className: 'dsh-powerup-progress-error' }, view.error ?? t('progress.failed'));
-          if (view.status === 'idle' || view.status === 'expired') {
-            return h('div', null,
-              h('p', { className: 'dsh-powerup-progress-empty' }, t('progress.empty')),
-              h('button', {
-                type: 'button', className: 'dsh-powerup-progress-refresh',
-                disabled: busy, onClick: () => void run(),
-              }, t('progress.generate')),
-            );
-          }
-          if (view.status === 'running') {
-            return h('div', null,
-              h('div', { className: 'dsh-powerup-progress-loading' }, t('progress.loading')),
-              report ? h('div', null,
-                h('p', { className: 'dsh-powerup-progress-summary' }, report.summary),
-                ProgressStructure(report),
-              ) : null,
-            );
-          }
-          if (report === null || report === undefined) {
-            return h('div', null,
-              h('p', { className: 'dsh-powerup-progress-empty' }, t('progress.failed')),
-              h('button', {
-                type: 'button', className: 'dsh-powerup-progress-refresh',
-                disabled: busy, onClick: () => void run(),
-              }, t('progress.retry')),
-            );
-          }
+        const reportBody = (() => {
+          if (report === null || report === undefined) return null;
           return h('div', null,
             h('p', { className: 'dsh-powerup-progress-summary' }, report.summary),
             h('div', { className: 'dsh-powerup-progress-meter' },
@@ -10052,10 +10496,72 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           );
         })();
 
+        const body = (() => {
+          if (view === null) return h('div', { className: 'dsh-powerup-progress-empty' }, t('progress.hint'));
+          if (view.status === 'error') return h('p', { className: 'dsh-powerup-progress-error' }, view.error ?? t('progress.failed'));
+          if (running) {
+            return h('div', null,
+              h('div', { className: 'dsh-powerup-progress-loading' }, t('progress.loading')),
+              reportBody,
+            );
+          }
+          if (showRaw) {
+            const raw = typeof report?.raw === 'string' ? report.raw : '';
+            return h('div', null,
+              h('h4', { className: 'dsh-powerup-progress-section' }, t('progress.rawTitle')),
+              h('p', { className: 'dsh-powerup-progress-empty' }, t('progress.rawHint')),
+              h('pre', { className: 'dsh-powerup-progress-code' }, raw || '(empty)'),
+              h('button', {
+                type: 'button', className: 'dsh-powerup-progress-refresh',
+                onClick: () => void copyText(raw),
+              }, t('progress.copyRaw')),
+            );
+          }
+          if (report === null || report === undefined) {
+            return h('div', null,
+              h('p', { className: 'dsh-powerup-progress-empty' }, t('progress.empty')),
+              h('button', {
+                type: 'button', className: 'dsh-powerup-progress-refresh',
+                disabled: busy, onClick: () => void run(),
+              }, t('progress.generate')),
+            );
+          }
+          return h('div', null,
+            // History switcher — browsing an older report never discards it.
+            history.length > 1 ? h('div', { className: 'dsh-powerup-progress-history' },
+              h('span', { className: 'dsh-powerup-progress-section' }, t('progress.history')),
+              h('div', { className: 'dsh-powerup-progress-history-list' },
+                history.map((entry, index) => h('button', {
+                  key: entry.updatedAt ?? index,
+                  type: 'button',
+                  className: 'dsh-powerup-progress-history-item' + (index === historyIndex ? ' on' : ''),
+                  onClick: () => setHistoryIndex(index),
+                }, new Date(entry.updatedAt ?? Date.now()).toLocaleTimeString())),
+              ),
+            ) : null,
+            ageMinutes > 15 ? h('p', { className: 'dsh-powerup-progress-age' },
+              t('progress.ageWarning', { minutes: Math.round(ageMinutes) }),
+            ) : null,
+            reportBody,
+          );
+        })();
+
+        const requirementsEditor = showReq ? h('div', { className: 'dsh-powerup-progress-req-pop' },
+          h(RequirementField, {
+            label: t('progress.reqTemporary'),
+            hint: t('progress.reqTemporaryHint'),
+            value: tempReq,
+            placeholder: t('progress.reqPlaceholder'),
+            onChange: setTempReq,
+          }),
+        ) : null;
+
         const panel = !open ? null : h('div', {
           ref: panelRef,
           className: 'dsh-powerup-progress-panel',
           style: {
+            width: `${size.w}px`,
+            maxHeight: `${size.h}px`,
             top: (() => {
               const rect = buttonRef.current?.getBoundingClientRect?.();
               return `${Math.round((rect?.bottom ?? 44) + 6)}px`;
@@ -10066,7 +10572,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             })(),
           },
         },
-          h('div', { className: 'dsh-powerup-progress-head' },
+          h('div', { className: 'dsh-powerup-progress-head', style: headerStyle },
             h('div', { className: 'dsh-powerup-progress-heading' },
               h('span', { className: 'dsh-powerup-progress-title' }, report?.title ?? t('progress.title')),
               h('span', { className: 'dsh-powerup-progress-sub' },
@@ -10079,16 +10585,37 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
               'aria-label': t('progress.close'), onClick: close,
             }, '×'),
           ),
+          requirementsEditor,
           h('div', { className: 'dsh-powerup-progress-body' }, body),
           h('div', { className: 'dsh-powerup-progress-foot' },
             h('span', { className: 'dsh-powerup-progress-time' },
               view?.updatedAt ? format(t('progress.updated'), { time: new Date(view.updatedAt).toLocaleTimeString() }) : '',
             ),
             h('button', {
+              type: 'button', className: 'dsh-powerup-progress-mini',
+              onClick: () => setShowReq((v) => !v),
+            }, t('progress.requirements')),
+            report?.raw ? h('button', {
+              type: 'button', className: 'dsh-powerup-progress-mini',
+              onClick: () => setShowRaw((v) => !v),
+            }, t('progress.viewRaw')) : null,
+            history.length > 0 ? h('button', {
+              type: 'button', className: 'dsh-powerup-progress-mini',
+              onClick: () => void clearHistory(),
+            }, t('progress.clearHistory')) : null,
+            h('button', {
               type: 'button', className: 'dsh-powerup-progress-refresh',
               disabled: busy || running, onClick: () => void run(),
             }, t('progress.refresh')),
           ),
+          h('div', {
+            className: 'dsh-powerup-progress-resizer',
+            title: t('progress.resizeHint'),
+            onPointerDown: (event) => {
+              event.preventDefault();
+              dragRef.current = { x: event.clientX, y: event.clientY, w: size.w, h: size.h };
+            },
+          }),
         );
 
         return h('span', { style: { display: 'inline-flex', alignItems: 'center' } },
@@ -10169,6 +10696,11 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           ctx,
           t: (key, params) => translateCurrent(key, params),
         }), 'dsh-powerup: dual send buttons');
+
+        register('conversation.input.right', {
+          id: 'powerup-direct-ask',
+          order: 82,
+        }, (props) => h(DirectAskButton, { sessionId: props?.sessionId }), 'dsh-powerup: direct ask');
 
         // In an ongoing session, place the prompt picker in the bottom tool row
         // just after the host's permission / plan dropdowns; its popover opens
@@ -10252,6 +10784,9 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           PROMPTS_CSS,
           PROGRESS_CSS,
           ProgressControl,
+          ProgressRequirementsEditor,
+          ProgressScopeRequirements,
+          DirectAskButton,
           ProgressStructure,
           ProgressDisplay,
           progressRequest,

@@ -24,7 +24,7 @@ assert.equal(cleanText('x'.repeat(500), 10), 'x'.repeat(10));
 const fakeAgents = {
   list() {
     return [
-      { id: 's1', status: 'running', session: { title: () => 'My task' } },
+      { id: 's1', status: 'running', session: { titleText: 'My task', title: () => 'legacy' } },
       { id: 's2', status: 'idle', session: { title: () => 'Idle' } },
       { id: 's3', status: 'running', session: {} },
     ];
@@ -38,7 +38,12 @@ const fakeJobs = {
     ];
   },
 };
-const tasks = collectRunningTasks({ agents: fakeAgents, jobs: fakeJobs });
+const fakeSessionTitle = {
+  get(session) {
+    return session?.titleText ? { title: session.titleText } : undefined;
+  },
+};
+const tasks = collectRunningTasks({ agents: fakeAgents, jobs: fakeJobs, sessionTitle: fakeSessionTitle });
 assert.deepEqual(tasks.map((task) => task.id), ['s1', 's3', 'j1']);
 assert.equal(tasks[0].title, 'My task');
 assert.equal(tasks[1].title, 'session');

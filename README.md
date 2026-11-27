@@ -6,7 +6,9 @@ The upgrades include a **right-click action menu in the Trajectory view**, a
 data, an optional **stop reason for background jobs**, an in-place
 **plugin installer**, and a **sidebar launcher** that turns the left sidebar's
 panel list into an adaptive icon grid with drag sorting, folders, a
-back-to-conversation tile, and restart/close tiles.
+back-to-conversation tile, and restart/close tiles. It also adds a
+**task-progress panel** with three-layer requirements and browsable history, and
+a **direct-ask button** for one-shot model answers without an Agent.
 
 ## Install
 
@@ -442,6 +444,31 @@ the running agent:
   without the plugin needing to anticipate every format.
 - The feature is on by default and can be switched off on the Power-Up page;
   reports are cached per session in memory and marked stale after a minute.
+
+### Three-layer progress requirements, resizable panel and history
+
+Progress requirements can be set globally on the Power-Up settings page, per
+workspace/session in the conversation's Power-Up settings tab, and as a one-off
+override inside the panel. All layers are concatenated (global → workspace →
+session → one-off) into extra instructions for the model, so language, structure,
+required data and questions for the display area are remembered from then on.
+The panel is wider by default, resizable from its bottom-right corner (size
+persisted), and its header tint shifts from blue toward warning red as the
+displayed report ages. Every refresh adds a new report to a per-session history
+stored on disk; older reports stay browsable and are never discarded by a
+refresh. The panel can switch between them, show the exact raw AI text, copy it,
+and clear the history explicitly. "Refresh progress" generates a new report
+without dropping the old ones.
+
+### Direct ask (no Agent)
+
+A lightning button in the composer opens a floating, show/hide dialog that sends
+a question straight to the model. This is deliberately **not an Agent**: it uses
+a single `llm.prepareCall` + stream call with a short instruction, so no system
+prompt sections, tools, skills, memory or background jobs are involved, and
+nothing is written to the session log. You can attach text files as context in
+the dialog; the answer is shown in a copyable panel. Toggle it off on the
+Power-Up page if you don't want the button.
 
 ### Dual send buttons
 

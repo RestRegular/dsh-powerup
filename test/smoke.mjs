@@ -224,12 +224,13 @@ assert.equal(typeof moduleExports.apply, 'function');
 assert.deepEqual(moduleExports.inject, ['slots', 'locale']);
 moduleExports.apply(ctx);
 
-assert.equal(registrations.length, 11, 'eleven slot registrations');
+assert.equal(registrations.length, 12, 'twelve slot registrations');
 const bySlot = new Map(registrations.map((entry) => [entry.options.name, entry]));
 for (const slot of ['sidebar.panellist', 'main', 'shell.overlay', 'conversation.session.header.utilities', 'conversation.hero.options', 'conversation.input.right', 'conversation.input.left', 'conversation.view']) {
   assert.ok(bySlot.has(slot), `registered ${slot}`);
 }
-assert.equal(bySlot.get('conversation.input.right').options.id, 'powerup-dual-send');
+assert.ok(registrations.some((entry) => entry.options.name === 'conversation.input.right' && entry.options.id === 'powerup-dual-send'), 'dual-send registered in composer');
+assert.ok(registrations.some((entry) => entry.options.name === 'conversation.input.right' && entry.options.id === 'powerup-direct-ask'), 'direct-ask button registered in the composer');
 const composerPrompt = registrations.find((entry) => entry.options.name === 'conversation.input.left');
 assert.equal(composerPrompt.options.id, 'powerup-prompts-composer', 'prompt picker is registered in the ongoing-session composer');
 assert.equal(bySlot.get('conversation.view').options.id, 'powerup-settings');
@@ -1315,7 +1316,7 @@ const update = moduleExports.__test;
 const ALL_ON_SETTINGS = {
   contextMenu: true, launcher: true, sessionSwitch: true, jobStop: true,
   update: true, locateSession: true, scrollToTop: true, contentRendering: true, dualSend: false, workspacePrompts: true,
-  taskProgress: true, oneClickEnable: true, oneClickRestart: true,
+  taskProgress: true, directAsk: true, oneClickEnable: true, oneClickRestart: true,
 };
 const savedGetItem = globalThis.localStorage.getItem;
 globalThis.localStorage.getItem = () => null;
@@ -1325,12 +1326,12 @@ assert.deepEqual(update.readSettings(), { ...ALL_ON_SETTINGS, contextMenu: false
 globalThis.localStorage.getItem = () => JSON.stringify({
   contextMenu: false, launcher: false, sessionSwitch: false, jobStop: false,
   update: false, locateSession: false, scrollToTop: false, contentRendering: false, dualSend: true, workspacePrompts: false,
-  taskProgress: false, oneClickEnable: false, oneClickRestart: false,
+  taskProgress: false, directAsk: false, oneClickEnable: false, oneClickRestart: false,
 });
 assert.deepEqual(update.readSettings(), {
   contextMenu: false, launcher: false, sessionSwitch: false, jobStop: false,
   update: false, locateSession: false, scrollToTop: false, contentRendering: false, dualSend: true, workspacePrompts: false,
-  taskProgress: false, oneClickEnable: false, oneClickRestart: false,
+  taskProgress: false, directAsk: false, oneClickEnable: false, oneClickRestart: false,
 });
 globalThis.localStorage.getItem = savedGetItem;
 
@@ -2035,12 +2036,17 @@ assert.equal(JSON.parse(failedKillResponse.body).code, 'kill-failed');
 const runningAgents = {
   list() {
     return [
-      { id: 'session-running', status: 'running', session: { title: () => 'build' }, cancel: () => {} },
+      { id: 'session-running', status: 'running', session: { titleText: 'Build feature', title: () => 'legacy' }, cancel: () => {} },
       { id: 'session-idle', status: 'idle', session: { title: () => 'idle' }, cancel: () => {} },
     ];
   },
 };
-const ctxWithTasks = { get: (name) => name === 'agents' ? runningAgents : undefined };
+const sessionTitles = {
+  get(session) { return { title: session?.titleText ?? 'plain' }; },
+};
+const ctxWithTasks = {
+  get: (name) => name === 'agents' ? runningAgents : name === 'sessionTitle' ? sessionTitles : undefined,
+};
 
 const gatedGet = fakeResponse();
 await host.__test.handle({
@@ -2050,6 +2056,7 @@ await host.__test.handle({
 const gatedGetBody = JSON.parse(gatedGet.body);
 assert.equal(gatedGetBody.hasRunningTasks, true);
 assert.deepEqual(gatedGetBody.runningTasks.map((task) => task.id), ['session-running']);
+assert.equal(gatedGetBody.runningTasks[0].title, 'Build feature', 'task title comes from sessionTitle service');
 
 const gatedPost = fakeResponse();
 await host.__test.handle(
@@ -2076,6 +2083,43 @@ const forcedBody = JSON.parse(forcedPost.body);
 assert.equal(forcedBody.ok, false, 'plain Node cannot schedule a shutdown');
 assert.equal(forcedBody.code, 'shutdown-unsupported');
 assert.equal(cancelled, 1, 'forced action cancels the running agent before the runtime guard');
+
+// Progress requirements / history / direct-ask routes.
+{
+  const { storePath, PROGRESS_REQUIREMENTS_FILE, PROGRESS_HISTORY_FILE, readJsonObject } = host.__test;
+  assert.ok(storePath(PROGRESS_REQUIREMENTS_FILE).endsWith('progress-requirements.json'));
+  assert.ok(storePath(PROGRESS_HISTORY_FILE).endsWith('progress-history.json'));
+  assert.deepEqual(readJsonObject(storePath(PROGRESS_HISTORY_FILE + '.missing')), {});
+
+  // GET requirements on an absent file returns an empty object.
+  const reqGet = fakeResponse();
+  await host.__test.handle({
+    method: 'GET', url: '/dsh-powerup/api/progress-requirements', headers: {},
+    socket: { remoteAddress: '127.0.0.1' },
+  }, reqGet, { get: () => undefined });
+  assert.equal(reqGet.status, 200);
+  assert.equal(JSON.parse(reqGet.body).ok, true);
+
+  // direct-ask with no llm service reports unavailable.
+  const askNoLlm = fakeResponse();
+  await host.__test.handle(
+    fakeJsonRequest('/dsh-powerup/api/direct-ask', { question: 'hi' }),
+    askNoLlm,
+    { get: () => undefined },
+  );
+  assert.equal(askNoLlm.status, 503);
+  assert.equal(JSON.parse(askNoLlm.body).code, 'llm-unavailable');
+
+  // direct-ask with an empty question is rejected before any model call.
+  const askEmpty = fakeResponse();
+  await host.__test.handle(
+    fakeJsonRequest('/dsh-powerup/api/direct-ask', { question: '   ' }),
+    askEmpty,
+    { get: () => undefined },
+  );
+  assert.equal(askEmpty.status, 400);
+  assert.equal(JSON.parse(askEmpty.body).code, 'invalid-request');
+}
 
 // Prompts and mask rules live in one central ~/.dsh/dsh-powerup file holding
 // every workspace's records; no per-workspace path lookup is needed.
@@ -2170,7 +2214,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.12.0');
+assert.equal(host.__test.SELF_VERSION, '0.13.0');
 
 const installFailSpecs = [];
 const installFailManager = {
