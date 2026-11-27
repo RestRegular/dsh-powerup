@@ -68,11 +68,11 @@ await directAsk({
   ],
 });
 const msgs = captured[1].options.messages;
-assert.equal(msgs.length, 3, 'two history turns + the new question');
+assert.equal(msgs.length, 1, 'conversation is sent as a single user message');
 assert.equal(msgs[0].role, 'user');
-assert.equal(msgs[0].content[0].text, 'first');
-assert.equal(msgs[1].role, 'assistant');
-assert.equal(msgs[2].content[0].text, 'and now?');
+assert.match(msgs[0].content[0].text, /User: first/u);
+assert.match(msgs[0].content[0].text, /Assistant: reply/u);
+assert.match(msgs[0].content[0].text, /User: and now\?$/u);
 
 await assert.rejects(
   directAsk({ llm: fakeLlm([{ type: 'finish', reason: { kind: 'error' } }]), route, prompt: 'x' }),

@@ -470,9 +470,14 @@ generates a new report without dropping the old ones.
 
 An **icon-only** lightning button in the composer opens a floating DSH-styled
 chat window. Drag the title bar to move it and the bottom-right corner to
-resize it (position and size persist). It supports **continuous multi-turn Q&A**
-and a browsable **history** of past conversations ("+" starts a new chat, "◷"
-shows history; both clearable). Attach text files with the "+" chip in the
+resize it (position and size persist). It supports **continuous multi-turn Q&A**.
+The chat window uses two **tabs** — **Chat** and **History** — instead of
+embedding the history over the conversation. Your message appears in the thread
+immediately as a pending bubble; the answer replaces the pending state in place
+(and failures render there too). Continuous Q&A flattens prior turns into a
+single user message before each call, so no hand-built assistant message ever
+reaches the model adapter — this fixes the "LLM_FAILED" error on the second
+message. "+" starts a new chat. Attach text files with the "+" chip in the
 composer — the native file picker stays hidden. This is deliberately **not an
 Agent**: it uses a single `llm.prepareCall` + stream call per turn with a short
 instruction, so no system prompt sections, tools, skills, memory or background

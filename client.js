@@ -85,7 +85,7 @@
       const requirementCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.16.0';
+      const VERSION = '0.17.0';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -430,6 +430,8 @@
           'directAsk.hide': '隐藏弹窗',
           'directAsk.showHint': '输入问题开始对话；可继续追问，点「+」开启新对话，点「◷」查看历史。拖动标题栏移动窗口。',
           'directAsk.newChat': '新对话',
+          'directAsk.tabChat': '问答',
+          'directAsk.noAnswer': '（无回答）',
           'directAsk.history': '历史记录',
           'directAsk.historyEmpty': '还没有历史对话',
           'directAsk.clearHistory': '清空历史',
@@ -824,6 +826,8 @@
           'directAsk.hide': 'Hide dialog',
           'directAsk.showHint': 'Type a question to start; follow up anytime, "+" starts a new chat, "◷" shows history. Drag the title bar to move.',
           'directAsk.newChat': 'New chat',
+          'directAsk.tabChat': 'Chat',
+          'directAsk.noAnswer': '(no answer)',
           'directAsk.history': 'History',
           'directAsk.historyEmpty': 'No saved conversations yet',
           'directAsk.clearHistory': 'Clear history',
@@ -4467,11 +4471,12 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-tab.on{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-brand-primary);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.10)}
 .dsh-powerup-tab:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:1px}
 /* Prompt management: head + cards + fields, styled after dsh-memory setcard/hook-card. */
-.dsh-powerup-prompt-head{display:flex;align-items:flex-end;gap:12px;padding:0 2px 2px}
+.dsh-powerup-prompt-head{display:flex;align-items:center;gap:12px;padding:0 2px 2px}
+.dsh-powerup-prompt-head>div:first-child{flex:1 1 auto;min-width:0}
 .dsh-powerup-prompt-head-title{font-size:14px;font-weight:600;line-height:1.35}
 .dsh-powerup-prompt-head-sub{font-size:11.5px;color:var(--dsw-alias-label-secondary);line-height:1.5;margin-top:2px}
 .dsh-powerup-prompt-head .dsh-powerup-prompt-new{margin-left:auto}
-.dsh-powerup-prompt-new{height:30px;padding:0 12px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font:inherit;font-size:12.5px;line-height:1.5;cursor:pointer;transition:border-color .12s ease,color .12s ease}
+.dsh-powerup-prompt-new{flex:none;white-space:nowrap;height:30px;padding:0 12px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font:inherit;font-size:12.5px;line-height:1.5;cursor:pointer;transition:border-color .12s ease,color .12s ease}
 .dsh-powerup-prompt-new:hover{border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-brand-primary)}
 .dsh-powerup-prompt-new:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:1px}
 .dsh-powerup-prompt-scopes{display:flex;flex-direction:column;gap:16px;margin-top:14px}
@@ -4666,6 +4671,11 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-directask-subtitle{flex:1 1 auto;min-width:0;color:var(--dsw-alias-label-tertiary);font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dsh-powerup-directask-titlebtn,.dsh-powerup-directask-close{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:15px;line-height:1;cursor:pointer}
 .dsh-powerup-directask-titlebtn:hover,.dsh-powerup-directask-titlebtn.on,.dsh-powerup-directask-close:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
+.dsh-powerup-directask-tabs{display:flex;flex:none;gap:2px;padding:0 12px;border-bottom:.5px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1)}
+.dsh-powerup-directask-tab{position:relative;padding:8px 12px;border:0;background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;font-size:11.5px;cursor:pointer}
+.dsh-powerup-directask-tab:hover{color:var(--dsw-alias-label-primary)}
+.dsh-powerup-directask-tab.on{color:var(--dsw-alias-brand-primary);font-weight:600}
+.dsh-powerup-directask-tab.on:after{content:"";position:absolute;left:8px;right:8px;bottom:-1px;height:2px;border-radius:2px;background:var(--dsw-alias-brand-primary)}
 .dsh-powerup-directask-history{flex:none;max-height:180px;overflow-y:auto;padding:10px 14px;border-bottom:.5px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1)}
 .dsh-powerup-directask-history-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;font-size:11.5px}
 .dsh-powerup-directask-history-list{margin:0;padding:0;list-style:none}
@@ -4680,6 +4690,8 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-directask-msg-body{padding:8px 12px;border-radius:12px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);font-size:12.5px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere}
 .dsh-powerup-directask-msg.user .dsh-powerup-directask-msg-body{background:var(--dsw-alias-brand-primary);color:var(--dsw-alias-label-primary-foreground,var(--dsw-alias-bg-layer-1));border-bottom-right-radius:3px}
 .dsh-powerup-directask-msg.assistant .dsh-powerup-directask-msg-body{border-bottom-left-radius:3px}
+.dsh-powerup-directask-msg.assistant.is-pending .dsh-powerup-directask-msg-body{color:var(--dsw-alias-label-tertiary);font-style:italic}
+.dsh-powerup-directask-msg.assistant.is-error .dsh-powerup-directask-msg-body{border:1px solid color-mix(in srgb,var(--dsw-alias-state-error-primary) 40%,transparent);color:var(--dsw-alias-state-error-primary)}
 .dsh-powerup-directask-ctx{display:flex;flex-wrap:wrap;gap:4px;align-self:flex-end}
 .dsh-powerup-directask-ctx span{padding:2px 7px;border-radius:999px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-tertiary);font-size:10px}
 .dsh-powerup-directask-files{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 6px}
@@ -9219,7 +9231,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           try { return JSON.parse(localStorage.getItem('dsh-powerup:directask:history:v1') || '[]'); }
           catch { return []; }
         });
-        const [showHistory, setShowHistory] = useState(false);
+        const [activeTab, setActiveTab] = useState('chat');
         const [pos, setPos] = useState(() => {
           try {
             const saved = JSON.parse(localStorage.getItem('dsh-powerup:directask:pos:v1') || 'null');
@@ -9299,17 +9311,24 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           const q = question.trim();
           if (q === '') { setError(t('directAsk.empty')); return; }
           const priorContext = files.map((f) => ({ name: f.name, text: f.text }));
-          // Continuous Q&A: send the current turns as prior messages.
+          // Continuous Q&A: prior completed turns, in order, as user/assistant pairs.
           const historyMsgs = [];
           for (const turn of turns) {
+            if (turn.pending || !turn.answer || turn.error) continue;
             historyMsgs.push({ role: 'user', text: turn.question });
-            if (turn.answer) historyMsgs.push({ role: 'assistant', text: turn.answer });
+            historyMsgs.push({ role: 'assistant', text: turn.answer });
           }
+          const pendingId = `p-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+          const pending = {
+            id: pendingId, question: q, answer: '', context: priorContext, at: Date.now(), pending: true,
+          };
           setBusy(true);
           setError('');
           setQuestion('');
           setFiles([]);
           setCopied(false);
+          setTurns((cur) => [...cur, pending]);
+          setActiveTab('chat');
           try {
             const response = await fetch(DIRECT_ASK_API, {
               method: 'POST',
@@ -9323,13 +9342,14 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             });
             const body = await response.json();
             if (!body?.ok) throw new Error(body?.error ?? `HTTP ${response.status}`);
-            setTurns((cur) => [...cur, {
-              question: q, answer: typeof body.answer === 'string' ? body.answer : '',
-              context: priorContext, at: Date.now(),
-            }]);
+            setTurns((cur) => cur.map((t) => (t.id === pendingId
+              ? { ...t, answer: typeof body.answer === 'string' ? body.answer : '', pending: false }
+              : t)));
           } catch (err) {
-            setError(err?.message ?? String(err));
-            setQuestion(q);
+            // Render the failure in the thread like a normal assistant reply.
+            setTurns((cur) => cur.map((t) => (t.id === pendingId
+              ? { ...t, answer: String(err?.message ?? err), pending: false, error: true }
+              : t)));
           } finally {
             setBusy(false);
           }
@@ -9339,14 +9359,14 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           if (turns.length > 0) persistHistory([{ id: String(Date.now()), at: Date.now(), turns }, ...history]);
           setTurns([]);
           setError('');
-          setShowHistory(false);
+          setActiveTab('chat');
         }, [turns, history, persistHistory]);
 
         const openArchived = useCallback((entry) => {
           if (turns.length > 0) persistHistory([{ id: String(Date.now()), at: Date.now(), turns }, ...history.filter((h) => h.id !== entry.id)]);
           else persistHistory(history.filter((h) => h.id !== entry.id));
           setTurns(Array.isArray(entry.turns) ? entry.turns : []);
-          setShowHistory(false);
+          setActiveTab('chat');
         }, [turns, history, persistHistory]);
 
         const clearHistory = useCallback(() => {
@@ -9404,17 +9424,26 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
               title: t('directAsk.newChat'), onClick: newChat,
             }, '+'),
             h('button', {
-              type: 'button', className: 'dsh-powerup-directask-titlebtn' + (showHistory ? ' on' : ''),
-              title: t('directAsk.history'), onClick: () => setShowHistory((v) => !v),
-            }, '◷'),
-            h('button', {
               type: 'button', className: 'dsh-powerup-directask-close',
               'aria-label': t('directAsk.close'), onClick: () => setOpen(false),
             }, '×'),
           ),
-          showHistory ? h('div', { className: 'dsh-powerup-directask-history' },
+          h('div', { className: 'dsh-powerup-directask-tabs', role: 'tablist' },
+            h('button', {
+              type: 'button', role: 'tab',
+              'aria-selected': activeTab === 'chat' ? 'true' : 'false',
+              className: 'dsh-powerup-directask-tab' + (activeTab === 'chat' ? ' on' : ''),
+              onClick: () => setActiveTab('chat'),
+            }, t('directAsk.tabChat')),
+            h('button', {
+              type: 'button', role: 'tab',
+              'aria-selected': activeTab === 'history' ? 'true' : 'false',
+              className: 'dsh-powerup-directask-tab' + (activeTab === 'history' ? ' on' : ''),
+              onClick: () => setActiveTab('history'),
+            }, t('directAsk.history')),
+          ),
+          activeTab === 'history' ? h('div', { className: 'dsh-powerup-directask-history' },
             h('div', { className: 'dsh-powerup-directask-history-head' },
-              h('strong', null, t('directAsk.history')),
               h('button', { type: 'button', className: 'dsh-powerup-progress-mini', onClick: clearHistory }, t('directAsk.clearHistory')),
             ),
             history.length === 0
@@ -9427,32 +9456,33 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
                   ),
                 )),
               ),
-          ) : null,
-          h('div', { className: 'dsh-powerup-directask-thread' },
+          ) : h('div', { className: 'dsh-powerup-directask-thread' },
             turns.length === 0 && !busy
               ? h('p', { className: 'dsh-powerup-directask-welcome' }, t('directAsk.showHint'))
               : null,
-            turns.map((turn, i) => h('div', { key: i, className: 'dsh-powerup-directask-turn' },
+            turns.map((turn) => h('div', { key: turn.id, className: 'dsh-powerup-directask-turn' },
               h('div', { className: 'dsh-powerup-directask-msg user' },
                 h('div', { className: 'dsh-powerup-directask-msg-body' }, turn.question),
               ),
               turn.context?.length ? h('div', { className: 'dsh-powerup-directask-ctx' },
                 turn.context.map((f, j) => h('span', { key: j }, f.name)),
               ) : null,
-              h('div', { className: 'dsh-powerup-directask-msg assistant' },
-                h('div', { className: 'dsh-powerup-directask-msg-body' }, turn.answer || '…'),
-                h('button', {
+              h('div', {
+                className: 'dsh-powerup-directask-msg assistant'
+                  + (turn.pending ? ' is-pending' : '') + (turn.error ? ' is-error' : ''),
+              },
+                h('div', { className: 'dsh-powerup-directask-msg-body' },
+                  turn.pending ? t('directAsk.sending') : (turn.answer || t('directAsk.noAnswer')),
+                ),
+                !turn.pending && turn.answer ? h('button', {
                   type: 'button', className: 'dsh-powerup-progress-mini',
                   onClick: async () => {
                     const ok = await copyText(turn.answer);
                     if (ok) { setCopied(true); setTimeout(() => setCopied(false), 1500); }
                   },
-                }, copied ? t('directAsk.copied') : t('directAsk.copy')),
+                }, copied ? t('directAsk.copied') : t('directAsk.copy')) : null,
               ),
             )),
-            busy ? h('div', { className: 'dsh-powerup-directask-msg assistant' },
-              h('div', { className: 'dsh-powerup-directask-msg-body' }, t('directAsk.sending')),
-            ) : null,
             h('div', { ref: bottomRef }),
           ),
           error ? h('p', { className: 'dsh-powerup-progress-error' }, error) : null,
@@ -10565,7 +10595,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             h('div', { className: 'dsh-powerup-prompt-modal-head' },
               h('div', null,
                 h('div', { className: 'dsh-powerup-prompt-modal-heading' }, t('progress.reqNew')),
-                h('p', { className: 'dsh-powerup-prompt-modal-sub' }, t('prompts.createScopeHint')),
+                h('p', { className: 'dsh-powerup-prompt-modal-sub' }, fixedScope ? t('prompts.workspaceNone') : t('prompts.createScopeHint')),
               ),
               h('button', { type: 'button', className: 'dsh-powerup-prompt-modal-close', 'aria-label': t('prompts.cancel'), onClick: requestClose }, '×'),
             ),
@@ -10574,19 +10604,20 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
                 h('span', { className: 'dsh-powerup-prompt-field-label' }, t('prompts.titleLabel')),
                 h('input', { className: 'dsh-powerup-prompt-input', type: 'text', value: title, placeholder: t('prompts.titlePlaceholder'), onChange: (e) => setTitle(e.target.value) }),
               ),
-              h('label', { className: 'dsh-powerup-prompt-field' },
-                h('span', { className: 'dsh-powerup-prompt-field-label' }, t('prompts.workspaceLabel')),
-                h('div', { className: 'dsh-powerup-prompt-scope-options' },
-                  h('button', {
-                    type: 'button', role: 'switch', 'aria-checked': scope === 'all' ? 'true' : 'false',
-                    className: 'dsh-powerup-switch', onClick: () => setScope('all'),
-                  }, t('prompts.anyWorkspace')),
-                  fixedScope ? null : h('button', {
-                    type: 'button', role: 'switch', 'aria-checked': scope === 'current' ? 'true' : 'false',
-                    className: 'dsh-powerup-switch', onClick: () => setScope('current'),
-                  }, workspaceTitle || t('prompts.workspaceCurrent')),
-                ),
-              ),
+              !fixedScope
+                ? h('label', { className: 'dsh-powerup-prompt-field' },
+                  h('span', { className: 'dsh-powerup-prompt-field-label' }, t('prompts.workspaceLabel')),
+                  h(WorkspaceSelect, {
+                    value: scope,
+                    options: [
+                      { value: 'current', label: t('prompts.workspaceCurrent'), hint: workspaceTitle },
+                      { value: 'all', label: t('prompts.anyWorkspace') },
+                    ],
+                    onChange: setScope,
+                    t,
+                  }),
+                )
+                : null,
               h('label', { className: 'dsh-powerup-prompt-field' },
                 h('span', { className: 'dsh-powerup-prompt-field-label' }, t('progress.reqTextLabel')),
                 h('textarea', { className: 'dsh-powerup-prompt-input dsh-powerup-prompt-textarea', value: text, placeholder: t('progress.reqPlaceholder'), onChange: (e) => setText(e.target.value) }),

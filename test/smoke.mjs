@@ -1311,6 +1311,8 @@ assert.ok(JSON.stringify(scrollTopTree).includes('currentColor'), 'the back-to-t
 // ---------------------------------------------------------------------------
 const update = moduleExports.__test;
 
+assert.ok(/[.]dsh-powerup-prompt-new\{[^}]*white-space:nowrap/u.test(update.PROMPTS_CSS), 'the new-requirement button does not wrap its label');
+assert.ok(update.PROGRESS_CSS.includes('.dsh-powerup-directask-tabs{'), 'direct-ask uses separate chat/history tabs');
 assert.ok(update.PROGRESS_CSS.includes('.dsh-powerup-progress-tabs{'), 'progress panel uses a top tab bar');
 assert.ok(update.PROGRESS_CSS.includes('.dsh-powerup-progress-item-toggle{'), 'progress stage cards are collapsible');
 assert.ok(typeof update.ProgressItem === 'function', 'collapsible progress item is exported');
@@ -2219,7 +2221,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.16.0');
+assert.equal(host.__test.SELF_VERSION, '0.17.0');
 
 const installFailSpecs = [];
 const installFailManager = {
