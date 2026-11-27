@@ -454,8 +454,9 @@ only scopes that actually contain requirements are listed. Each record can be
 enabled/disabled, edited and deleted. When generating progress you **check the
 requirements you want** — checked ones fill an editable text box that you may
 freely modify, and generation/refresh uses the full box text verbatim. The panel
-also has a **New requirement** entry with a modal pinned to the session's
-workspace (like the prompt picker).
+also has a **New requirement** entry with a modal: pick the workspace (or "all
+workspaces") there, and clicks inside the modal no longer close the progress
+panel.
 The panel uses **tabs** below the header: **Progress**, **Requirements** and
 **Raw output** — requirements and the raw AI text are no longer embedded in the
 progress body. Stage cards (checklist steps, phases, milestones and tree nodes)
@@ -472,9 +473,13 @@ An **icon-only** lightning button in the composer opens a floating DSH-styled
 chat window. Drag the title bar to move it and the bottom-right corner to
 resize it (position and size persist). It supports **continuous multi-turn Q&A**.
 The chat window uses two **tabs** — **Chat** and **History** — instead of
-embedding the history over the conversation. Your message appears in the thread
-immediately as a pending bubble; the answer replaces the pending state in place
-(and failures render there too). Continuous Q&A flattens prior turns into a
+embedding the history over the conversation. History is stored per **conversation**
+(not per message), each with a **title** you can edit inline. A settings toggle
+can ask the model to generate the title from the first message — one tiny,
+token-capped request; otherwise the first question becomes the title. Your
+message appears in the thread immediately as a pending bubble; the answer
+replaces the pending state in place and is **rendered as Markdown** (headings,
+lists, code blocks, inline formatting); failures render there too. Continuous Q&A flattens prior turns into a
 single user message before each call, so no hand-built assistant message ever
 reaches the model adapter — this fixes the "LLM_FAILED" error on the second
 message. "+" starts a new chat. Attach text files with the "+" chip in the

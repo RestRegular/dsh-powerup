@@ -1313,6 +1313,19 @@ const update = moduleExports.__test;
 
 assert.ok(/[.]dsh-powerup-prompt-new\{[^}]*white-space:nowrap/u.test(update.PROMPTS_CSS), 'the new-requirement button does not wrap its label');
 assert.ok(update.PROGRESS_CSS.includes('.dsh-powerup-directask-tabs{'), 'direct-ask uses separate chat/history tabs');
+assert.equal(typeof update.renderMarkdown, 'function', 'markdown renderer is exported');
+assert.ok(/activeTab === 'chat' \? h\('div', \{ className: 'dsh-powerup-directask-composer' \}/u.test(source), 'the composer only renders on the chat tab');
+assert.ok(/dsh-powerup-directask-title-input/u.test(update.PROGRESS_CSS), 'conversation titles are editable');
+assert.ok(/data-powerup-req-modal/u.test(source), 'requirement modal is marked so the progress panel ignores its clicks');
+assert.ok(/generateTitle/u.test(fs.readFileSync(new URL('../lib/direct-ask.js', import.meta.url), 'utf8')), 'LLM title generation exists');
+{
+  const nodes = update.renderMarkdown('# Title\n\n- one\n- two\n\n**bold** and `code`');
+  const flat = JSON.stringify(nodes);
+  assert.match(flat, /Title/u);
+  assert.match(flat, /dsh-powerup-md-ul/u);
+  assert.match(flat, /dsh-powerup-md-inline-code/u);
+  assert.match(flat, /strong/u);
+}
 assert.ok(update.PROGRESS_CSS.includes('.dsh-powerup-progress-tabs{'), 'progress panel uses a top tab bar');
 assert.ok(update.PROGRESS_CSS.includes('.dsh-powerup-progress-item-toggle{'), 'progress stage cards are collapsible');
 assert.ok(typeof update.ProgressItem === 'function', 'collapsible progress item is exported');
@@ -1323,7 +1336,7 @@ assert.ok(typeof update.RequirementCreateModal === 'function', 'session-side req
 const ALL_ON_SETTINGS = {
   contextMenu: true, launcher: true, sessionSwitch: true, jobStop: true,
   update: true, locateSession: true, scrollToTop: true, contentRendering: true, dualSend: false, workspacePrompts: true,
-  taskProgress: true, directAsk: true, oneClickEnable: true, oneClickRestart: true,
+  taskProgress: true, directAsk: true, directAskAutoTitle: false, oneClickEnable: true, oneClickRestart: true,
 };
 const savedGetItem = globalThis.localStorage.getItem;
 globalThis.localStorage.getItem = () => null;
@@ -1333,12 +1346,12 @@ assert.deepEqual(update.readSettings(), { ...ALL_ON_SETTINGS, contextMenu: false
 globalThis.localStorage.getItem = () => JSON.stringify({
   contextMenu: false, launcher: false, sessionSwitch: false, jobStop: false,
   update: false, locateSession: false, scrollToTop: false, contentRendering: false, dualSend: true, workspacePrompts: false,
-  taskProgress: false, directAsk: false, oneClickEnable: false, oneClickRestart: false,
+  taskProgress: false, directAsk: false, directAskAutoTitle: true, oneClickEnable: false, oneClickRestart: false,
 });
 assert.deepEqual(update.readSettings(), {
   contextMenu: false, launcher: false, sessionSwitch: false, jobStop: false,
   update: false, locateSession: false, scrollToTop: false, contentRendering: false, dualSend: true, workspacePrompts: false,
-  taskProgress: false, directAsk: false, oneClickEnable: false, oneClickRestart: false,
+  taskProgress: false, directAsk: false, directAskAutoTitle: true, oneClickEnable: false, oneClickRestart: false,
 });
 globalThis.localStorage.getItem = savedGetItem;
 
@@ -2221,7 +2234,7 @@ const removeFailureResult = await host.__test.performSelfUpdate(
 assert.equal(removeFailureResult.ok, false);
 assert.equal(removeFailureResult.rolledBack, false);
 assert.equal(removeFailureResult.rollbackError, undefined);
-assert.equal(host.__test.SELF_VERSION, '0.17.0');
+assert.equal(host.__test.SELF_VERSION, '0.18.0');
 
 const installFailSpecs = [];
 const installFailManager = {

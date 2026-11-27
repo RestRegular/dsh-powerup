@@ -85,7 +85,7 @@
       const requirementCreateDraft = { workspaceId: null, title: '', text: '', scope: 'current' };
       /** Fallback bucket when the hero cannot resolve an owning workspace yet. */
       const UNSCOPED_WORKSPACE = '__unscoped__';
-      const VERSION = '0.17.0';
+      const VERSION = '0.18.0';
       const MENU_GAP = 8;
       const MENU_WIDTH = 248;
       /** Reference scheme understood by the Host's `powerup_step_read` tool. */
@@ -393,8 +393,7 @@
           'progress.reqHint': '每条要求可设置语言、结构、必须包含的数据、额外展示区要回答的问题等；按工作区隔离，留空工作区则对所有工作区生效。生成进度时可勾选本次要应用哪些要求。',
           'progress.reqNew': '新建要求',
           'progress.reqSelect': '本次应用的要求',
-          'progress.reqSelectHint': '勾选要求后内容会填入下方输入框，可自由修改；生成/刷新时会使用输入框里的完整要求。',
-          'progress.reqEditPlaceholder': '在这里编辑本次生成要使用的要求…',
+          'progress.reqEditPlaceholder': '勾选要求后内容会填入这里，可自由修改；生成/刷新时使用此处完整要求…',
           'progress.reqTextLabel': '要求内容',
           'progress.sectionTitle': '生成要求',
           'progress.reqGlobal': '通用要求（设置页）',
@@ -412,6 +411,8 @@
           'page.directAskHow': '点底部输入区的闪电按钮，输入问题后发送；回答会显示在一个可开关的弹窗里。这个能力不是 Agent，不能调用工具或加载技能。',
           'page.directAskToggle': '启用轻量问答按钮',
           'page.directAskToggleHint': '关闭后底部输入区不再显示该按钮。',
+          'page.directAskAutoTitle': '自动生成会话标题',
+          'page.directAskAutoTitleHint': '开启后，新对话会用第一个问题让大模型生成简短标题（仅一条短请求，严格限制 token）；关闭则用第一句问题作标题。标题都可随时手动修改。',
           'directAsk.label': '直接问答',
           'directAsk.hint': '不启动 Agent，直接问模型（无工具/技能）',
           'directAsk.title': '轻量问答',
@@ -432,6 +433,8 @@
           'directAsk.newChat': '新对话',
           'directAsk.tabChat': '问答',
           'directAsk.noAnswer': '（无回答）',
+          'directAsk.editTitle': '修改标题',
+          'directAsk.untitled': '未命名对话',
           'directAsk.history': '历史记录',
           'directAsk.historyEmpty': '还没有历史对话',
           'directAsk.clearHistory': '清空历史',
@@ -789,8 +792,7 @@
           'progress.reqHint': 'Each requirement sets language, structure, required data, questions for the display area, etc. Scoped per workspace; a blank workspace applies everywhere. Choose which ones to apply when generating progress.',
           'progress.reqNew': 'New requirement',
           'progress.reqSelect': 'Requirements for this run',
-          'progress.reqSelectHint': 'Checked requirements fill the box below; edit freely. Generation uses the full text in the box.',
-          'progress.reqEditPlaceholder': 'Edit the requirements to use for this generation…',
+          'progress.reqEditPlaceholder': 'Checked requirements fill this box; edit freely. Generation uses the full text here…',
           'progress.reqTextLabel': 'Requirement text',
           'progress.sectionTitle': 'Generation requirements',
           'progress.reqGlobal': 'Global requirements (settings)',
@@ -808,6 +810,8 @@
           'page.directAskHow': 'Click the lightning button in the composer, type a question and send; the answer appears in a dialog you can show or hide. This is not an Agent — it cannot call tools or load skills.',
           'page.directAskToggle': 'Enable direct-ask button',
           'page.directAskToggleHint': 'When off, the composer button is hidden.',
+          'page.directAskAutoTitle': 'Generate conversation titles',
+          'page.directAskAutoTitleHint': 'When on, a new chat asks the model for a short title from the first message (one small, token-capped request). When off, the first question is used. Titles are always editable.',
           'directAsk.label': 'Direct ask',
           'directAsk.hint': 'Ask the model without an Agent (no tools or skills)',
           'directAsk.title': 'Direct ask',
@@ -828,6 +832,8 @@
           'directAsk.newChat': 'New chat',
           'directAsk.tabChat': 'Chat',
           'directAsk.noAnswer': '(no answer)',
+          'directAsk.editTitle': 'Edit title',
+          'directAsk.untitled': 'Untitled chat',
           'directAsk.history': 'History',
           'directAsk.historyEmpty': 'No saved conversations yet',
           'directAsk.clearHistory': 'Clear history',
@@ -931,6 +937,7 @@
         workspacePrompts: true,
         taskProgress: true,
         directAsk: true,
+        directAskAutoTitle: false,
         oneClickEnable: true,
         oneClickRestart: true,
       };
@@ -955,6 +962,7 @@
               workspacePrompts: parsed.workspacePrompts !== false,
               taskProgress: parsed.taskProgress !== false,
               directAsk: parsed.directAsk !== false,
+              directAskAutoTitle: parsed.directAskAutoTitle === true,
               oneClickEnable: parsed.oneClickEnable !== false,
               oneClickRestart: parsed.oneClickRestart !== false,
             };
@@ -4667,7 +4675,11 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-directask-btn:hover,.dsh-powerup-directask-btn.on{border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-brand-primary)}
 .dsh-powerup-directask-window{position:fixed;z-index:1600;box-sizing:border-box;display:flex;flex-direction:column;min-width:360px;min-height:280px;border-radius:var(--dsw-radius-panel,14px);background:var(--dsw-alias-bg-layer-2);box-shadow:var(--dsw-elevation-prominent);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.6;overflow:hidden;animation:dsh-powerup-progress-in .15s ease-out}
 .dsh-powerup-directask-titlebar{display:flex;align-items:center;gap:8px;flex:none;padding:10px 12px;border-bottom:.5px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-3);cursor:move;user-select:none}
-.dsh-powerup-directask-title{font-size:13px;font-weight:600;white-space:nowrap}
+.dsh-powerup-directask-title{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
+.dsh-powerup-directask-title-input{flex:1 1 auto;min-width:0;height:24px;padding:0 8px;border:.5px solid var(--dsw-alias-brand-primary);border-radius:6px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;outline:0}
+.dsh-powerup-directask-history-list button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;padding:6px 8px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:11.5px;text-align:left;cursor:pointer}
+.dsh-powerup-directask-history-title{color:var(--dsw-alias-label-primary);font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.dsh-powerup-directask-history-meta{color:var(--dsw-alias-label-tertiary);font-size:10px}
 .dsh-powerup-directask-subtitle{flex:1 1 auto;min-width:0;color:var(--dsw-alias-label-tertiary);font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dsh-powerup-directask-titlebtn,.dsh-powerup-directask-close{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:15px;line-height:1;cursor:pointer}
 .dsh-powerup-directask-titlebtn:hover,.dsh-powerup-directask-titlebtn.on,.dsh-powerup-directask-close:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
@@ -4679,7 +4691,6 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-directask-history{flex:none;max-height:180px;overflow-y:auto;padding:10px 14px;border-bottom:.5px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1)}
 .dsh-powerup-directask-history-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;font-size:11.5px}
 .dsh-powerup-directask-history-list{margin:0;padding:0;list-style:none}
-.dsh-powerup-directask-history-list button{width:100%;padding:5px 8px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:11px;text-align:left;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dsh-powerup-directask-history-list button:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
 .dsh-powerup-directask-thread{flex:1 1 auto;min-height:0;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:12px;--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2)}
 .dsh-powerup-directask-welcome{margin:auto;color:var(--dsw-alias-label-tertiary);font-size:12px;text-align:center}
@@ -4692,6 +4703,16 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 .dsh-powerup-directask-msg.assistant .dsh-powerup-directask-msg-body{border-bottom-left-radius:3px}
 .dsh-powerup-directask-msg.assistant.is-pending .dsh-powerup-directask-msg-body{color:var(--dsw-alias-label-tertiary);font-style:italic}
 .dsh-powerup-directask-msg.assistant.is-error .dsh-powerup-directask-msg-body{border:1px solid color-mix(in srgb,var(--dsw-alias-state-error-primary) 40%,transparent);color:var(--dsw-alias-state-error-primary)}
+.dsh-powerup-md-p{margin:0 0 8px}
+.dsh-powerup-md-p:last-child{margin-bottom:0}
+.dsh-powerup-md-heading{margin:10px 0 6px;font-size:13px;line-height:1.5}
+.dsh-powerup-md-heading:first-child{margin-top:0}
+.dsh-powerup-md-ul,.dsh-powerup-md-ol{margin:6px 0;padding-left:22px}
+.dsh-powerup-md-ul li,.dsh-powerup-md-ol li{margin:2px 0}
+.dsh-powerup-md-code{margin:6px 0;padding:8px 10px;border-radius:8px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font-family:var(--dsw-font-family-code,ui-monospace,SFMono-Regular,Consolas,monospace);font-size:11.5px;line-height:1.6;overflow-x:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+.dsh-powerup-md-inline-code{padding:1px 5px;border-radius:4px;background:var(--dsw-alias-bg-layer-3);font-family:var(--dsw-font-family-code,ui-monospace,SFMono-Regular,Consolas,monospace);font-size:11.5px}
+.dsh-powerup-md-quote{margin:6px 0;padding:4px 10px;border-left:2px solid var(--dsw-alias-border-l3);color:var(--dsw-alias-label-secondary)}
+.dsh-powerup-md-hr{margin:8px 0;border:0;border-top:.5px solid var(--dsw-alias-border-l2)}
 .dsh-powerup-directask-ctx{display:flex;flex-wrap:wrap;gap:4px;align-self:flex-end}
 .dsh-powerup-directask-ctx span{padding:2px 7px;border-radius:999px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-tertiary);font-size:10px}
 .dsh-powerup-directask-files{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 6px}
@@ -9211,6 +9232,139 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
       }
 
       /**
+       * Minimal, self-contained Markdown renderer for short model answers.
+       * The host exposes no markdown service, so this handles the common subset:
+       * fenced code, headings, lists, blockquotes, rules, inline code/bold/italic
+       * and plain paragraphs (line breaks preserved). Returns React nodes.
+       */
+      function renderInlineMarkdown(text, keyPrefix) {
+        if (typeof text !== 'string' || text === '') return null;
+        // Split out inline code first so its contents are never formatted.
+        const segments = [];
+        const codeRe = /`([^`]+)`/gu;
+        let last = 0;
+        let match;
+        let i = 0;
+        while ((match = codeRe.exec(text)) !== null) {
+          if (match.index > last) segments.push({ kind: 'text', value: text.slice(last, match.index) });
+          segments.push({ kind: 'code', value: match[1] });
+          last = match.index + match[0].length;
+        }
+        if (last < text.length) segments.push({ kind: 'text', value: text.slice(last) });
+        const nodes = [];
+        for (const seg of segments) {
+          if (seg.kind === 'code') {
+            nodes.push(h('code', { key: `${keyPrefix}-c${i++}`, className: 'dsh-powerup-md-inline-code' }, seg.value));
+            continue;
+          }
+          // Bold/italic within a plain segment.
+          const parts = [];
+          const re = /(\*\*[^*]+\*\*|\*[^*]+\*|__[^_]+__|_[^_]+_)/gu;
+          let cursor = 0;
+          let m;
+          while ((m = re.exec(seg.value)) !== null) {
+            if (m.index > cursor) parts.push(seg.value.slice(cursor, m.index));
+            const token = m[0];
+            const strong = (token.startsWith('**') && token.endsWith('**')) || (token.startsWith('__') && token.endsWith('__'));
+            const inner = strong ? token.slice(2, -2) : token.slice(1, -1);
+            parts.push(strong
+              ? h('strong', { key: `${keyPrefix}-b${i++}` }, inner)
+              : h('em', { key: `${keyPrefix}-i${i++}` }, inner));
+            cursor = m.index + token.length;
+          }
+          if (cursor < seg.value.length) parts.push(seg.value.slice(cursor));
+          nodes.push(...parts);
+        }
+        return nodes.length === 1 && typeof nodes[0] === 'string' ? nodes[0] : nodes;
+      }
+
+      function renderMarkdown(text) {
+        if (typeof text !== 'string' || text.trim() === '') return null;
+        const lines = text.replace(/\r\n?/gu, '\n').split('\n');
+        const out = [];
+        let i = 0;
+        let key = 0;
+        const k = () => `md-${key++}`;
+        while (i < lines.length) {
+          const line = lines[i];
+          // Fenced code block.
+          if (/^\s*```/u.test(line)) {
+            const lang = line.trim().slice(3).trim();
+            const code = [];
+            i += 1;
+            while (i < lines.length && !/^\s*```/u.test(lines[i])) {
+              code.push(lines[i]);
+              i += 1;
+            }
+            if (i < lines.length) i += 1; // closing fence
+            out.push(h('pre', { key: k(), className: 'dsh-powerup-md-code' + (lang ? ` lang-${lang}` : '') },
+              h('code', null, code.join('\n'))));
+            continue;
+          }
+          // Horizontal rule.
+          if (/^\s*(---+|\*\*\*+|___+)\s*$/u.test(line)) {
+            out.push(h('hr', { key: k(), className: 'dsh-powerup-md-hr' }));
+            i += 1;
+            continue;
+          }
+          // Heading.
+          const heading = /^\s*(#{1,6})\s+(.*)$/u.exec(line);
+          if (heading !== null) {
+            const level = Math.min(6, heading[1].length);
+            const Tag = `h${level + 2}`;
+            out.push(h(Tag, { key: k(), className: 'dsh-powerup-md-heading' }, renderInlineMarkdown(heading[2], k())));
+            i += 1;
+            continue;
+          }
+          // Blockquote (consecutive > lines).
+          if (/^\s*>\s?/u.test(line)) {
+            const quote = [];
+            while (i < lines.length && /^\s*>\s?/u.test(lines[i])) {
+              quote.push(lines[i].replace(/^\s*>\s?/u, ''));
+              i += 1;
+            }
+            out.push(h('blockquote', { key: k(), className: 'dsh-powerup-md-quote' }, quote.map((q, j) => h('div', { key: j }, renderInlineMarkdown(q, k())))));
+            continue;
+          }
+          // Unordered / ordered list.
+          const ul = /^\s*[-*+]\s+(.*)$/u.exec(line);
+          const ol = /^\s*\d+[.)]\s+(.*)$/u.exec(line);
+          if (ul !== null || ol !== null) {
+            const ordered = ol !== null;
+            const items = [];
+            const itemRe = ordered ? /^\s*\d+[.)]\s+(.*)$/u : /^\s*[-*+]\s+(.*)$/u;
+            while (i < lines.length) {
+              const m = itemRe.exec(lines[i]);
+              if (m === null) break;
+              items.push(h('li', { key: k() }, renderInlineMarkdown(m[1], k())));
+              i += 1;
+            }
+            out.push(h(ordered ? 'ol' : 'ul', {
+              key: k(), className: ordered ? 'dsh-powerup-md-ol' : 'dsh-powerup-md-ul',
+            }, items));
+            continue;
+          }
+          // Blank line: skip.
+          if (line.trim() === '') { i += 1; continue; }
+          // Paragraph: gather consecutive plain lines until a block starter.
+          const para = [];
+          while (i < lines.length && lines[i].trim() !== ''
+            && !/^\s*```/u.test(lines[i]) && !/^\s*>/u.test(lines[i])
+            && !/^\s*(#{1,6})\s/u.test(lines[i])
+            && !/^\s*[-*+]\s/u.test(lines[i]) && !/^\s*\d+[.)]\s/u.test(lines[i])
+            && !/^\s*(---+|\*\*\*+|___+)\s*$/u.test(lines[i])) {
+            para.push(lines[i]);
+            i += 1;
+          }
+          if (para.length > 0) {
+            out.push(h('p', { key: k(), className: 'dsh-powerup-md-p' },
+              para.map((p, j) => h(React.Fragment, { key: j }, renderInlineMarkdown(p, k()), j < para.length - 1 ? h('br') : null))));
+          }
+        }
+        return out.length === 1 ? out[0] : h('div', { className: 'dsh-powerup-md' }, out);
+      }
+
+      /**
        * Lightning-bolt button in the composer (icon only). Opens a floating,
        * draggable + resizable DSH-styled Q&A window that talks straight to the
        * model — no Agent, system prompt, tools or skills. Supports continuous
@@ -9224,13 +9378,28 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         const [busy, setBusy] = useState(false);
         const [error, setError] = useState('');
         const [copied, setCopied] = useState(false);
-        /** Current conversation: [{question, answer, context, at}]. */
-        const [turns, setTurns] = useState([]);
-        /** Archived conversations, newest first: [{id, at, turns}]. */
+        /** Current conversation: {id, title, turns, at}. */
+        const [conversation, setConversation] = useState(() => ({
+          id: `c-${Date.now()}`,
+          title: '',
+          turns: [],
+          at: Date.now(),
+        }));
+        /** Archived conversations, newest first: [{id, title, at, turns}]. */
         const [history, setHistory] = useState(() => {
-          try { return JSON.parse(localStorage.getItem('dsh-powerup:directask:history:v1') || '[]'); }
-          catch { return []; }
+          try {
+            const parsed = JSON.parse(localStorage.getItem('dsh-powerup:directask:history:v1') || '[]');
+            return (Array.isArray(parsed) ? parsed : []).map((h) => ({
+              id: h.id ?? `c-${Math.random().toString(36).slice(2)}`,
+              title: typeof h.title === 'string' ? h.title : String(h.turns?.[0]?.question ?? '').slice(0, 40),
+              at: h.at ?? Date.now(),
+              turns: Array.isArray(h.turns) ? h.turns : [],
+            }));
+          } catch { return []; }
         });
+        const [editingTitle, setEditingTitle] = useState(false);
+        const [titleDraft, setTitleDraft] = useState('');
+        const turns = conversation.turns;
         const [activeTab, setActiveTab] = useState('chat');
         const [pos, setPos] = useState(() => {
           try {
@@ -9258,6 +9427,10 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         const persistHistory = useCallback((next) => {
           setHistory(next);
           try { localStorage.setItem('dsh-powerup:directask:history:v1', JSON.stringify(next.slice(0, 30))); } catch { /* ignore */ }
+        }, []);
+        /** Update the current conversation's turns immutably. */
+        const updateTurns = useCallback((fn) => {
+          setConversation((cur) => ({ ...cur, turns: typeof fn === 'function' ? fn(cur.turns) : fn }));
         }, []);
 
         useEffect(() => {
@@ -9327,8 +9500,24 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           setQuestion('');
           setFiles([]);
           setCopied(false);
-          setTurns((cur) => [...cur, pending]);
+          updateTurns((cur) => [...cur, pending]);
           setActiveTab('chat');
+          // Title: first message wins if empty. Auto-generate via LLM only when
+          // the user opted in — one tiny, token-capped request.
+          if (!conversation.title) {
+            const fallback = q.slice(0, 40);
+            setConversation((cur) => ({ ...cur, title: fallback }));
+            if (settings.directAskAutoTitle) {
+              void fetch(ASK_TITLE_API, {
+                method: 'POST', headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ firstMessage: q }),
+              }).then((r) => r.json()).then((body) => {
+                if (body?.ok && typeof body.title === 'string' && body.title.trim() !== '') {
+                  setConversation((cur) => ({ ...cur, title: body.title.trim().slice(0, 60) }));
+                }
+              }).catch(() => { /* keep the fallback title */ });
+            }
+          }
           try {
             const response = await fetch(DIRECT_ASK_API, {
               method: 'POST',
@@ -9342,32 +9531,60 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             });
             const body = await response.json();
             if (!body?.ok) throw new Error(body?.error ?? `HTTP ${response.status}`);
-            setTurns((cur) => cur.map((t) => (t.id === pendingId
+            updateTurns((cur) => cur.map((t) => (t.id === pendingId
               ? { ...t, answer: typeof body.answer === 'string' ? body.answer : '', pending: false }
               : t)));
           } catch (err) {
             // Render the failure in the thread like a normal assistant reply.
-            setTurns((cur) => cur.map((t) => (t.id === pendingId
+            updateTurns((cur) => cur.map((t) => (t.id === pendingId
               ? { ...t, answer: String(err?.message ?? err), pending: false, error: true }
               : t)));
           } finally {
             setBusy(false);
           }
-        }, [question, files, turns, t]);
+        }, [question, files, turns, t, conversation.title, settings.directAskAutoTitle, updateTurns]);
+
+        const archiveCurrent = useCallback(() => {
+          if (conversation.turns.length === 0) return history;
+          const record = {
+            id: conversation.id,
+            title: conversation.title || String(conversation.turns[0]?.question ?? '').slice(0, 40),
+            at: conversation.at,
+            turns: conversation.turns,
+          };
+          return [record, ...history.filter((h) => h.id !== record.id)];
+        }, [conversation, history]);
 
         const newChat = useCallback(() => {
-          if (turns.length > 0) persistHistory([{ id: String(Date.now()), at: Date.now(), turns }, ...history]);
-          setTurns([]);
+          persistHistory(archiveCurrent());
+          setConversation({ id: `c-${Date.now()}`, title: '', turns: [], at: Date.now() });
+          setEditingTitle(false);
           setError('');
           setActiveTab('chat');
-        }, [turns, history, persistHistory]);
+        }, [archiveCurrent, persistHistory]);
 
         const openArchived = useCallback((entry) => {
-          if (turns.length > 0) persistHistory([{ id: String(Date.now()), at: Date.now(), turns }, ...history.filter((h) => h.id !== entry.id)]);
-          else persistHistory(history.filter((h) => h.id !== entry.id));
-          setTurns(Array.isArray(entry.turns) ? entry.turns : []);
+          persistHistory(archiveCurrent().filter((h) => h.id !== entry.id));
+          setConversation({
+            id: entry.id,
+            title: entry.title || String(entry.turns?.[0]?.question ?? '').slice(0, 40),
+            turns: Array.isArray(entry.turns) ? entry.turns : [],
+            at: entry.at ?? Date.now(),
+          });
+          setEditingTitle(false);
           setActiveTab('chat');
-        }, [turns, history, persistHistory]);
+        }, [archiveCurrent, persistHistory]);
+
+        const saveTitle = useCallback(() => {
+          const next = titleDraft.trim().slice(0, 60);
+          if (next !== '') {
+            setConversation((cur) => ({ ...cur, title: next }));
+            // Also update the archived copy if this conversation is in history.
+            setHistory((cur) => cur.map((h) => (h.id === conversation.id ? { ...h, title: next } : h)));
+            try { localStorage.setItem('dsh-powerup:directask:history:v1', JSON.stringify(history.map((h) => (h.id === conversation.id ? { ...h, title: next } : h)).slice(0, 30))); } catch { /* ignore */ }
+          }
+          setEditingTitle(false);
+        }, [titleDraft, conversation.id, history]);
 
         const clearHistory = useCallback(() => {
           if (typeof window !== 'undefined' && typeof window.confirm === 'function'
@@ -9417,7 +9634,27 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
               dragRef.current = { kind: 'move', x: event.clientX, y: event.clientY, px: pos.x, py: pos.y };
             },
           },
-            h('span', { className: 'dsh-powerup-directask-title' }, t('directAsk.title')),
+            editingTitle
+              ? h('input', {
+                className: 'dsh-powerup-directask-title-input',
+                value: titleDraft,
+                autoFocus: true,
+                maxLength: 60,
+                onChange: (event) => setTitleDraft(event.target.value),
+                onKeyDown: (event) => {
+                  if (event.key === 'Enter') { event.preventDefault(); saveTitle(); }
+                  else if (event.key === 'Escape') { event.preventDefault(); setEditingTitle(false); }
+                },
+                onBlur: saveTitle,
+                onPointerDown: (event) => event.stopPropagation(),
+              })
+              : h('span', { className: 'dsh-powerup-directask-title', title: conversation.title || t('directAsk.title') },
+                conversation.title || t('directAsk.title')),
+            h('button', {
+              type: 'button', className: 'dsh-powerup-directask-titlebtn',
+              title: t('directAsk.editTitle'),
+              onClick: () => { setTitleDraft(conversation.title || ''); setEditingTitle(true); },
+            }, '✎'),
             h('span', { className: 'dsh-powerup-directask-subtitle' }, t('directAsk.subtitle')),
             h('button', {
               type: 'button', className: 'dsh-powerup-directask-titlebtn',
@@ -9451,8 +9688,10 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
               : h('ul', { className: 'dsh-powerup-directask-history-list' },
                 history.map((entry) => h('li', { key: entry.id },
                   h('button', { type: 'button', onClick: () => openArchived(entry) },
-                    new Date(entry.at ?? Date.now()).toLocaleString(),
-                    ' · ', String(entry.turns?.[0]?.question ?? '').slice(0, 40),
+                    h('span', { className: 'dsh-powerup-directask-history-title' }, entry.title || t('directAsk.untitled')),
+                    h('span', { className: 'dsh-powerup-directask-history-meta' },
+                      new Date(entry.at ?? Date.now()).toLocaleString(),
+                    ),
                   ),
                 )),
               ),
@@ -9472,7 +9711,8 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
                   + (turn.pending ? ' is-pending' : '') + (turn.error ? ' is-error' : ''),
               },
                 h('div', { className: 'dsh-powerup-directask-msg-body' },
-                  turn.pending ? t('directAsk.sending') : (turn.answer || t('directAsk.noAnswer')),
+                  turn.pending ? t('directAsk.sending')
+                    : (turn.answer ? renderMarkdown(turn.answer) : t('directAsk.noAnswer')),
                 ),
                 !turn.pending && turn.answer ? h('button', {
                   type: 'button', className: 'dsh-powerup-progress-mini',
@@ -9486,7 +9726,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             h('div', { ref: bottomRef }),
           ),
           error ? h('p', { className: 'dsh-powerup-progress-error' }, error) : null,
-          h('div', { className: 'dsh-powerup-directask-composer' },
+          activeTab === 'chat' ? h('div', { className: 'dsh-powerup-directask-composer' },
             files.length > 0 ? h('div', { className: 'dsh-powerup-directask-files' },
               files.map((f, i) => h('span', { key: i, className: 'dsh-powerup-directask-file' },
                 f.name,
@@ -9522,7 +9762,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
               }, h('svg', { viewBox: '0 0 16 16', width: 16, height: 16, 'aria-hidden': 'true' },
                 h('path', { d: 'M3 8h9M8.5 4.5 12 8l-3.5 3.5', fill: 'none', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round', strokeLinejoin: 'round' }))),
             ),
-          ),
+          ) : null,
           h('div', {
             className: 'dsh-powerup-directask-resizer',
             onPointerDown: (event) => {
@@ -10262,6 +10502,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           featureCard('directAsk', TagIcon, 'page.directAskTitle', 'page.directAskDesc', 'page.directAskHow',
             h('div', { className: 'dsh-powerup-card-detail' },
               settingRow('directAsk', settings.directAsk !== false, t('page.directAskToggle'), t('page.directAskToggleHint')),
+              settingRow('directAskAutoTitle', settings.directAskAutoTitle === true, t('page.directAskAutoTitle'), t('page.directAskAutoTitleHint')),
             ),
           ),
           featureCard('workspacePrompts', TagIcon, 'page.promptsTitle', 'page.promptsDesc', 'page.promptsHow'),
@@ -10326,6 +10567,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
       const REQUIREMENTS_API = '/dsh-powerup/api/progress-requirements';
       const HISTORY_API = '/dsh-powerup/api/progress-history';
       const DIRECT_ASK_API = '/dsh-powerup/api/direct-ask';
+      const ASK_TITLE_API = '/dsh-powerup/api/ask-title';
 
       /** Module-level requirements cache: flat records [{id,title,text,workspaceId,enabled}]. */
       let requirementsCache = [];
@@ -10543,17 +10785,21 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         const t = (key, params) => translateCurrent(key, params);
         const fixedScope = typeof workspaceId !== 'string' || workspaceId === '';
         const key = fixedScope ? '' : workspaceId;
-        if (requirementCreateDraft.workspaceId !== key) {
-          requirementCreateDraft.workspaceId = key;
-          requirementCreateDraft.title = '';
-          requirementCreateDraft.text = '';
-          requirementCreateDraft.scope = fixedScope ? 'all' : 'current';
-        }
+        // Reset the draft to this session's workspace whenever the modal opens.
+        requirementCreateDraft.workspaceId = key;
+        requirementCreateDraft.title = '';
+        requirementCreateDraft.text = '';
         const [title, setTitle] = useState(requirementCreateDraft.title);
         const [text, setText] = useState(requirementCreateDraft.text);
-        const [scope, setScope] = useState(requirementCreateDraft.scope);
+        const [targetWorkspace, setTargetWorkspace] = useState(requirementCreateDraft.workspaceId ?? key);
         const [closing, setClosing] = useState(false);
         const closingRef = useRef(false);
+        const workspaces = (() => {
+          try {
+            const snapshot = ctxRef.current?.get?.('workspaces')?.list?.getSnapshot?.();
+            return Array.isArray(snapshot?.items) ? snapshot.items : [];
+          } catch { return []; }
+        })();
         const requestClose = () => {
           if (closingRef.current) return;
           closingRef.current = true;
@@ -10563,8 +10809,8 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         useEffect(() => {
           requirementCreateDraft.title = title;
           requirementCreateDraft.text = text;
-          requirementCreateDraft.scope = scope;
-        }, [title, text, scope]);
+          requirementCreateDraft.workspaceId = targetWorkspace;
+        }, [title, text, targetWorkspace]);
         useEffect(() => {
           const onKey = (event) => { if (event.key === 'Escape') { event.preventDefault(); requestClose(); } };
           document.addEventListener('keydown', onKey, true);
@@ -10577,18 +10823,19 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             id: newId(),
             title: typeof title === 'string' ? title.trim() : '',
             text: body,
-            workspaceId: scope === 'current' && typeof workspaceId === 'string' ? workspaceId : '',
+            workspaceId: typeof targetWorkspace === 'string' ? targetWorkspace : '',
             enabled: true,
           };
           saveRequirements([...requirementsCache, record]);
           requirementCreateDraft.title = '';
           requirementCreateDraft.text = '';
-          requirementCreateDraft.scope = fixedScope ? 'all' : 'current';
+          requirementCreateDraft.workspaceId = key;
           if (!closingRef.current) { closingRef.current = true; setClosing(true); }
           setTimeout(() => { try { onCreated(record); } catch { /* ignore */ } }, 140);
         };
         return renderInBody(h('div', {
           className: 'dsh-powerup-prompt-modal-mask' + (closing ? ' is-closing' : ''),
+          'data-powerup-req-modal': '',
           onPointerDown: (event) => { if (event.target === event.currentTarget) requestClose(); },
         },
           h('div', { className: 'dsh-powerup-prompt-modal' + (closing ? ' is-closing' : ''), role: 'dialog', 'aria-modal': 'true' },
@@ -10604,20 +10851,18 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
                 h('span', { className: 'dsh-powerup-prompt-field-label' }, t('prompts.titleLabel')),
                 h('input', { className: 'dsh-powerup-prompt-input', type: 'text', value: title, placeholder: t('prompts.titlePlaceholder'), onChange: (e) => setTitle(e.target.value) }),
               ),
-              !fixedScope
-                ? h('label', { className: 'dsh-powerup-prompt-field' },
-                  h('span', { className: 'dsh-powerup-prompt-field-label' }, t('prompts.workspaceLabel')),
-                  h(WorkspaceSelect, {
-                    value: scope,
-                    options: [
-                      { value: 'current', label: t('prompts.workspaceCurrent'), hint: workspaceTitle },
-                      { value: 'all', label: t('prompts.anyWorkspace') },
-                    ],
-                    onChange: setScope,
-                    t,
-                  }),
-                )
-                : null,
+              h('label', { className: 'dsh-powerup-prompt-field' },
+                h('span', { className: 'dsh-powerup-prompt-field-label' }, t('prompts.workspaceLabel')),
+                h(WorkspaceSelect, {
+                  value: targetWorkspace,
+                  options: [
+                    { value: '', label: t('prompts.anyWorkspace') },
+                    ...workspaces.map((ws) => ({ value: ws.workspaceId, label: ws.title || ws.workspaceId, hint: ws.title ? ws.workspaceId : undefined })),
+                  ],
+                  onChange: setTargetWorkspace,
+                  t,
+                }),
+              ),
               h('label', { className: 'dsh-powerup-prompt-field' },
                 h('span', { className: 'dsh-powerup-prompt-field-label' }, t('progress.reqTextLabel')),
                 h('textarea', { className: 'dsh-powerup-prompt-input dsh-powerup-prompt-textarea', value: text, placeholder: t('progress.reqPlaceholder'), onChange: (e) => setText(e.target.value) }),
@@ -10938,7 +11183,9 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
 
         const close = useCallback(() => setOpen(false), []);
 
-        // Esc and outside click close the panel.
+        // Esc and outside click close the panel. The create-requirement modal is
+        // a body portal, so treat its nodes as "inside" while it is open —
+        // otherwise every click in the modal closes the progress panel.
         useEffect(() => {
           if (!open) return undefined;
           const onKey = (event) => {
@@ -10949,6 +11196,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             const button = buttonRef.current;
             if (panel !== null && event.target instanceof Node && panel.contains(event.target)) return;
             if (button !== null && event.target instanceof Node && button.contains(event.target)) return;
+            if (creatingReq && event.target instanceof Element && event.target.closest('[data-powerup-req-modal]')) return;
             close();
           };
           document.addEventListener('keydown', onKey, true);
@@ -10957,7 +11205,7 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
             document.removeEventListener('keydown', onKey, true);
             document.removeEventListener('pointerdown', onPointer, true);
           };
-        }, [open, close]);
+        }, [open, close, creatingReq]);
 
         // Bottom-right resize handle: ordinary pointer events on the panel node.
         useEffect(() => {
@@ -11093,7 +11341,6 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
         })();
 
         const requirementsBody = h('div', { className: 'dsh-powerup-progress-req-tab' },
-          h('p', { className: 'dsh-powerup-setting-hint' }, t('progress.reqSelectHint')),
           h(RequirementPicker, {
             reqs: visibleReqs,
             selectedIds: selectedReqIds,
@@ -11366,6 +11613,8 @@ html[data-platform="darwin"] .dsh-powerup-scrolltop:hover{background:var(--dsw-s
           RequirementPicker,
           requirementForWorkspace: requirementsForWorkspace,
           DirectAskButton,
+          renderMarkdown,
+          renderInlineMarkdown,
           progressRequest,
           PROMPTS_LAST_KEY,
           promptCreateDraft,

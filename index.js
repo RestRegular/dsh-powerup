@@ -50,7 +50,7 @@ import {
 } from './lib/task-resume.js';
 import { createStepReadTool } from './lib/step-tool.js';
 import { createProgressManager } from './lib/progress-manager.js';
-import { buildAskPrompt, cleanAskText, directAsk } from './lib/direct-ask.js';
+import { buildAskPrompt, cleanAskText, directAsk, generateTitle } from './lib/direct-ask.js';
 
 /** Prefix owned by this plugin. */
 const ROUTE = '/dsh-powerup/api';
@@ -473,7 +473,7 @@ async function handle(req, res, ctx) {
 
   const url = new URL(req.url ?? ROUTE, 'http://localhost');
   const op = url.pathname.slice(ROUTE.length).replace(/^\/+/u, '') || url.searchParams.get('op') || '';
-  if (op !== '' && op !== 'restart' && op !== 'close' && op !== 'self-update' && op !== 'audit' && op !== 'job-kill' && op !== 'prompts' && op !== 'mask-rules' && op !== 'progress' && op !== 'progress-requirements' && op !== 'progress-history' && op !== 'direct-ask') {
+  if (op !== '' && op !== 'restart' && op !== 'close' && op !== 'self-update' && op !== 'audit' && op !== 'job-kill' && op !== 'prompts' && op !== 'mask-rules' && op !== 'progress' && op !== 'progress-requirements' && op !== 'progress-history' && op !== 'direct-ask' && op !== 'ask-title') {
     sendJson(res, { ok: false, error: 'not-found' }, 404);
     return;
   }
@@ -597,6 +597,46 @@ async function handle(req, res, ctx) {
       sendJson(res, { ok: true, answer: answer.text, finish: answer.finish ?? null });
     } catch (error) {
       sendJson(res, { ok: false, code: error?.code ?? 'ask-failed', error: String(error?.message ?? error) }, 500);
+    } finally {
+      clearTimeout(timer);
+    }
+    return;
+  }
+
+  if (op === 'ask-title') {
+    if (req.method !== 'POST') {
+      sendJson(res, { ok: false, error: 'method-not-allowed' }, 405);
+      return;
+    }
+    let body;
+    try {
+      body = await readJsonBody(req);
+    } catch (error) {
+      sendJson(res, { ok: false, error: String(error?.message ?? error) }, 400);
+      return;
+    }
+    const firstMessage = cleanAskText(body?.firstMessage);
+    if (firstMessage === '') {
+      sendJson(res, { ok: false, code: 'invalid-request', error: 'firstMessage is required' }, 400);
+      return;
+    }
+    const llm = ctx?.get?.('llm');
+    if (llm === null || typeof llm?.prepareCall !== 'function') {
+      sendJson(res, { ok: false, code: 'llm-unavailable', error: 'the llm service is unavailable' }, 503);
+      return;
+    }
+    const defaults = ctx?.get?.('agentDefaultModel');
+    const selection = typeof defaults?.currentSelection === 'function' ? defaults.currentSelection() : undefined;
+    const route = selection !== null && typeof selection === 'object' && typeof selection.provider === 'string'
+      ? selection : undefined;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20_000);
+    timer.unref?.();
+    try {
+      const result = await generateTitle({ llm, route, firstMessage, signal: controller.signal });
+      sendJson(res, { ok: true, title: result.title });
+    } catch (error) {
+      sendJson(res, { ok: false, code: error?.code ?? 'title-failed', error: String(error?.message ?? error) }, 500);
     } finally {
       clearTimeout(timer);
     }

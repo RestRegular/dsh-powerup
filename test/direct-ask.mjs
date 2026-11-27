@@ -3,9 +3,11 @@ import assert from 'node:assert/strict';
 import {
   DIRECT_ASK_MAX_TOKENS,
   DirectAskError,
+  TITLE_MAX_TOKENS,
   buildAskPrompt,
   cleanAskText,
   directAsk,
+  generateTitle,
 } from '../lib/direct-ask.js';
 import { generateProgress } from '../lib/progress-tool.js';
 import { createProgressManager } from '../lib/progress-manager.js';
@@ -82,6 +84,24 @@ await assert.rejects(
   directAsk({ llm: fakeLlm([]), route: {}, prompt: 'x' }),
   (error) => error instanceof DirectAskError && error.code === 'NO_ROUTE',
 );
+
+// Title generation uses a strict token cap and strips quotes.
+let titleConfig;
+const titleLlm = {
+  async prepareCall(config) {
+    titleConfig = config;
+    return {
+      config: {},
+      async *stream() {
+        yield { type: 'text-delta', text: '"如何优化插件"' };
+        yield { type: 'finish', reason: { kind: 'stop' } };
+      },
+    };
+  },
+};
+const titled = await generateTitle({ llm: titleLlm, route, firstMessage: '请问怎么优化这个插件？' });
+assert.equal(titled.title, '如何优化插件');
+assert.equal(titleConfig.maxTokens, TITLE_MAX_TOKENS, 'title call is token-capped');
 
 // --- generateProgress keeps raw text + requirements ------------------------
 const llm2 = {
